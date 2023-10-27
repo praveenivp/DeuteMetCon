@@ -76,7 +76,12 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'doCoilCombine','adapt1',@(x) any(strcmp(x,{'none','sos','adapt1','adapt2'})));
 
                     addParameter(p,'doNoiseDecorr',true,@(x) islogical(x));
+                    addParameter(p,'doPhaseCorr',true,@(x) islogical(x));
                     addParameter(p,'NormNoiseData',false,@(x) islogical(x));
+                    addParameter(p,'doAverage',true,@(x) islogical(x));
+
+
+                    addParameter(p,'doZeroPad',[1,1,1],@(x) isvector(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
                     addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=1:obj.twix.image.NRep)) );
@@ -183,9 +188,11 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             %     'Set','Seg','Ida','Idb','Idc','Idd','Ide'}
             obj.sig = obj.twix.image(:, obj.flags.CoilSel,:,:, 1,:,1,obj.flags.EchoSel,obj.flags.PCSel,1,1);
             % Sum averages (if not already done)
-            obj.sig  = sum( obj.sig ,6);
+            if(obj.flags.doAverage)
+            obj.sig  = mean( obj.sig ,6);
+            end
              %Coil x Phase x Read xSlice x echo x PC
-            obj.sig=permute(sum(obj.sig,6),[2 3 1 4  8 9 5 6 7]);
+            obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
         else
 
 
@@ -193,15 +200,21 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
         end
         end
         function performZeroPaddding(obj)
-             % zeropad data
-            zp_PRS=[1 1 1];
+            
+            if(all(obj.flags.doZeroPad==0))
+                return;
+            end
+            % zeropad data
+            zp_PRS=obj.flags.doZeroPad;
             pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3))];
             obj.sig=padarray(obj.sig,pad_size,0,'both');
         
         end
         function performPhaseCorr(obj)
+            if(obj.flags.doPhaseCorr)
             % remove phase of first echo!
             obj.img=bsxfun(@times,obj.img,exp(-1i*angle(obj.img(:,:,:,:,1,1))));
+            end
         end
 
         function performCoilCombination(obj)
