@@ -82,6 +82,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
 
                     addParameter(p,'doZeroPad',[1,1,1],@(x) isvector(x));
+                    addParameter(p,'doDenosing',0,@(x) isscalar(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
                     addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=1:obj.twix.image.NRep)) );
@@ -173,6 +174,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.performZeroPaddding();
             obj.img=myfft(obj.sig,[2 3 4]);
             obj.performCoilCombination();
+            obj.performSVDdenosing();
             obj.performPhaseCorr();
             
             print_str = sprintf( 'reco  time = %6.1f s\n', toc);
@@ -210,12 +212,29 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.sig=padarray(obj.sig,pad_size,0,'both');
         
         end
+        function performSVDdenosing(obj)
+            if(all(obj.flags.doDenosing==0))
+                return;
+            end
+            Ncomp=obj.flags.doDenosing;
+            imsz=size(obj.img);
+            mat=reshape(squeeze(obj.img),[],prod(imsz(5:end)));
+            mat_mean=mean(mat,'all','omitnan');
+            [U,S,V]=svd(mat-mat_mean,'econ');
+            S=diag(S);
+            S((Ncomp+1):end)=0;
+            S=diag(S);
+            % figure,plot(S);
+            obj.img= reshape(U*S*V',imsz)+mat_mean;
+        end
         function performPhaseCorr(obj)
             if(obj.flags.doPhaseCorr)
             % remove phase of first echo!
             obj.img=bsxfun(@times,obj.img,exp(-1i*angle(obj.img(:,:,:,:,1,1))));
             end
         end
+
+        
 
         function performCoilCombination(obj)
          
