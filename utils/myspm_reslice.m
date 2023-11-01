@@ -31,7 +31,7 @@ fprintf('reslicing %d volumes: %s\n%s\n%s\n%s\n', length(reslice_vols),reslice_v
 source={};idx=1;
 for i=1:length(reslice_vols)
     NIIinfo=niftiinfo(fullfile(reslice_vols(i).folder,reslice_vols(i).name));
-    for cv=1:NIIinfo.ImageSize(4)
+    for cv=1:NIIinfo.raw.dim(5)
         source{idx}=sprintf('%s,%d',fullfile(reslice_vols(i).folder,reslice_vols(i).name),cv);
         idx=idx+1;
     end
