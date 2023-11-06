@@ -22,7 +22,7 @@ para.pulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
      %only work for rect pulse
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
     para.PulseDur=(para.RefVoltage/para.pulseVoltage)*(0.5*45/90);
-
+    para.FrequencySystem=twix.hdr.Dicom.lFrequency;
 % get timings probably only work for VE12U
  para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s 
    tok=regexp(twix.hdr.Phoenix.tReferenceImage0,'.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d+$','tokens');

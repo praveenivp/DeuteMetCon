@@ -33,9 +33,9 @@ sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
 % volTR=kspst.lPhaseEncodingLines*kspst.lPartitions*twix.hdr.Phoenix.alTR{1}*1e-6/(R_3D*R_PE);
 
 try
-    FOV_PRS=[sa.dPhaseFOV*kspst.dPhaseResolution  sa.dReadoutFOV sa.dThickness + sa.dThickness*kspst.dSliceOversamplingForDialog]; %mm
+    FOV_PRS=[sa.dPhaseFOV  sa.dReadoutFOV sa.dThickness + sa.dThickness*kspst.dSliceOversamplingForDialog]; %mm
 catch
-    FOV_PRS=[ sa.dPhaseFOV*kspst.dPhaseResolution  sa.dReadoutFOV sa.dThickness]; %mm
+    FOV_PRS=[ sa.dPhaseFOV  sa.dReadoutFOV sa.dThickness]; %mm
 end
 
 
@@ -87,9 +87,9 @@ sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
 kspst=twix.hdr.Phoenix.sKSpace;
 
 try
-    FOV_PRS=[sa.dPhaseFOV*kspst.dPhaseResolution  sa.dReadoutFOV  sa.dThickness + sa.dThickness*kspst.dSliceOversamplingForDialog]; %mm
+    FOV_PRS=[sa.dPhaseFOV  sa.dReadoutFOV  sa.dThickness + sa.dThickness*kspst.dSliceOversamplingForDialog]; %mm
 catch
-    FOV_PRS=[ sa.dPhaseFOV*kspst.dPhaseResolution  sa.dReadoutFOV sa.dThickness]; %mm
+    FOV_PRS=[ sa.dPhaseFOV  sa.dReadoutFOV sa.dThickness]; %mm
 end
 
 if(exist('MatSize','var'))
