@@ -74,6 +74,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     p.KeepUnmatched=1;
 
                     addParameter(p,'doCoilCombine','adapt1',@(x) any(strcmp(x,{'none','sos','adapt1','adapt2'})));
+                    addParameter(p,'doKspaceFilter','none',@(x) any(strcmp(x,{'none','hann','hamm'})));
 
                     addParameter(p,'doNoiseDecorr',true,@(x) islogical(x));
                     addParameter(p,'doPhaseCorr',true,@(x) islogical(x));
@@ -82,6 +83,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
 
                     addParameter(p,'doZeroPad',[1,1,1],@(x) isvector(x));
+                    %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
@@ -170,8 +172,9 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             print_str='';
             fprintf('starting reco\n');
             obj.getSig();
-            obj.performNoiseDecorr();
+            obj.performNoiseDecorr();  
             obj.performZeroPaddding();
+            obj.performKspaceFiltering();
             obj.img=myfft(obj.sig,[2 3 4]);
             obj.performCoilCombination();
             obj.performSVDdenosing();
@@ -197,9 +200,37 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
         else
 
-
+            error('not implemented');
 
         end
+
+        
+        end
+        function performKspaceFiltering(obj)
+       
+
+            if strcmp(obj.flags.doKspaceFilter,'hann')
+            alpha = 0.5;
+            elseif strcmp(obj.flags.doKspaceFilter,'hamm')
+            alpha = 0.54;
+            else 
+                return;
+            end
+
+
+            sz=size(obj.sig);%iso tropic voxels
+
+            radius = 0.;
+            for ax=2:4
+                r = (-floor(sz(ax)/2):ceil(sz(ax)/2)-1)/floor(sz(ax)/2);
+                radius = bsxfun(@plus,radius,shiftdim(r(:).^2,1-ax));
+            end
+            radius = sqrt(radius); % *0.75; %reduce filtering
+
+ 
+            func = @(x) alpha - (1-alpha) * cos(pi*(x+1.));
+            filter=func(radius);
+            obj.sig=obj.sig.*(filter);
         end
         function performZeroPaddding(obj)
             
@@ -222,7 +253,13 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             mat_mean=mean(mat,'all','omitnan');
             [U,S,V]=svd(mat-mat_mean,'econ');
             S=diag(S);
+            if(Ncomp<0)
+           
+                figure,plot(S);
+                Ncomp=input('give Number of component to keep');
+            end
             S((Ncomp+1):end)=0;
+            
             S=diag(S);
             % figure,plot(S);
             obj.img= reshape(U*S*V',imsz)+mat_mean;
@@ -250,6 +287,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                     [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,1,:),6));
                     obj.img=(sum(obj.coilSens.*obj.img,1));
+                     obj.img=obj.img.*permute(obj.coilNormMat,[5 1 2 3 4]); %norm
                 case 'adapt2'
                     if(obj.LoopCounter.cRep==1 && ~any(obj.coilSens(:,:,:,:,obj.LoopCounter.cSlc),'all') )
                         [obj.img(1,:,:,:,obj.LoopCounter.cSlc,obj.LoopCounter.cRep), ...
@@ -272,6 +310,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             TR=obj.DMIPara.TR; %s
             PC=obj.DMIPara.PhaseCycles; %rad
            
+            if(strcmpi(obj.flags.Solver,'pinv'))
 
             tic;
             B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
@@ -300,7 +339,16 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.Experimental.residue=obj.col2mat(resi,obj.mask);
             obj.Experimental.condition=obj.col2mat(condnm(:),obj.mask);
 
-            fprintf('\n Metabolite fitting done in %d s ! \n',toc)
+            fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
+            elseif(strcmpi(obj.flags.Solver,'IDEAL'))
+
+                fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+                im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',0.*fm_meas_Hz,'solver','IDEAL','maxit',5,'mask',obj.mask);
+                obj.Metcon=obj.SolverObj'*im_me;
+
+            end
+
         end
 
         function peformB0mapReslice(obj,regfiles)
