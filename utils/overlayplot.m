@@ -27,9 +27,10 @@ imSize=size(anat_vol);
 %norm
 normat=met_vol(:,:,:,3,1); %water 1st time point
 normat(normat<prctile(normat(:),10))=prctile(normat(:),10);
-normat=1./imgaussian(normat,0);
+normat=1./imgaussian(normat,3);
  normat(normat>prctile(normat(:),80))=prctile(normat(:),80);
-%      met_vol=met_vol.*normat;
+%  normat=ndCircShift(normat,[0 -5 0],[1 2 3]);
+       met_vol=met_vol.*normat;
 
 
 
@@ -56,8 +57,8 @@ end
 
 %     
 %remove first time points?
-  met_vol(:,:,:,:,1)=[];
-nTimePoints=nTimePoints-1;
+%   met_vol(:,:,:,:,1)=[];
+% nTimePoints=nTimePoints-1;
 
 slcSel=st.SlcSel;
 anat_vol=repmat(anat_vol(:,:,slcSel),[1 1 1 nTimePoints]);

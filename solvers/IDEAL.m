@@ -52,7 +52,7 @@ classdef IDEAL < matlab.mixin.Copyable
                     obj.mask=ones(size(inp,1),size(inp,2),size(inp,3))>0;
                 end
 
-                inp= obj.performPhaseCorr(inp);
+%                 inp= obj.performPhaseCorr(inp);
                 for cPC=1:size(inp,5)
                     inp_col=reshape(obj.mat2col(inp(:,:,:,:,cPC),obj.mask),[],length(obj.TE_s));
 
