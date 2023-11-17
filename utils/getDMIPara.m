@@ -1,5 +1,8 @@
 function para=getDMIPara(twix)
 
+
+twix=twix{1};
+
 % try to keep all times in s and all angular stuff in rad
 para.isCSI= contains(twix.hdr.Phoenix.tSequenceFileName,'csi');
 
@@ -62,7 +65,7 @@ para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
 para.PulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
      %only work for rect pulse
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
-    para.PulseDur=(para.RefVoltage/para.pulseVoltage)*(0.5*45/90);
+    para.PulseDur=(para.RefVoltage/para.PulseVoltage)*(0.5*45/90);
 
 % get timings probably only work for VE12U
  para.AcquitionDuration=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s 

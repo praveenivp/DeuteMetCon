@@ -53,7 +53,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             if(iscell(obj.twix)) %VE
                 obj.DMIPara=getDMIPara(obj.twix);
                 TW1=obj.twix{1};
-                obj.twix=obj.twix{2};
+                obj.twix=obj.twix{end};
                 obj.getflags(varargin{2:end});
                 % multi-raid twix files has noise data in the first twix
                 obj.calcNoiseDecorrMatrix(TW1);

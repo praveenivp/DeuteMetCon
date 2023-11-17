@@ -3,6 +3,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         time  %[s]
 
         B0Map %spatial [rad/s]
+        mask 
 
         twix
         DMIPara
@@ -19,6 +20,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         SolverObj
         Metcon 
+        Experimental
 
         D % noise decoraltion matrix
 
@@ -52,7 +54,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             if(iscell(obj.twix)) %VE
                 obj.DMIPara=getDMIPara(obj.twix);
                 TW1=obj.twix{1};
-                obj.twix=obj.twix{2};
+                obj.twix=obj.twix{end};
                 obj.getflags(varargin{2:end});
                 % multi-raid twix files has noise data in the first twix
                 obj.calcNoiseDecorrMatrix(TW1);
@@ -83,7 +85,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     %                     addParameter(p,'doB0Corr','none',@(x) any(strcmp(x,{'none','MTI','MFI'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
-                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL'})));
+                    addParameter(p,'Solver','AMARES',@(x) any(strcmp(x,{'pinv','IDEAL','AMARES','LorentzFit'})));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
@@ -101,9 +103,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     end
                     if(isfield(p.Unmatched,'fm'))
                         obj.B0Map=p.Unmatched.fm;
-                        %                         obj.flags.doB0Corr='MTI';
                     end
-
+                    if(isfield(p.Unmatched,'mask'))
+                        obj.mask=p.Unmatched.mask;
+                    end
                     if(isfield(p.Unmatched,'metabolites'))
                         obj.metabolites=p.Unmatched.metabolites;
                     end
@@ -196,10 +199,12 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.sig = padarray(obj.sig,ceil([0,MissingVOXRead,MissingVOXPhase,MissingVOXSlice,0,0]./2),'post');
                 disp(['final CSI data size:           ', num2str(size(obj.sig))])
             else
-                zp_PRS=[1 1 1];
+                zp_PRS=obj.flags.ZeroPadSize(1:3);
                 pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3))];
             end
-            obj.sig=padarray(obj.sig,pad_size,0,'both');
+            obj.sig=padarray(obj.sig,pad_size,0,'both'); % spatial zeropad
+            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.ZeroPadSize(4))],0,'post'); % spectral zerpoad
+            
         
         end
         function performPhaseCorr(obj)
@@ -286,6 +291,90 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             else
                 error('Needs spm for reslicing/registration')
+            end
+        end
+
+
+
+        function getMask(obj,thres_prctl)
+            if(nargin==1)
+                thres_prctl=95;
+            end
+            im_abs=abs(squeeze(sum(obj.img,5)));
+            obj.mask=im_abs>0.1*prctile(im_abs(:),thres_prctl);  
+ 
+            obj.mask=imerode(obj.mask,strel('sphere',2));
+            obj.mask=imdilate(obj.mask,strel('sphere',3));
+
+        end
+        function performMetcon(obj,amares_struct,pk)
+
+            fids=MetCon_CSI.mat2col(permute(obj.img,[2 3 4 5 1]),obj.mask);
+            nMet=3;
+            if(strcmpi(obj.flags.Solver,'AMARES'))
+                wbhandle = waitbar(0,'Performing AMARES fitting');
+                metabol_con=zeros(size(fids,1),nMet*3+3);
+                %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
+
+                for i=1:size(fids,1)
+                    %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
+                    waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
+                    [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0);
+                    metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
+
+                end
+                close(wbhandle);
+
+                % convert to 3D matrix and give resonable names
+                metabol_con=MetCon_CSI.col2mat(metabol_con,obj.mask);
+
+                obj.Experimental.chemicalshift=metabol_con(:,:,:,((1:nMet)+nMet*(1-1))); %chemical shift ppm
+                obj.Metcon=metabol_con(:,:,:,((1:nMet)+nMet*(2-1)));  %amplitudes
+                obj.Experimental.linewisth=metabol_con(:,:,:,((1:nMet)+nMet*(3-1)));
+                obj.Experimental.phase=metabol_con(:,:,:,((1)+nMet*(4-1))); %phase
+                obj.Experimental.relativeNorm=metabol_con(:,:,:,((2)+nMet*(4-1)));
+                obj.Experimental.resNormSq=metabol_con(:,:,:,((3)+nMet*(4-1)));
+
+            elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
+                dw=obj.DMIPara.dwell*2;
+                faxis=linspace(-0.5/dw,0.5/dw,size(obj.img,5));
+                freq=[-148.7 -54.79 7.82]'; %Hz
+                % nlorentz fitting
+
+                % make the fitting faster by limiting the range +-200 Hz
+cd                [~,minIdx]=min(abs(faxis-(min(freq)-200)));
+                [~,maxIdx]=min(abs(faxis-(min(freq)+200)));
+                freqSel=minIdx:maxIdx; %1:length(faxis)
+
+                xdata=faxis(freqSel);
+                spectrum_All=fftshift(fft(fids,[],2),2);
+                spectrum_All=spectrum_All(:,freqSel);
+
+                wbhandle = waitbar(0,'Performing nLorentzian fitting');
+                metabol_con=zeros(size(spectrum_All,1),nMet);
+                rSQ=zeros(size(spectrum_All,1),1);
+                sRMSE=zeros(size(spectrum_All,1),1);
+                %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
+                
+                for i=1:size(spectrum_All,1)
+                    %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
+                    waitbar(i/size(fids,1),wbhandle,'Performing nLorentzian fitting');
+
+                    [fitf,gof,fitoptions]=NLorentzFit(xdata(:),abs(spectrum_All(i,:).'),freq);
+                    metabol_con(i,:)= [fitf.A1; fitf.A2; fitf.A3;];
+
+                    rSQ(i)=gof.adjrsquare;
+                    sRMSE(i)=gof.rmse;
+
+                end
+                close(wbhandle);
+
+                % convert to 3D matrix and give resonable names
+                obj.Metcon=MetCon_CSI.col2mat(metabol_con,obj.mask);
+                obj.Experimental.rSQ=MetCon_CSI.col2mat(rSQ,obj.mask);
+                obj.Experimental.sRMSE=MetCon_CSI.col2mat(sRMSE,obj.mask);
+
+
             end
         end
 
