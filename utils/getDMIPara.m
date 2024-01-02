@@ -1,7 +1,10 @@
 function para=getDMIPara(twix)
 
-
+if(iscell(twix))
 twix=twix{1};
+end
+
+
 
 % try to keep all times in s and all angular stuff in rad
 para.isCSI= contains(twix.hdr.Phoenix.tSequenceFileName,'csi');
@@ -48,7 +51,14 @@ para.FreqAxis=linspace(-0.5/CSI_DwellTime,0.5/CSI_DwellTime,(CSI_VectorSize));
 
     % treat all time axis as echo dimension
 EchoSel=1:twix.hdr.Phoenix.sSpecPara.lVectorSize;
-para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9;
+% take rmos flag into account
+if(twix.image.NCol == size(twix.image(:,:,1),1)) 
+para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
+else %'rmos' flag active
+para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9*2; %s
+end
+
+
 % para.PCSel=1:twix.image.NRep;
 para.TE=linspace(0,para.dwell*EchoSel(end-1),EchoSel(end)); %s
 para.TE=para.TE+twix.hdr.Phoenix.alTE{1}*1e-6; %s

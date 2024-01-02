@@ -81,7 +81,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
                     addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=1:obj.twix.image.NRep)) );
-                    addParameter(p,'EchoSel',1:obj.twix.hdr.Phoenix.sSpecPara.lVectorSize, @(x) (isvector(x)&& all(x<=obj.twix.hdr.Phoenix.sSpecPara.lVectorSize)) );
+                    addParameter(p,'EchoSel',1:obj.twix.hdr.MeasYaps.sSpecPara.lVectorSize, @(x) (isvector(x)&& all(x<=obj.twix.hdr.MeasYaps.sSpecPara.lVectorSize)) );
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     addParameter(p,'doPhaseCorr','none',@(x) any(strcmp(x,{'none','Manual','Burg'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
@@ -140,7 +140,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function calcNoiseDecorrMatrix(obj,twix)
             if isfield(twix,'noise')
                 noise                = permute(twix.noise(:,obj.flags.CoilSel,:),[2,1,3]);
-                noise                = noise(:,:).';
+                noise                = noise(:,:)';
                 R                    = cov(noise);
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(obj.flags.NormNoiseData)
@@ -219,7 +219,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             elseif (strcmpi(obj.flags.doPhaseCorr,'Burg')) 
                 fprintf('Starting Phase Correction using Burg method \n')
                 %use extrapolation
-                dw=obj.DMIPara.dwell*2; % s
+                dw=obj.DMIPara.dwell; % s
                 %  Acqdelay=mcobj.twix.hdr.MeasYaps.alTE{1}*1e-6; %s
                 Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
                 ext_size=round(Acqdelay/dw);
@@ -229,7 +229,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.img=obj.img.*exp(-1i*phi0);
                 fprintf('Done .... \n')
             elseif (strcmpi(obj.flags.doPhaseCorr,'manual')) 
-                dw=obj.DMIPara.dwell*2; % s
+                dw=obj.DMIPara.dwell; % s
                 n=size(size(obj.img,5));
                 faxis=(-n/2:(n/2-1) )*(1/(dw*n));
                 obj.img=fftshift(fft(obj.img,[],5),5);
@@ -366,7 +366,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 wbhandle = waitbar(0,'Performing AMARES fitting');
 
 
-                            DW= obj.DMIPara.dwell*2;
+                            DW= obj.DMIPara.dwell;
             BW=1/DW; %Hz
             samples=size(obj.img,5);
             timeAxis=0:DW:(samples-1)*DW;
@@ -398,10 +398,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 metabol_con=zeros(size(fids,1),nMet*3+3);
                 %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
 
-                for i=1:size(fids,1)
+                parfor i=1:size(fids,1)
                     %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
-                    waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
-                    [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0);
+%                     waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
+                    [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
                     metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
 
                 end
@@ -418,7 +418,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.resNormSq=metabol_con(:,:,:,((3)+nMet*(4-1)));
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
-                dw=obj.DMIPara.dwell*2;
+                dw=obj.DMIPara.dwell;
                 faxis=linspace(-0.5/dw,0.5/dw,size(obj.img,5));
 %                 freq=[-148.7 -54.79 7.82]'; %Hz
                 % nlorentz fitting
@@ -469,14 +469,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             fid=padarray(fid,[size(fid,1) 0],0,'post');
             fprintf('Performing Nlorentz fit\n')
            
-            dw=obj.DMIPara.dwell*2;
+            dw=obj.DMIPara.dwell;
             faxis=linspace(-0.5/dw,0.5/dw,length(fid));
             [~,minIdx]=min(abs(faxis-(min(freq)-200)));
             [~,maxIdx]=min(abs(faxis-(max(freq)+200)));
             freqSel=minIdx:maxIdx; %1:length(faxis)
 
             xdata=faxis(freqSel);
-            spect=-1*real(fftshift(fft(fid*exp(-1i*rad2deg(42.94)))));
+            spect=1*abs(fftshift(fft(fid*exp(-1i*rad2deg(42.94)))));
             [fitf,gof,fitoptions]=NLorentzFit(xdata(:),spect(freqSel),freq);
             figure(34),clf,plot(xdata,spect(freqSel));
             hold on
@@ -485,7 +485,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             fprintf('Performing AMARES fit\n')
 
 
-            DW= obj.DMIPara.dwell*2;
+            DW= obj.DMIPara.dwell;
             BW=1/DW; %Hz
             timeAxis=0:DW:(length(fid)-1)*DW;
             imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
@@ -517,7 +517,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
 
-            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid), amares_struct, pk, 0);
+            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid), amares_struct, pk, 0,'quiet',true);
 
             taxis=0:dw:dw*(size(fid,1)-1);
             sig1=zeros(size(taxis));
@@ -559,13 +559,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             flags=obj.flags;
 
-            OutFile=sprintf('m%d_B0%s_DCF%s.mat',obj.twix.hdr.Config.MeasUID,obj.flags.doB0Corr,obj.flags.doDCF);
-            sp=obj.SpiralPara;
+            OutFile=sprintf('m%d_B0%s_PhaseC%s.mat',obj.twix.hdr.Config.MeasUID,obj.flags.doMet,obj.flags.doPhaseCorr);
+            sp=obj.DMIPara;
             fn=obj.filename;
-            ro=(2*sp.ADCLength*sp.DwellTime)/1e6; % ms
-            vTR=(sp.TR*sp.Ninterleaves*sp.NPartitions)/(sp.R_PE*sp.R_3D*1e6); %s
-            descrip=(sprintf('R%dx%dC%d TR=%.1fms RO=%.2fms vTR=%.1fs',sp.R_PE,sp.R_3D,sp.CAIPIShift,sp.TR/1e3,ro,vTR));
-            descrip_reco=sprintf('%s PAT=%s coilcomb=%s B0=%s DCF=%s CompMode=%s',flags.CompMode,flags.doPAT, flags.doCoilCombine, flags.doB0Corr,flags.doDCF,flags.CompMode);
+%             ro=(2*sp.ADCLength*sp.DwellTime)/1e6; % ms
+%             vTR=(sp.TR*sp.Ninterleaves*sp.NPartitions)/(sp.R_PE*sp.R_3D*1e6); %s
+% %             descrip=(sprintf('R%dx%dC%d TR=%.1fms RO=%.2fms vTR=%.1fs',sp.R_PE,sp.R_3D,sp.CAIPIShift,sp.TR/1e3,ro,vTR));
+%             descrip_reco=sprintf('%s PAT=%s coilcomb=%s B0=%s DCF=%s CompMode=%s',flags.CompMode,flags.doPAT, flags.doCoilCombine, flags.doB0Corr,flags.doDCF,flags.CompMode);
             save(OutFile,'im','sp','flags','descrip','descrip_reco','fn','-v7.3')
 
 

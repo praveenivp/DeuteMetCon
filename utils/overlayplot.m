@@ -2,14 +2,22 @@ function [cb,cax]=overlayplot(anat,metabol,varargin)
 
 % metabol : cell array of filenames
 %S{tra,timepoints}
-nTimePoints=size(metabol,2);
+
 
 %tra
-anat_vol=double(niftiread(anat{1}));
+anat_vol=double(niftiread(fullfile(anat(1).folder,anat(1).name)));
+
+if(isstruct(metabol))
 met_vol=[];
-for i=1:size(metabol,2)
-met_vol=cat(5,met_vol,niftiread(metabol{1,i}));
+for i=1:length(metabol)
+met_vol=cat(5,met_vol, ...
+    niftiread(fullfile(metabol(i).folder,metabol(i).name)));
 end
+else
+    met_vol=metabol;
+    
+end
+nTimePoints=size(met_vol,5);
 
 st=Parseinput(anat_vol,varargin{:});
 
@@ -21,16 +29,19 @@ imSize=size(anat_vol);
 % 5 slice average to improve noise 
 % met_vol=met_vol+circshift(met_vol,1,3)++circshift(met_vol,-1,3)...
 %     +circshift(met_vol,2,3)+circshift(met_vol,-2,3);
-  met_vol=met_vol.*5;
+%   met_vol=met_vol.*5;
 % met_vol=met_vol+circshift(met_vol,1,3)++circshift(met_vol,-1,3);%...
 %     +circshift(met_vol,2,3)+circshift(met_vol,-2,3);
+if(st.norm)
 %norm
 normat=met_vol(:,:,:,3,1); %water 1st time point
 normat(normat<prctile(normat(:),10))=prctile(normat(:),10);
-normat=1./imgaussian(normat,3);
- normat(normat>prctile(normat(:),80))=prctile(normat(:),80);
+ normat=1./(normat);
+%  normat(normat>prctile(normat(:),80))=prctile(normat(:),80);
 %  normat=ndCircShift(normat,[0 -5 0],[1 2 3]);
-       met_vol=met_vol.*normat;
+        met_vol=met_vol.*normat;
+end
+
 
 
 
@@ -101,7 +112,12 @@ end
 mask2=anat_vol>0.1;
  h2=image(gca,ind2rgb(uint16((2^8)*(met_vol./max(cax(2)))),jet),'AlphaData',double(mask2).*0.4);
 
+
+ if(st.colorbar)
 cb=colorbar;
+ else
+     cb=[];
+ end
 
 
 
@@ -117,7 +133,7 @@ function st=Parseinput(im,varargin)
 
     p=inputParser;
     p.KeepUnmatched=1;
-    addParameter(p,'cax',[],@(x) isvector(x));
+    addParameter(p,'cax',[],@(x) isvector(x)||isempty(x));
     addParameter(p,'SlcSel',floor(0.1*Nslc):ceil(0.9*Nslc),@(x) isvector(x));
     addParameter(p,'caxis_im',[0,2.5e-4],@(x) isvector(x));
     addParameter(p,'alpha_blobs',0.95,@(x) isscalar(x));
@@ -126,7 +142,7 @@ function st=Parseinput(im,varargin)
     addParameter(p,'transform',@(x)x);
     addParameter(p,'title_im','',@(x) ischar(x))
     addParameter(p,'title_im_format',{'Interpreter','latex','FontSize',18,'FontWeight','bold','Color',[1 1 1]},@(x) iscell(x))
-    addParameter(p,'negBold',false,@(x)islogical(x))
+    addParameter(p,'norm',false,@(x)islogical(x))
     addParameter(p,'colorbar',false,@(x)islogical(x))
     addParameter(p,'prctile',90,@(x)isscalar(x))
     addParameter(p,'MetIdx',1,@(x)isscalar(x))
