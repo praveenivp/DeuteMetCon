@@ -320,7 +320,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
             [Msig_all]=bSSFP_sim_analytical(obj.metabolites,TE(EchoSel),PC(PhSel),TR,B0,FA);
             Msig_all=bsxfun(@times,Msig_all,exp(-1i*angle(Msig_all(:,:,1,:,:,:,:,:,:,:))));
-            metabol_con=zeros(size(im1,1),3);
+            metabol_con=zeros(size(im1,1),length(obj.metabolites));
             resi=zeros(size(im1));
             condnm=zeros(size(im1,1),1);
             
