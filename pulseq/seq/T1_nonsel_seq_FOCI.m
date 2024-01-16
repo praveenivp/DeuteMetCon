@@ -18,9 +18,9 @@ TR= 2500e-3; %[s]
 % Nrep: 15 , Nav: 8, 5.0 min
 TI_array=[ 10:10:30 50:25:200 250:200:600 700:300:1000 1500]*1e-3; %[s]
 
-%      TI_array=[10]*1e-3; %[s]
+%       TI_array=[10]*1e-3; %[s]
 
-Nav=16;
+Nav=8;
 wait_s=0;
 dummy_scans=0;
 Nrep=length(TI_array);
@@ -32,7 +32,7 @@ getBlockPulseVoltage =@(fa_deg,dur_s) (RefVoltage*1e-3/dur_s)*(fa_deg/180);
 if(getBlockPulseVoltage(rad2deg(FA),pulse_dur)>400)
     warning('max pulse exceeded: %.1f V > %d ',getBlockPulseVoltage(rad2deg(FA),pulse_dur),400)
 else
-    fprintf('Pulse Voltage= %.1f V ,bandwidth= %.1f Hz\n',getBlockPulseVoltage(rad2deg(FA),pulse_dur),1/pulse_dur)
+    fprintf('Pulse Voltage= %.1f V ,bandwidth= %.1f Hz\n',getBlockPulseVoltage(rad2deg(FA),pulse_dur),1/pulse_dur);
 end
 
 system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
@@ -85,7 +85,7 @@ for rep=1:Nrep
 
 
         if(i>dummy_scans)
-            adc = mr.makeAdc(Nx,'Duration',dwell_s*Nx, 'system', system,'delay',system.adcDeadTime,'phaseOffset',rand_phase);
+            adc = mr.makeAdc(Nx,'Duration',dwell_s*Nx, 'system', system,'phaseOffset',rand_phase);
             seq.addBlock(adc);
         else
             seq.addBlock(mr.makeDelay(mr.calcDuration(adc)))

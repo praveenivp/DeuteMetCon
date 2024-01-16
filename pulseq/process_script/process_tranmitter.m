@@ -14,6 +14,7 @@ st.repetitions=seq.getDefinition('repetitions');
 dirst=dir('*transmitter*.dat');
 st.filename=dirst(end).name %load last file
 twix=mapVBVD(st.filename);
+twix=twix{end};
 data=twix.image{''};
   data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
 Spectrum=squeeze(sos(myfft(data,1),[2 3]));

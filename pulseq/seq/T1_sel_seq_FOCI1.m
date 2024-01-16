@@ -15,7 +15,9 @@ TR= 2500e-3; %[s]
 % 10 mins with 8 averages TR 2.5 s
 %  TI_array=[20:15:280 300:50:600 700:250:1500 2000]*1e-3; %[s]
 % 5 mins with 8 averages TR 2.5s
-  TI_array=[ 20:20:280 300:100:600 700:300:1000]*1e-3; %[s]
+%   TI_array=[ 20:20:280 300:100:600 700:300:1000]*1e-3; %[s]
+
+    TI_array=[ 20]*1e-3; %[s]
 
 % TI_array=[ 15:30:90 ]*1e-3; %[s]
 Nav=8;
@@ -125,6 +127,7 @@ fprintf('Nrep: %d , Nav: %d, %.1f min \n',Nrep,Nav,seq.duration/60)
 
 
 seq.plot()
+%%
 pn='\\mrz10\upload9t\USERS\Praveen\20230920_xpulseq';
 pulseqFileName=sprintf('%s_%dmin.seq','T1_sel_FOCI_2H',round(seq.duration/60));
  delete(pulseqFileName);

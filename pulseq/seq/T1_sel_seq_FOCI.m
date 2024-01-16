@@ -1,13 +1,15 @@
 %% Load FOCI pulse
-load('S:\Deuterium\20230920_xpulseq\foci.mat')
+[pn,~]=fileparts(which('T1_nonsel_seq_FOCI.m'));
+load(fullfile(pn,'foci.mat'));
+% data=[0 0;data];
 taxis2=0:1e-3:5.2-1e-3;
- data2=interp1(taxis,data,taxis2,"linear",0);
-addpath(genpath('C:\Users\pvalsala\Documents\Packages2\pulseq\matlab'));
+data2=interp1(taxis,data,taxis2,"linear",0);
+% addpath(genpath('C:\Users\pvalsala\Documents\Packages2\pulseq\matlab'));
 %% input parameters
-Nx=512+256;
+Nx=512;
 
 FA=pi/2;
-pulse_dur=2e-3;
+pulse_dur=1.2e-3;
 dwell_s=250e-6; %[s]
 
 TR= 2500e-3; %[s]
@@ -15,18 +17,17 @@ TR= 2500e-3; %[s]
 % 10 mins with 8 averages TR 2.5 s
 %  TI_array=[20:15:280 300:50:600 700:250:1500 2000]*1e-3; %[s]
 % 5 mins with 8 averages TR 2.5s
- TI_array=[ 15:15:280 300:100:600 700:300:1000]*1e-3; %[s]
-
-% TI_array=[ 15:30:90 ]*1e-3; %[s]
+%  TI_array=[ 15:15:280 300:100:600 700:300:1000]*1e-3; %[s]
+  TI_array=[ 10:10:30 50:25:200 250:200:600 700:300:1000 1500]*1e-3; %[s]%  
+%  TI_array=[ 10 ]*1e-3; %[s]
 Nav=8;
 wait_s=0;
 dummy_scans=0;
 Nrep=length(TI_array);
 
 
-
 system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
-                 'adcDeadTime', 200e-6,'maxSlew',170,'slewUnit','T/m/s','maxGrad',40,'GradUnit','mT/m','gamma',6.536e6,'B0',9.4);
+    'adcDeadTime', 100e-6,'maxSlew',160,'slewUnit','T/m/s','maxGrad',32,'GradUnit','mT/m','gamma',6.536e6,'B0',9.4);
 
 seq=mr.Sequence(system);              % Create a new sequence object
 
@@ -35,11 +36,10 @@ seq=mr.Sequence(system);              % Create a new sequence object
 [rf, gz, gzReph] = mr.makeSincPulse(FA, 'Duration', pulse_dur,...
     'SliceThickness', 50e-3,'timeBwProduct', 2, ...
     'system' ,system);
-TE=pulse_dur/2+mr.calcDuration(gzReph)+1e-3; %[s]
 %
-crusherx=mr.makeTrapezoid('x','amplitude',20e-3*system.gamma,'duration',2e-3);
-crushery=mr.makeTrapezoid('y','amplitude',20e-3*system.gamma,'duration',2e-3);
-crusherz=mr.makeTrapezoid('z','amplitude',20e-3*system.gamma,'duration',2e-3);
+crusherx=mr.makeTrapezoid('x','amplitude',15e-3*system.gamma,'duration',5e-3,'system',system);
+crushery=mr.makeTrapezoid('y','amplitude',15e-3*system.gamma,'duration',5e-3,'system',system);
+crusherz=mr.makeTrapezoid('z','amplitude',15e-3*system.gamma,'duration',5e-3,'system',system);
 % rf_foci = mr.makeAdiabaticPulse('hypsec');
 
 rf_foci=mr.makeArbitraryRf(data2(:,1).*exp(1i*2*pi*data2(:,2)),pi,...
@@ -49,11 +49,10 @@ rf_foci=mr.makeArbitraryRf(data2(:,1).*exp(1i*2*pi*data2(:,2)),pi,...
 adc = mr.makeAdc(Nx,'Duration',dwell_s*Nx, 'system', system,'delay',system.adcDeadTime);
 
 %
-spoilerx=mr.makeTrapezoid('x','amplitude',20e-3*system.gamma,'duration',10e-3);
-spoilery=mr.makeTrapezoid('y','amplitude',20e-3*system.gamma,'duration',10e-3);
-spoilerz=mr.makeTrapezoid('z','amplitude',20e-3*system.gamma,'duration',10e-3);
+spoilerx=mr.makeTrapezoid('x','amplitude',20e-3*system.gamma,'duration',10e-3,'system',system);
+spoilery=mr.makeTrapezoid('y','amplitude',20e-3*system.gamma,'duration',10e-3,'system',system);
+spoilerz=mr.makeTrapezoid('z','amplitude',20e-3*system.gamma,'duration',10e-3,'system',system);
 %
-assert(TE>mr.calcDuration(rf)/2);
 assert(TR >= (mr.calcDuration(adc)+mr.calcDuration(spoilerx)));
 
 time_until_exc= TI_array(1)-mr.calcDuration(rf_foci)/2 -mr.calcDuration(rf)/2-mr.calcDuration(crusherx);
@@ -68,7 +67,7 @@ for rep=1:Nrep
 
         % inversion block
         seq.addBlock(crusherx,crushery,crusherz);
-        time_until_exc= TI_array(rep)-mr.calcDuration(rf_foci)/2 -mr.calcDuration(rf)/2-mr.calcDuration(crusherx);
+        time_until_exc= TI_array(rep)-mr.calcDuration(gz)/2-mr.calcDuration(crusherx);
         seq.addBlock(mr.makeDelay(time_until_exc));
 
 
@@ -78,20 +77,21 @@ for rep=1:Nrep
          seq.addBlock(rf, gz);
          seq.addBlock(gzReph);
 
-%         seq.addBlock(rf);
-        time_until_adc= TE-mr.calcDuration(rf)/2-mr.calcDuration(gzReph);
+        time_until_adc= system.adcDeadTime+system.rfRingdownTime;
         seq.addBlock(mr.makeDelay(time_until_adc));
-
 
         if(i>dummy_scans)
             seq.addBlock(adc);
         else
             seq.addBlock(mr.makeDelay(mr.calcDuration(adc)))
         end
+        
+         seq.addBlock(spoilerx,spoilery,spoilerz);
         % fill the rest of TR
-        TR_fill= TR- (mr.calcDuration(rf_foci)/2+TI_array(rep)+ ...
-            TE+mr.calcDuration(adc)+mr.calcDuration(spoilerx));
-        seq.addBlock(spoilerx,spoilery,spoilerz);
+        TR_fill= TR- (mr.calcDuration(rf_foci)+TI_array(rep)+ ...
+            +mr.calcDuration(gz)/2+mr.calcDuration(gzReph)+time_until_adc...
+            +mr.calcDuration(adc)+mr.calcDuration(spoilerx));
+       
         seq.addBlock(mr.makeDelay(TR_fill));
     end
     % inter rep delay
@@ -112,6 +112,7 @@ end
 seq.setDefinition('Name', 'T1_sel_FOCI');
 seq.setDefinition('dwell', dwell_s);
 seq.setDefinition('TR',TR);
+seq.setDefinition('time_until_adc',round(time_until_adc+mr.calcDuration(gz)/2,5));
 seq.setDefinition('TI_array',TI_array);
 seq.setDefinition('rf_dur',2e-3);
 seq.setDefinition('averages',Nav);

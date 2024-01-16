@@ -1,50 +1,58 @@
 % add path
 addpath(genpath('C:\Users\pvalsala\Documents\Packages2\pulseq\matlab'));
 %% input parameters
-Nx=512+256;
+Nx=512;
 
 FA=pi/2;
-pulse_dur=2e-3;
+pulse_dur=1e-3;
 dwell_s=250e-6; %[s]
-TE=pulse_dur/2+100e-6; %[s]
 TR= 2500e-3; %[s]
 
 % 10 mins with 8 averages TR 2.5 s
 % TI_array=[20:15:280 300:50:600 700:250:1500 2000]*1e-3; %[s]
 % 6 mins with 8 averages TR 2.5s
-TE_array=[ 12:5:40 50:50:300 400:100:800 ]*1e-3; %[s]
+TE_array=[ 10:5:20 20:10:40 50:50:300 400:150:800 ]*1e-3; %[s]
 
-Nav=8;
+% TE_array=10e-3;
+
+Nav=16;
 wait_s=0;
 dummy_scans=0;
 Nrep=length(TE_array);
 
-
+% check pulse clippling
+RefVoltage=500; %[V]
+getBlockPulseVoltage =@(fa_deg,dur_s) (RefVoltage*1e-3/dur_s)*(fa_deg/180);
+if(getBlockPulseVoltage(rad2deg(FA),pulse_dur)>380)
+    warning('max pulse exceeded: %.1f V > %d ',getBlockPulseVoltage(rad2deg(FA),pulse_dur),380)
+else
+    fprintf('Pulse Voltage= %.1f V ,bandwidth= %.1f Hz\n',getBlockPulseVoltage(rad2deg(FA),pulse_dur),1/pulse_dur);
+end
 
 system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
-                 'adcDeadTime', 200e-6,'maxSlew',170,'slewUnit','T/m/s','maxGrad',40,'GradUnit','mT/m','gamma',6.536e6,'B0',9.4);
+    'adcDeadTime', 100e-6,'maxSlew',160,'slewUnit','T/m/s','maxGrad',32,'GradUnit','mT/m','gamma',6.536e6,'B0',9.4);
 
 seq=mr.Sequence(system);              % Create a new sequence object
 
 % Create non-selective pulse 
 rf = mr.makeBlockPulse(FA,'Duration',pulse_dur, 'system', system);
 %
-crusherx=mr.makeTrapezoid('x','amplitude',10e-3*system.gamma,'duration',2e-3);
-crushery=mr.makeTrapezoid('y','amplitude',10e-3*system.gamma,'duration',2e-3);
-crusherz=mr.makeTrapezoid('z','amplitude',10e-3*system.gamma,'duration',2e-3);
+crusherx=mr.makeTrapezoid('x','amplitude',15e-3*system.gamma,'duration',2e-3);
+crushery=mr.makeTrapezoid('y','amplitude',15e-3*system.gamma,'duration',2e-3);
+crusherz=mr.makeTrapezoid('z','amplitude',15e-3*system.gamma,'duration',2e-3);
 % rf_foci = mr.makeAdiabaticPulse('hypsec');
 
 rf_ref=mr.makeBlockPulse(FA*2,'Duration',pulse_dur*2, 'system', system,'phaseOffset',pi/2);
 
 % Define delays and ADC events
-adc = mr.makeAdc(Nx,'Duration',dwell_s*Nx, 'system', system,'delay',system.adcDeadTime);
+adc = mr.makeAdc(Nx,'Duration',dwell_s*Nx, 'system', system);
 
 %
-spoilerx=mr.makeTrapezoid('x','amplitude',20e-3*system.gamma,'duration',5e-3);
-spoilery=mr.makeTrapezoid('y','amplitude',20e-3*system.gamma,'duration',5e-3);
-spoilerz=mr.makeTrapezoid('z','amplitude',20e-3*system.gamma,'duration',5e-3);
+spoilerx=mr.makeTrapezoid('x','amplitude',20e-3*system.gamma,'duration',20e-3);
+spoilery=mr.makeTrapezoid('y','amplitude',20e-3*system.gamma,'duration',20e-3);
+spoilerz=mr.makeTrapezoid('z','amplitude',20e-3*system.gamma,'duration',20e-3);
 %
- assert(TE_array(1)>mr.calcDuration(rf_ref)+mr.calcDuration(spoilerx)+mr.calcDuration(rf)/2 );
+ assert(TE_array(1)>mr.calcDuration(rf_ref)+mr.calcDuration(crusherx)*2+mr.calcDuration(rf)/2 );
  assert(TR >= (mr.calcDuration(adc)+mr.calcDuration(spoilerx)));
 
 
@@ -83,10 +91,10 @@ for rep=1:Nrep
         else
             seq.addBlock(mr.makeDelay(mr.calcDuration(adc)))
         end
-        % fill the rest of TR
-        TR_fill= TR- (mr.calcDuration(rf)/2 + TE_array(rep)*2+ ...
-          mr.calcDuration(adc)+mr.calcDuration(spoilerx));
         seq.addBlock(spoilerx,spoilery,spoilerz);
+        % fill the rest of TR
+        TR_fill= TR- (mr.calcDuration(rf)/2 + TE_array(rep)+ ...
+          mr.calcDuration(adc)+mr.calcDuration(spoilerx));
         seq.addBlock(mr.makeDelay(TR_fill));
     end
     % inter rep delay
