@@ -4,7 +4,7 @@ NormNoiseData=false;
 % CoilSel
           if isfield(twix,'noise')
                 noise                = permute(twix.noise(:,:,:),[2,1,3]);
-                noise                = noise(:,:).';
+                noise                = noise(:,:)';
                 R                    = cov(noise);
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(NormNoiseData)
@@ -23,7 +23,7 @@ NormNoiseData=false;
 %if we have 0 flipangle data
                     if isfield(twix,'image')
                 noise                = permute(twix.image.unsorted,[2,1,3:12]);
-                noise                = noise(:,:).';
+                noise                = noise(:,:)';
                 R                    = cov(noise);
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(NormNoiseData)

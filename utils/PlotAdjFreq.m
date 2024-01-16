@@ -14,6 +14,7 @@ elseif(isfolder(filename))
 end
 % GammaH2=6.536e6 ; %Hz/T
 sp_t=mapVBVD(filename);
+sp_t=sp_t{end};
 data=mean(sp_t.image{''},[ 3 4 5 6 7]);
 
 data=padarray(data,[size(data,1)*2 0 0],0,'post'); %zeropadding
@@ -28,7 +29,9 @@ faxis=linspace(-0.5/header.dwell,0.5/header.dwell,length(Spectrum));
 % ,plot(faxis,spectrum,'LineWidth',1.5),xlabel('Frequency(Hz)'),title('sos Spectrum');
 
 header.FA=sp_t.hdr.Phoenix.adFlipAngleDegree{1};
+try
 header.pulseVoltage=sp_t.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
+end
 %only work for rect pulse
 %     header.ref_vol=sp_t.hdr.Spice.TransmitterReferenceAmplitude;
 %     header.pulse_dur=(ref_vol/pulseVoltage)*(0.5*FA_All/90);
