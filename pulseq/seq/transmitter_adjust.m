@@ -1,29 +1,23 @@
-%% Load FOCI pulse
+
 % addpath(genpath('C:\Users\pvalsala\Documents\Packages2\pulseq\matlab'));
-[pn,~]=fileparts(which('T1_nonsel_seq_FOCI.m'));
-load(fullfile(pn,'foci.mat'));
-% data=[0 0;data];
-taxis2=0:1e-3:5.2-1e-3;
-data2=interp1(taxis,data,taxis2,"linear",0);
+
 %% input parameters
 Nx=512;
 
-FA=pi/2;
-pulse_dur=1.e-3;
+
+pulse_dur=1.4e-3;
 dwell_s=250e-6; %[s]
 TR= 2500e-3; %[s]
 
-% 10 mins with 8 averages TR 2.5 s
-%  TI_array=[20:15:280 300:50:600 700:250:1500 2000]*1e-3; %[s]
-% Nrep: 15 , Nav: 8, 5.0 min
-TI_array=[ 10:10:30 50:25:200 250:200:600 700:300:1000 1500]*1e-3; %[s]
+
 
 %       TI_array=[10]*1e-3; %[s]
-
-Nav=16;
+fa_array=linspace(0.3,1.2,20)*pi;
+FA=max(fa_array);
+Nav=1;
 wait_s=0;
 dummy_scans=0;
-Nrep=length(TI_array);
+Nrep=length(fa_array);
 
 
 % check pulse clippling
@@ -69,16 +63,11 @@ assert(time_until_exc>10e-6);
 
 for rep=1:Nrep
     for i=1:(Nav+dummy_scans)
-        seq.addBlock(rf_foci);
 
-        % inversion block
-        seq.addBlock(crusherx,crushery,crusherz);
-        time_until_exc= TI_array(rep) -mr.calcDuration(rf)/2-mr.calcDuration(crusherx);
-        seq.addBlock(mr.makeDelay(time_until_exc));
 
 
    
-        rf = mr.makeBlockPulse(FA,'Duration',pulse_dur, 'system', system,'phaseOffset', 0);
+        rf = mr.makeBlockPulse(fa_array(rep),'Duration',pulse_dur, 'system', system,'phaseOffset', 0);
         seq.addBlock(rf);
         time_until_adc= system.adcDeadTime+system.rfRingdownTime; %TE-mr.calcDuration(rf)/2;
         seq.addBlock(mr.makeDelay(time_until_adc));
@@ -93,8 +82,7 @@ for rep=1:Nrep
 
         seq.addBlock(spoilerx,spoilery,spoilerz);
         % fill the rest of TR
-        TR_fill= TR- (mr.calcDuration(rf_foci)+TI_array(rep)+ ...
-            +mr.calcDuration(rf)/2+ time_until_adc+mr.calcDuration(adc)+mr.calcDuration(spoilerx));
+        TR_fill= TR- (mr.calcDuration(rf)/2+ time_until_adc+mr.calcDuration(adc)+mr.calcDuration(spoilerx));
         seq.addBlock(mr.makeDelay(round(TR_fill,5)));
     end
     %     % inter rep delay
@@ -115,8 +103,8 @@ end
 seq.setDefinition('Name', 'T1_nonsel_inv');
 seq.setDefinition('dwell', dwell_s);
 seq.setDefinition('TR',TR);
-seq.setDefinition('TI_array',TI_array);
 seq.setDefinition('rf_dur',pulse_dur);
+seq.setDefinition('fa_array',fa_array);
 seq.setDefinition('averages',Nav);
 seq.setDefinition('repetitions',Nrep);
 seq.setDefinition('MeasurementTime',seq.duration)
@@ -129,6 +117,6 @@ fprintf('Nrep: %d , Nav: %d, %.1f min \n',Nrep,Nav,seq.duration/60)
 
 seq.plot()
 pn='\\mrz10\upload9t\USERS\Praveen\20230920_xpulseq';
-pulseqFileName=sprintf('%s_%dmin.seq','T1_nonsel_FOCI_2H',round(seq.duration/60))
+pulseqFileName=sprintf('%s_%dmin.seq','trans_adjust_2H',round(seq.duration/60))
 delete(fullfile(pn,pulseqFileName));
 seq.write(fullfile(pn,pulseqFileName))       % Write to pulseq file

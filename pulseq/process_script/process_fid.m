@@ -1,8 +1,10 @@
+% cd('X:\mrdata\echtdata\studies\48\experiments\DDRM-T4EU\TWIX')
+dirst=dir('allData#S94Tuebingen#F21926#M371#D220622#T083957#rpfid.dat');
+st.filename=dirst(end).name; %load last file
 
-dirst=dir('allData#S94Tuebingen#F52182#M1025#D220523#T113251#rpfid-T1.dat');
-st.filename=dirst(end).name %load last file
-st.dwell_s=twix.hdr.MeasYaps.sRXSPEC.alDwellTime{1}*1e-9;
 twix=mapVBVD(st.filename);
+twix=twix{end};
+st.dwell_s=twix.hdr.MeasYaps.sRXSPEC.alDwellTime{1}*1e-9;
 data=twix.image{''};
   data=reshape(data,size(data,1),size(data,2),[]);
   data=padarray(data,[4*size(data,1),0,0,0],0,'post');
@@ -77,8 +79,18 @@ end
 % Combine later?
 %  CSI = sum(bsxfun (@times,CSI_Data_Filtered,permute(CoilWeights,[1 3 2])),3);
 
-fids=data_Combined;
+fids=padarray(data_Combined,512,0,'post');;
 faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,length(fids));
 
-figure,plot(faxis(:),abs(myfft(fids(:))))
+spec=myfft(fids(:)).*exp(-1i*(-2.8262+faxis(:).*3.02)); %adjxfre
+% spec=myfft(fids(:)).*exp(-1i*(2.948492395922335+faxis(:).*2.013002364066194));
+ spec=myfft(fids(:)).*exp(-1i*(2.859369200075816+faxis(:).*3.015366430260047));
+
+figure,plot(Hz2ppm      (faxis(:)),(real(spec)),'LineWidth',2)
+set(gca,'XDir','reverse')
+ xlim([0 8])
+ xlabel('frequency [ppm]'),ylabel('amp [a.u]')
+ title('2H spectrum before glucose intake')
+fontsize(gcf,'scale',1.5)
+set(gcf,'color','w')
 %%

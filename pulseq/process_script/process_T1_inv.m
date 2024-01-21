@@ -3,7 +3,7 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-seq.read('T1_sel_FOCI_2H_10min.seq')
+seq.read('T1_sel_FOCI_2H_5min.seq')
 
 st.dwell_s=seq.getDefinition('dwell');
 st.TI_array=seq.getDefinition('TI_array');
@@ -11,7 +11,7 @@ st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-dirst=dir('meas_MID00217_FID04078_T1_sel_iso_10mins.dat');
+dirst=dir('meas_MID00325_FID04998_pulseq_T1_5min0phase.dat');
 st.filename=dirst(end).name; %load last file
 twix=mapVBVD(st.filename);
 twix=twix{end};
@@ -65,9 +65,9 @@ data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
 
 % noise decorr
 % addpath(genpath('C:\Users\pvalsala\Documents\Packages2\DeuteMetCon'));
-twix_noise=mapVBVD('meas_MID00059_FID03976_pvrh_Noise.dat');
-twix_noise=twix_noise{end};
-[D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
+% twix_noise=mapVBVD('meas_MID00059_FID03976_pvrh_Noise.dat');
+% twix_noise=twix_noise{end};
+% [D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
 
 data=permute(data,[2 1 4 3]);
 data_whiten=reshape(D_noise*data(:,:),size(data));
@@ -76,10 +76,11 @@ data_whiten=permute(data_whiten,[2 1 3 4]).*exp(1i*-1.1);
 
                 Acqdelay=st.rf_dur/2+120e-6; %s
                 ext_size=round(Acqdelay/st.dwell_s);
-                 [data_whiten] = fidExtrp(data_whiten,ext_size);
+%                  [data_whiten] = fidExtrp(data_whiten,ext_size);
 
 
 %% Combine coil data
+data_whiten=mean(data_whiten,4);
 DataSize=size(data_whiten);
 %we already noise decorrelated data!
 wsvdOption.noiseCov         =0.5*eye(DataSize(2));

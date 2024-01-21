@@ -3,15 +3,15 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-seq.read('transmitter.seq')
+seq.read('trans_adjust_2H_1min.seq')
 
 st.dwell_s=seq.getDefinition('dwell');
-st.fa_array=seq.getDefinition('fa');
+st.fa_array=seq.getDefinition('fa_array');
 st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-dirst=dir('*transmitter*.dat');
+dirst=dir('meas_MID00358_FID05021_pulseq_trans.dat');
 st.filename=dirst(end).name %load last file
 twix=mapVBVD(st.filename);
 twix=twix{end};
