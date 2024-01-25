@@ -1,9 +1,17 @@
 %% load sequence file
+sn='/ptmp/pvalsala/deuterium/EAZW-GUMK/TWIX/';
+
+addpath(genpath('/ptmp/pvalsala/MATLAB'))
+addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
+addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
+%%
+
+
 system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-seq.read('T1_sel_FOCI_2H_5min.seq')
+seq.read(fullfile(sn,'../EXPDATA/pulseq/T1_nonsel_FOCI_2H_10min.seq'))
 
 st.dwell_s=seq.getDefinition('dwell');
 st.TI_array=seq.getDefinition('TI_array');
@@ -11,10 +19,10 @@ st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-dirst=dir('meas_MID00325_FID04998_pulseq_T1_5min0phase.dat');
+dirst=dir(fullfile(sn,'*pulseq_T1_invFOCI_10mins*.dat'));
 st.filename=dirst(end).name; %load last file
-twix=mapVBVD(st.filename);
-twix=twix{end};
+twix=mapVBVD(fullfile(sn,st.filename));
+if(iscell(twix)), twix=twix{end}; end
 data=twix.image{''};
   data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
   data=padarray(data,[2*size(data,1),0,0,0],0,'post');
@@ -26,60 +34,29 @@ st.RefVoltage= twix.hdr.Spice.TransmitterReferenceAmplitude;
 
 faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,length(Spectrum));
 
-
-figure
-    subplot(121),plot(faxis,Spectrum),xlabel('Freq [Hz]'),title(st.filename,'Interpreter','none');
-    xlim([-200 200])
-    subplot(122)
-%     plot(st.TR_array*1e3,max(Spectrum,[],1)),xlabel('TR [ms]')
-% subplot(122),plot(rad2deg(st.fa_array),max(Spectrum,[],1))
-%
-lcolour='r'; typ='max';
-% Set up fittype and options.
-        ft = fittype( 'a*(1-exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
-        opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
-        opts.Display = 'Off';
-        opts.Robust = 'LAR';
-        opts.StartPoint = [1 0.4 0];
-        opts.Lower = [-Inf 0 -Inf];
-        opts.Upper = [Inf 2 Inf];
-        % Fit model to data.
-        [fitresult, gof] = fit( st.TI_array,col(max(Spectrum,[],1)) , ft, opts );
-    
-        plot(st.TI_array,max(Spectrum,[],1),[lcolour,'.'])
-        hold on
-        plot(st.TI_array,fitresult(st.TI_array),lcolour),
-        lege{1,1}=sprintf('%s , T1= %.2f ms',typ,fitresult.b);
-        lege{2,1}=sprintf('%.1d*(1-exp(-x/%.2f))+%.1d',fitresult.a,fitresult.b,fitresult.c);
-        disp(fitresult)
-
-           xlabel('TR(ms)')
-    title('D20')
-    legend(lege{:},'Location','southeast')
-
-   %% AMARES
+   %% coil combination
 
 data=twix.image{''};
 data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
 
 
 % noise decorr
-% addpath(genpath('C:\Users\pvalsala\Documents\Packages2\DeuteMetCon'));
-% twix_noise=mapVBVD('meas_MID00059_FID03976_pvrh_Noise.dat');
-% twix_noise=twix_noise{end};
-% [D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
+dirst=dir(fullfile(sn,'*noise*.dat'));
+ twix_noise=mapVBVD(fullfile(dirst(1).folder,dirst(1).name));
+ if(iscell(twix_noise)), twix_noise=twix_noise{end}; end
+ [D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
 
 data=permute(data,[2 1 4 3]);
-data_whiten=reshape(D_noise*data(:,:),size(data));
+data_whiten=reshape(D_image*data(:,:),size(data));
 % data_whiten=mean(data_whiten(:,:,:,1),4);
-data_whiten=permute(data_whiten,[2 1 3 4]).*exp(1i*-1.1);
+data_whiten=permute(data_whiten,[2 1 3 4]);%.*exp(1i*-1.1);
 
-                Acqdelay=st.rf_dur/2+120e-6; %s
-                ext_size=round(Acqdelay/st.dwell_s);
-%                  [data_whiten] = fidExtrp(data_whiten,ext_size);
+%                 Acqdelay=st.rf_dur/2+330e-6; %s
+%                 ext_size=round(Acqdelay/st.dwell_s);
+%                 [data_whiten] = fidExtrp(data_whiten,ext_size);
 
 
-%% Combine coil data
+% Combine coil data
 data_whiten=mean(data_whiten,4);
 DataSize=size(data_whiten);
 %we already noise decorrelated data!
@@ -93,118 +70,72 @@ for rep=1:size(data_whiten,3)
     data_Combined(:,rep)=wsvdCombination;
     wsvdQuality_all(rep)=wsvdQuality;
 end
-% Combine later?
-%  CSI = sum(bsxfun (@times,CSI_Data_Filtered,permute(CoilWeights,[1 3 2])),3);
 
-fids=data_Combined;
-faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,length(fids));
-%%
+%% phase correction
+Acqdelay=seq.getBlock(5).blockDuration+seq.getBlock(4).rf.shape_dur/2+seq.getBlock(4).rf.ringdownTime; %s
 
-% do first order phase corr
-
-%  Acqdelay=mcobj.twix.hdr.MeasYaps.alTE{1}*1e-6; %s
-                Acqdelay=st.rf_dur/2+200e-6; %s
-                ext_size=round(Acqdelay/st.dwell_s);
-
-                [data_Combined] = fidExtrp(data_Combined,ext_size);
-               phi0=1; %obj.flags.phaseoffset(1);
-                data_Combined=data_Combined*exp(-1i*phi0);
-Spectrum=squeeze(fftshift(fft(data_Combined,[],1),1));
-%manual
-
-% Spectrum=squeeze(fftshift(fft(data_Combined,[],1),1));
-% faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,length(Spectrum));
-% phi0=1; %obj.flags.phaseoffset(1);
-% phi1=0.004637;
-% Spectrum=Spectrum.*exp(-1i*(phi0+faxis(:).*phi1));
-
-
-st.Cfreq=twix.hdr.Dicom.lFrequency; %Hz
-
-figure(3),clf,plot(faxis,real(Spectrum),'LineWidth',1.5)
-xlim([-300 300]),xlabel('frequency [Hz]')
-legend(strsplit(sprintf('TE= %.1f ms\n',st.TI_array*1e3),'\n'))
-set(gca,'ColorOrder',linspecer(size(Spectrum,2)));
-fontsize(gcf,0.5,'centimeters')
-fids=ifft(ifftshift(Spectrum,1),[],1);
+ext_size=round(Acqdelay/st.dwell_s)+1;
+                 [data_Combined2] = fidExtrp(data_Combined,ext_size);
 
 
 
 
-%%
+ spec1=squeeze(fftshift(fft(data_Combined2,[],1),1));
+
+ faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,size(spec1,1));
+
+  [phi0]=CalcZerothPhase(faxis,spec1,1000);
+spec2=1*spec1.*exp(1i*(median(phi0)+faxis(:).*12e-4));
+disp(rad2deg(median(phi0)))
 
 
-DW= st.dwell_s;
-BW=1/DW; %Hz
-samples=size(fids,1);
-timeAxis=0:DW:(samples-1)*DW;
-imagingFrequency=twix.hdr.Dicom.lFrequency*1e-6;
-offset=0;
-ppmAxis=linspace(-BW/2,BW/2-BW/samples,samples)/imagingFrequency;
-nMet=4;
-freq=[1 -70 -157 -215 ];
-peakName={'water','Glu','Glx','Lactate'};
-chemShift=freq./imagingFrequency;
-phase=ones(nMet,1).*0;
-amplitude=[4 1 1 1];
-linewidth=[8 8  8 8];
+%  Nlorentz fit
+freq=[3 -49  -140 -198];
+fitf=cell(size(spec2,2),1);
+gof=cell(size(spec2,2),1);
+figure(58),clf,hold on
+amp_all=zeros(length(st.TI_array),length(freq));
+FWHM_all=zeros(length(st.TI_array),length(freq));
+for crep=1:15
+[fitf{crep},fitf{crep},foptions]=NLorentzFit(faxis,real(spec2(:,crep)),freq);
 
-amares_struct=struct('chemShift',chemShift, ...
-    'phase', phase,...
-    'amplitude', amplitude,...
-    'linewidth',linewidth, ...
-    'imagingFrequency', imagingFrequency,...
-    'BW', BW,...
-    'timeAxis', timeAxis(:), ...
-    'dwellTime', DW,...
-    'ppmAxis',ppmAxis(:), ...
-    'beginTime',0, ...
-    'offset',offset,...
-    'samples',samples, ...
-    'peakName',{peakName});
-
-pk=PriorKnowledge_DMI(amares_struct);
-
-
-metabol_con=zeros(size(fids,2),nMet*3+3);
-%             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
-amp_all=[];ph_all=[];
-for i=1:size(fids,2)
-    %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
-    %                     waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
-    [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit((double(fids(:,i))), amares_struct, pk, 1);%,'quiet',true);
-    metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
-    amp_all=[amp_all; fitResults.amplitude];
-    ph_all=[ph_all; fitResults.phase(1)];
-     pause(1);
+ amp_all(crep,:)=[fitf{crep}.A1 fitf{crep}.A2 fitf{crep}.A3 fitf{crep}.A4];
+  FWHM_all(crep,:)=[fitf{crep}.gamma1 fitf{crep}.gamma2 fitf{crep}.gamma3 fitf{crep}.gamma4];
+ plot(faxis,real(spec2(:,crep)))
+ xlim([-500 500])
+ plot(faxis,fitf{crep}(faxis))
 end
 
-
-figure,plot(st.TI_array,amp_all(:,2:4))
-
+save(fullfile(sn,'../proc/T1T2/T1_fit.mat'),'fitf','gof','foptions','st')
 %%
 
-figure,
+figure(12),clf
 
-
-subplot(2,4,[1 2 5 6])
-,plot(faxis,real(Spectrum),'LineWidth',1.5)
-xlim([-300 300]),xlabel('frequency [Hz]')
-legend(strsplit(sprintf('TE= %.1f ms\n',st.TI_array*1e3),'\n'))
-set(gca,'ColorOrder',linspecer(size(Spectrum,2)));
-
+tt=tiledlayout(2,4,'Padding','compact','TileSpacing','compact');
+nexttile(tt,1,[2 2])
+hold on
+for crep=1:length(fitf)
+plot(faxis,fitf{crep}(faxis))
+end
+plot(faxis,real(spec2),'.','LineWidth',1.5)
+ xlim([-300 200]),xlabel('frequency [Hz]')
+ legend(strsplit(sprintf('TI= %.1f ms\n',st.TI_array*1e3),'\n'))
+   set(gca,'ColorOrder',jet(size(Spectrum,2)));
+peakName={'water','Glc','Glx','lactate/lipids'};
+title('Global T1 : inversion recovery')
+grid on
 
 plt_id=[3 4, 7 8];
-for i=1:nMet
-    subplot(2,4,plt_id(i));
+for i=1:length(freq)
+    nexttile(tt,plt_id(i));
 
 
-    lcolour='r'; typ='AMARES';
+    lcolour='r'; typ='Lorentz';
     % Set up fittype and options.
-    ft = fittype( 'a*(1-exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
+    ft = fittype( 'a*(1-2*exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
     opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
     opts.Display = 'Off';
-    opts.Robust = 'LAR';
+    opts.Robust = 'Off';
     opts.StartPoint = [1 0.1e3 0];
     opts.Lower = [-Inf 0 -Inf];
     opts.Upper = [Inf 2e3 Inf];
@@ -214,18 +145,19 @@ for i=1:nMet
     plot(st.TI_array*1e3,amp_all(:,i),[lcolour,'.'])
     hold on
     plot(st.TI_array*1e3,fitresult(st.TI_array*1e3),lcolour),
-    lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
-    lege{2,1}=sprintf('%.1d*(1-exp(-x/%.2f))+%.1d',fitresult.a,fitresult.b,fitresult.c);
+    lege{1,1}=sprintf('%s , T1= %.2f ms',typ,fitresult.b);
+    lege{2,1}=sprintf('%.1f*(1-2*exp(-x/%.2f))+%.1f',fitresult.a,fitresult.b,fitresult.c);
     disp(fitresult)
 
-    xlabel('TE [ms]')
+    xlabel('TI [ms]')
     title(peakName{i})
-    legend(lege{:},'Location','northeast')
-
+    legend(lege{:},'Location','southeast')
+       grid on
 
 end
-fontsize(gcf,"scale",1.4)
-
+fontsize(gcf,"scale",1.3)
+set(gcf,'color','w')
+savefig(fullfile(sn,'../proc/T1T2/T1_final.fig'))
 %% picked
 spectrum=abs(fftshift(fft(data_Combined,2048,1)));
 faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,length(spectrum));

@@ -35,7 +35,7 @@ if(isvector(fids))
 end
 
 fidSz=size(fids);
-fids=reshape(fids,[],fidSz(end)).';
+fids=reshape(fids,[],fidSz(end));
 
 fid_extrap=zeros([size(fids) 2]);
 for i=1:size(fids,2)
@@ -78,6 +78,6 @@ for i=1:size(fids,2)
     end
 end
 fid_extrap=fid_extrap(:,:,1)+1i*fid_extrap(:,:,2);
-fid_extrap=reshape(fid_extrap.',fidSz);
+fid_extrap=reshape(fid_extrap,fidSz);
 
 end
