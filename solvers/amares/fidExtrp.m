@@ -7,6 +7,7 @@ function [fid_extrap] = fidExtrp(fids,ext_size)
 %       [fid_extrap] = fidExtrp(fid,ext_size)
 % where:
 %              fid - original FID signal;
+%                  [Time x other dims]    
 %         ext_size - number of points to be predicted. This depends from
 %                    acquisition duration, vector size and delay time of
 %                    the CSI-FID sequence;
@@ -30,12 +31,9 @@ function [fid_extrap] = fidExtrp(fids,ext_size)
 % support multidim
 %--------------------------------------------------------------------------
 
-if(isvector(fids))
-    fids=fids.';
-end
 
 fidSz=size(fids);
-fids=reshape(fids,[],fidSz(end)).';
+fids=reshape(fids,fidSz(1),[]);
 
 fid_extrap=zeros([size(fids) 2]);
 for i=1:size(fids,2)
@@ -78,6 +76,6 @@ for i=1:size(fids,2)
     end
 end
 fid_extrap=fid_extrap(:,:,1)+1i*fid_extrap(:,:,2);
-fid_extrap=reshape(fid_extrap.',fidSz);
+fid_extrap=reshape(fid_extrap,fidSz);
 
 end

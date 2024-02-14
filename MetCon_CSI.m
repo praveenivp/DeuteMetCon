@@ -87,6 +87,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     addParameter(p,'doPhaseCorr','none',@(x) any(strcmp(x,{'none','Manual','Burg'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
+                    %-1 for debug
+                    addParameter(p,'doDenosing',0,@(x) isscalar(x));
                     addParameter(p,'Solver','AMARES',@(x) any(strcmp(x,{'pinv','IDEAL','AMARES','LorentzFit'})));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
@@ -172,7 +174,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.img=myfft(obj.sig,[2 3 4]).*sqrt(numel(obj.sig));%./(sqrt(sum(obj.sig(:)>0)./numel(obj.sig))*sqrt((1685+667+252+49)./(1685)));
             obj.performCoilCombination();
             obj.performPhaseCorr();
-            
+            obj.performSVDdenosing();
             print_str = sprintf( 'reco  time = %6.1f s\n', toc);
             fprintf(print_str);
 
@@ -232,7 +234,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
                 ext_size=round(Acqdelay/dw);
 
-                [obj.img] = fidExtrp(obj.img,ext_size);
+                [obj.img] = fidExtrp(permute(obj.img,[5 1 2 3 4]),ext_size);
+                obj.img=ipermute(obj.img,[5 1 2 3 4]);
                 phi0=obj.flags.phaseoffset(1);
                 obj.img=obj.img.*exp(-1i*phi0);
                 fprintf('Done .... \n')
@@ -269,7 +272,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     
                     %% Combine coil data
                     CSI_DataSize=size(obj.img);
-                    %we already noise decorrelated data!
+                    %we already have noise decorrelated data!
                     CSI_wsvdOption.noiseCov         =0.5*eye(CSI_DataSize(1));
                     CSI_Data=reshape(obj.img,size(obj.img,1),[],size(obj.img,5));
                     CSI_Data=permute(CSI_Data,[2 3 1]);
@@ -291,12 +294,34 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         end
 
+        function performSVDdenosing(obj)
+            if(all(obj.flags.doDenosing==0))
+                return;
+            end
+            Ncomp=obj.flags.doDenosing;
+            imsz=size(obj.img);
+            mat=reshape(squeeze(obj.img),[],prod(imsz(5:end)));
+            mat_mean=mean(mat,'all','omitnan');
+            [U,S,V]=svd(mat-mat_mean,'econ');
+            S=diag(S);
+            if(Ncomp<0)
+
+                figure,plot(S);
+                Ncomp=input('give Number of component to keep');
+            end
+            S((Ncomp+1):end)=0;
+
+            S=diag(S);
+            % figure,plot(S);
+            obj.img= reshape(U*S*V',imsz)+mat_mean;
+        end
+
 
         function performMetaboliteMapping(obj)
             obj.SolverObj=LeastSquares(obj.metabolites,obj.DMIPara.TE,'fm',obj.B0Map);
             obj.Metcon=obj.SolverObj'*squeeze(obj.img);
-            
-        
+
+
         end
 
         function peformB0mapReslice(obj,regfiles)
@@ -392,7 +417,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 'ppmAxis',ppmAxis(:), ...
                 'beginTime',0, ...
                 'offset',offset,...
-                'samples',samples);
+                'samples',samples, ...
+                'peakName',["water","Glc","Glx","Lac"]);
 
             pk=PriorKnowledge_DMI(amares_struct);
 
