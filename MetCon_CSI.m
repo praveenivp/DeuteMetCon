@@ -46,6 +46,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     [fn, pathname, ~] = uigetfile(strcat(path,'\*.dat'), 'Pick a DATA file');
                     obj.filename=fullfile(pathname,fn);
                     obj.twix = mapVBVD(obj.filename, 'rmos');
+                else 
+                    error('wrong input or file not found')
                 end
 
 
@@ -113,7 +115,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                    if(isfield(p.Unmatched,'phaseoffset'))
                         obj.flags.phaseoffset=p.Unmatched.phaseoffset;
                    else
-                        Acqdelay=mcobj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
+                        Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
                         obj.flags.phaseoffet=[0 2*pi*Acqdelay];
                     end
 
@@ -145,10 +147,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(obj.flags.NormNoiseData)
                     R= R./mean(abs(diag(R)));
-                    obj.D               = sqrtm(inv(R)).';
+                    obj.D               = sqrtm(inv(R));
                 else
                     scale_factor=1; %dwell time are the same
-                    Rinv = inv(chol(R,'lower')).';
+                    Rinv = inv(chol(R,'lower'));
                     obj.D = Rinv*sqrt(2)*sqrt(scale_factor);
 
                 end
@@ -166,7 +168,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.performNoiseDecorr();
             
             obj.performZeroPaddding();
-            obj.img=myfft(obj.sig,[2 3 4]);
+            %scale
+            obj.img=myfft(obj.sig,[2 3 4]).*sqrt(numel(obj.sig));%./(sqrt(sum(obj.sig(:)>0)./numel(obj.sig))*sqrt((1685+667+252+49)./(1685)));
             obj.performCoilCombination();
             obj.performPhaseCorr();
             
@@ -178,6 +181,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         function getSig(obj)
             obj.sig = obj.twix.image(obj.flags.EchoSel,obj.flags.CoilSel,:,:,:,:,:,:,:,:,:,:,:,:,:);
+            % scale factor for SNR units reco : step 1
+            obj.sig=obj.sig./(sqrt(2*sum(abs(obj.sig(:))>0)));
+
             % Sum averages (if not already done)
             obj.sig  = sum( obj.sig ,6);
 
@@ -192,26 +198,28 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.sig  = padarray( obj.sig ,[0,MissingVOXLIN,MissingVOXSEG,MissingVOXPAR,0,0],'post');
         end
         function performZeroPaddding(obj)
-            % zeropad data
+
+            disp(['initial CSI data size:           ', num2str(size(obj.sig))])
+            % additional zeropadding data
             if(isempty(obj.flags.ZeroPadSize))
                 pad_size=[0 0 0 0];
+                % add missing voxels to keep center voxels to the center
                 sSpecPara=obj.twix.hdr.MeasYaps.sSpecPara;
                 % Add missing voxels
                 MissingVOXRead  = double(sSpecPara.lFinalMatrixSizeRead-size(obj.sig,2));
                 MissingVOXPhase = double(sSpecPara.lFinalMatrixSizePhase-size(obj.sig,3));
                 MissingVOXSlice = double(sSpecPara.lFinalMatrixSizeSlice-size(obj.sig,4));
-                disp(['initial CSI data size:           ', num2str(size(obj.sig))])
                 obj.sig= padarray(obj.sig,floor([0,MissingVOXRead,MissingVOXPhase,MissingVOXSlice,0,0]./2),'pre');
                 obj.sig = padarray(obj.sig,ceil([0,MissingVOXRead,MissingVOXPhase,MissingVOXSlice,0,0]./2),'post');
-                disp(['final CSI data size:           ', num2str(size(obj.sig))])
+
             else
                 zp_PRS=obj.flags.ZeroPadSize(1:3);
                 pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3))];
             end
             obj.sig=padarray(obj.sig,pad_size,0,'both'); % spatial zeropad
-            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.ZeroPadSize(4))],0,'post'); % spectral zerpoad
-            
-        
+            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*pad_size(4))],0,'post'); % spectral zerpoad
+
+            disp(['final CSI data size:           ', num2str(size(obj.sig))])
         end
         function performPhaseCorr(obj)
             if(strcmpi(obj.flags.doPhaseCorr,'none'))
@@ -356,12 +364,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             fids=MetCon_CSI.mat2col(permute(obj.img,[2 3 4 5 1]),obj.mask);
             nMet=3;
             if(strcmpi(obj.flags.Solver,'AMARES'))
-
-
-
-
-
-
 
                 wbhandle = waitbar(0,'Performing AMARES fitting');
 

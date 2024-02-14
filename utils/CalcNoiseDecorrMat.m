@@ -9,10 +9,10 @@ NormNoiseData=false;
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(NormNoiseData)
                     R= R./mean(abs(diag(R)));
-                    D_noise               = sqrtm(inv(R)).';
+                    D_noise               = sqrtm(inv(R));
                 else
                     scale_factor=1; %dwell time are the same
-                    Rinv = inv(chol(R,'lower')).';
+                    Rinv = inv(chol(R,'lower'));
                     D_noise = Rinv*sqrt(2)*sqrt(scale_factor);
 
                 end
@@ -28,10 +28,10 @@ NormNoiseData=false;
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(NormNoiseData)
                     R= R./mean(abs(diag(R)));
-                    D_image               = sqrtm(inv(R)).';
+                    D_image               = sqrtm(inv(R));
                 else
                     scale_factor=1; %dwell time are the same
-                    Rinv = inv(chol(R,'lower')).';
+                    Rinv = inv(chol(R,'lower'));
                     D_image = Rinv*sqrt(2)*sqrt(scale_factor);
 
                 end

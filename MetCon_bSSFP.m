@@ -3,7 +3,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
         time  %[s]
 
         FieldMap %spatial [rad/s]
-        mask 
+        mask
 
         twix
         DMIPara
@@ -16,10 +16,10 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
         img % reconstructed image [CHAxCOLxLINxPARxSLCxREP]
         coilSens %%[CHAxCOLxLINxPARxSLC]
         coilNormMat %%[COLxLINxPARxSLC]
-        
+
         SolverObj
-        Metcon 
-      
+        Metcon
+
         Experimental
         D % noise decoraltion matrix
 
@@ -149,20 +149,20 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
         function calcNoiseDecorrMatrix(obj,twix)
             if (isfield(twix,'noise') &&  isempty(obj.D))
                 noise                = permute(twix.noise(:,obj.flags.CoilSel,:),[2,1,3]);
-                noise                = noise(:,:).';
+                noise                = noise(:,:)';
                 R                    = cov(noise);
                 R(eye(size(R,1))==1) = abs(diag(R));
                 if(obj.flags.NormNoiseData)
                     R= R./mean(abs(diag(R)));
-                    obj.D               = sqrtm(inv(R)).';
+                    obj.D               = sqrtm(inv(R));
                 else
                     scale_factor=1; %dwell time are the same
-                    Rinv = inv(chol(R,'lower')).';
+                    Rinv = inv(chol(R,'lower'));
                     obj.D = Rinv*sqrt(2)*sqrt(scale_factor);
 
                 end
-            else
-               warning('no Noise data');
+            elseif(isempty(obj.D))
+                warning('no Noise data');
                 obj.D = 1;
             end
         end
@@ -172,48 +172,48 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             print_str='';
             fprintf('starting reco\n');
             obj.getSig();
-            obj.performNoiseDecorr();  
+            obj.performNoiseDecorr();
             obj.performZeroPaddding();
             obj.performKspaceFiltering();
-            obj.img=myfft(obj.sig,[2 3 4]);
+%             obj.sig=obj.sig;
+            obj.img=myfft(obj.sig,[2 3 4]).*sqrt(numel(obj.sig));
             obj.performCoilCombination();
             obj.performSVDdenosing();
             obj.performPhaseCorr();
-            
+
             print_str = sprintf( 'reco  time = %6.1f s\n', toc);
             fprintf(print_str);
 
-            
+
         end
 
         function getSig(obj)
-            
-        if(~obj.DMIPara.isCSI)
-                                    %             {'Col','Cha','Lin','Par','Sli','Ave','Phs','Eco','Rep',
-            %     'Set','Seg','Ida','Idb','Idc','Idd','Ide'}
-            obj.sig = obj.twix.image(:, obj.flags.CoilSel,:,:, 1,:,1,obj.flags.EchoSel,obj.flags.PCSel,1,1);
-            % Sum averages (if not already done)
-            if(obj.flags.doAverage)
-            obj.sig  = mean( obj.sig ,6);
-            end
-             %Coil x Phase x Read xSlice x echo x PC
-            obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
-        else
+                %             {'Col','Cha','Lin','Par','Sli','Ave','Phs','Eco','Rep',
+                %     'Set','Seg','Ida','Idb','Idc','Idd','Ide'}
+                obj.sig = obj.twix.image(:, obj.flags.CoilSel,:,:, 1,:,1,obj.flags.EchoSel,obj.flags.PCSel,1,1);
+                % SNR scaling for unit SD : part 1
+                
+                obj.sig=obj.sig./(sqrt(2*sum(abs(obj.sig(:))>0)));
+                % Sum averages (if not already done)
+                if(obj.flags.doAverage)
+                    obj.sig  = sum(obj.sig,6);
+                end
+                
 
-            error('not implemented');
+                %Coil x Phase x Read xSlice x echo x PC
+                obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
 
-        end
 
-        
+
         end
         function performKspaceFiltering(obj)
-       
+
 
             if strcmp(obj.flags.doKspaceFilter,'hann')
-            alpha = 0.5;
+                alpha = 0.5;
             elseif strcmp(obj.flags.doKspaceFilter,'hamm')
-            alpha = 0.54;
-            else 
+                alpha = 0.54;
+            else
                 return;
             end
 
@@ -227,13 +227,13 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
             radius = sqrt(radius); % *0.75; %reduce filtering
 
- 
+
             func = @(x) alpha - (1-alpha) * cos(pi*(x+1.));
             filter=func(radius);
             obj.sig=obj.sig.*(filter);
         end
         function performZeroPaddding(obj)
-            
+
             if(all(obj.flags.doZeroPad==0))
                 return;
             end
@@ -241,7 +241,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             zp_PRS=obj.flags.doZeroPad;
             pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3))];
             obj.sig=padarray(obj.sig,pad_size,0,'both');
-        
+            
         end
         function performSVDdenosing(obj)
             if(all(obj.flags.doDenosing==0))
@@ -254,27 +254,27 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             [U,S,V]=svd(mat-mat_mean,'econ');
             S=diag(S);
             if(Ncomp<0)
-           
+
                 figure,plot(S);
                 Ncomp=input('give Number of component to keep');
             end
             S((Ncomp+1):end)=0;
-            
+
             S=diag(S);
             % figure,plot(S);
             obj.img= reshape(U*S*V',imsz)+mat_mean;
         end
         function performPhaseCorr(obj)
             if(obj.flags.doPhaseCorr)
-            % remove phase of first echo!
-            obj.img=bsxfun(@times,obj.img,exp(-1i*angle(obj.img(:,:,:,:,1,1))));
+                % remove phase of first echo!
+                obj.img=bsxfun(@times,obj.img,exp(-1i*angle(obj.img(:,:,:,:,1,1))));
             end
         end
 
-        
+
 
         function performCoilCombination(obj)
-         
+
 
             if(~(size(obj.img,1)>1))
                 obj.flags.doCoilCombine='none';
@@ -287,7 +287,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                     [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,1,:),6));
                     obj.img=(sum(obj.coilSens.*obj.img,1));
-                     obj.img=obj.img.*permute(obj.coilNormMat,[5 1 2 3 4]); %norm
+%                     obj.img=obj.img.*permute(obj.coilNormMat,[5 1 2 3 4]); %norm
                 case 'adapt2'
                     if(obj.LoopCounter.cRep==1 && ~any(obj.coilSens(:,:,:,:,obj.LoopCounter.cSlc),'all') )
                         [obj.img(1,:,:,:,obj.LoopCounter.cSlc,obj.LoopCounter.cRep), ...
@@ -309,37 +309,37 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             TE=obj.DMIPara.TE; %s
             TR=obj.DMIPara.TR; %s
             PC=obj.DMIPara.PhaseCycles; %rad
-           
+
             if(strcmpi(obj.flags.Solver,'pinv'))
 
-            tic;
-            B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
-            im1=reshape(obj.img(:,:,:,:,obj.flags.EchoSel,obj.flags.PCSel), ...
-                [],length(obj.flags.EchoSel)*length(obj.flags.PCSel));
-            im1=im1(obj.mask(:),:);
-            %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
-            [Msig_all]=bSSFP_sim_analytical(obj.metabolites,TE(EchoSel),PC(PhSel),TR,B0,FA);
-            Msig_all=bsxfun(@times,Msig_all,exp(-1i*angle(Msig_all(:,:,1,:,:,:,:,:,:,:))));
-            metabol_con=zeros(size(im1,1),length(obj.metabolites));
-            resi=zeros(size(im1));
-            condnm=zeros(size(im1,1),1);
-            
-            for i=1:size(im1,1)
-                if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(im1,1)*100); drawnow(); end
-                
-                A= padarray(reshape(squeeze(Msig_all(1,:,:,:,1,i)),length(obj.metabolites),length(PhSel)*length(EchoSel)),[0 0],1,'pre').';
-                b=[ im1(i,:)];
-                %     b=b./max(abs(b(:)));
-                metabol_con(i,:)=A\b(:);
-                resi(i,:)=b(:) -A*metabol_con(i,:).';
-                condnm(i)=cond(A);
-            end
-            
-            obj.Metcon=obj.col2mat(metabol_con,obj.mask);
-            obj.Experimental.residue=obj.col2mat(resi,obj.mask);
-            obj.Experimental.condition=obj.col2mat(condnm(:),obj.mask);
+                tic;
+                B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
+                im1=reshape(obj.img(:,:,:,:,obj.flags.EchoSel,obj.flags.PCSel), ...
+                    [],length(obj.flags.EchoSel)*length(obj.flags.PCSel));
+                im1=im1(obj.mask(:),:);
+                %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
+                [Msig_all]=bSSFP_sim_analytical(obj.metabolites,TE(EchoSel),PC(PhSel),TR,B0,FA);
+                Msig_all=bsxfun(@times,Msig_all,exp(-1i*angle(Msig_all(:,:,1,:,:,:,:,:,:,:))));
+                metabol_con=zeros(size(im1,1),length(obj.metabolites));
+                resi=zeros(size(im1));
+                condnm=zeros(size(im1,1),1);
 
-            fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
+                for i=1:size(im1,1)
+                    if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(im1,1)*100); drawnow(); end
+
+                    A= padarray(reshape(squeeze(Msig_all(1,:,:,:,1,i)),length(obj.metabolites),length(PhSel)*length(EchoSel)),[0 0],1,'pre').';
+                    b=[ im1(i,:)];
+                    %     b=b./max(abs(b(:)));
+                    metabol_con(i,:)=A\b(:);
+                    resi(i,:)=b(:) -A*metabol_con(i,:).';
+                    condnm(i)=cond(A);
+                end
+
+                obj.Metcon=obj.col2mat(metabol_con,obj.mask);
+                obj.Experimental.residue=obj.col2mat(resi,obj.mask);
+                obj.Experimental.condition=obj.col2mat(condnm(:),obj.mask);
+
+                fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
 
                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
@@ -387,10 +387,10 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 % Run the reslicing job
                 spm_jobman('run', matlabbatch);
 
-%                 % Move the resliced files to the output directory
-%             
-%                     [~, niifile, ext] = fileparts(matlabbatch{1}.spm.spatial.coreg.write.source{i});
-%                     movefile(fullfile(input_dir,sprintf('r_*')), output_dir);
+                %                 % Move the resliced files to the output directory
+                %
+                %                     [~, niifile, ext] = fileparts(matlabbatch{1}.spm.spatial.coreg.write.source{i});
+                %                     movefile(fullfile(input_dir,sprintf('r_*')), output_dir);
 
 
             else
@@ -402,18 +402,18 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
             if(nargin==1)
 
-            [fPath,fn,~]=fileparts(obj.filename);
-            try
-                if(~isfolder(fullfile(fPath,'processeddata')))
-                    mkdir(fullfile(fPath,'processeddata'))
+                [fPath,fn,~]=fileparts(obj.filename);
+                try
+                    if(~isfolder(fullfile(fPath,'processeddata')))
+                        mkdir(fullfile(fPath,'processeddata'))
+                    end
+                catch
+                    fPath=pwd;
+                    if(~isfolder(fullfile(fPath,'processeddata')))
+                        mkdir(fullfile(fPath,'processeddata'))
+                    end
                 end
-            catch
-                fPath=pwd;
-                if(~isfolder(fullfile(fPath,'processeddata')))
-                    mkdir(fullfile(fPath,'processeddata'))
-                end
-            end
-            niiFileName=fullfile(fPath,'processeddata',fn);
+                niiFileName=fullfile(fPath,'processeddata',fn);
             end
 
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
@@ -441,7 +441,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
         end
 
     end
-      methods(Static)
+    methods(Static)
         function col_vec=mat2col(mat,mask)
             sz=[size(mat),1,1,1];
             mat=reshape(mat,[prod(sz(1:3)) sz(4:end)]);
@@ -453,7 +453,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             col_vec=reshape(col_vec,sz(1),[]);
             OutMat=zeros([numel(inMask) prod(sz(2:end))]);
             for i=1:size(OutMat,2)
-            OutMat(inMask,i)=col_vec(:,i);
+                OutMat(inMask,i)=col_vec(:,i);
             end
             OutMat=reshape(OutMat,[size(inMask) sz(2:end)]);
 

@@ -24,11 +24,14 @@ para.PhaseCycles=deg2rad(para.PC_deg);
 
 %transmitter
 para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
+try
 para.pulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
      %only work for rect pulse
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
     para.PulseDur=(para.RefVoltage/para.pulseVoltage)*(0.5*45/90);
+end
     para.FrequencySystem=twix.hdr.Dicom.lFrequency;
+
 % get timings probably only work for VE12U
  para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s 
    tok=regexp(twix.hdr.Phoenix.tReferenceImage0,'.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d+$','tokens');
@@ -72,10 +75,17 @@ para.PhaseCycles=1; %deg2rad(para.PC_deg);
 
 %transmitter
 para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
-para.PulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
+
      %only work for rect pulse
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
-    para.PulseDur=(para.RefVoltage/para.PulseVoltage)*(0.5*45/90);
+    try
+    para.PulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
+    para.PulseDur=(para.RefVoltage/para.PulseVoltage)*(0.5*para.FlipAngle/90);
+    catch
+        
+    para.PulseDur=twix.hdr.Phoenix.sWipMemBlock.alFree{4}*1e-6; %s
+     para.PulseVoltage=para.RefVoltage*(0.5/para.PulseDur)*(para.FlipAngle/90);
+    end
 
 % get timings probably only work for VE12U
  para.AcquitionDuration=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s 
