@@ -14,7 +14,7 @@ elseif(isfolder(filename))
 end
 % GammaH2=6.536e6 ; %Hz/T
 sp_t=mapVBVD(filename);
-sp_t=sp_t{end};
+if(iscell(sp_t)), sp_t=sp_t{end}; end
 data=mean(sp_t.image{''},[ 3 4 5 6 7]);
 
 data=padarray(data,[size(data,1)*2 0 0],0,'post'); %zeropadding
