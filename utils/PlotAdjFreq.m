@@ -28,8 +28,9 @@ faxis=linspace(-0.5/header.dwell,0.5/header.dwell,length(Spectrum));
 % figure,plot(faxis/(sp_t.hdr.Phoenix.sProtConsistencyInfo.flNominalB0*GammaH2-Cfreq),spectrum)%ppm
 % ,plot(faxis,spectrum,'LineWidth',1.5),xlabel('Frequency(Hz)'),title('sos Spectrum');
 
-header.FA=sp_t.hdr.Phoenix.adFlipAngleDegree{1};
+
 try
+    header.FA=sp_t.hdr.Phoenix.adFlipAngleDegree{1};
 header.pulseVoltage=sp_t.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
 end
 %only work for rect pulse
