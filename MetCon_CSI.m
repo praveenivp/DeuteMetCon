@@ -241,7 +241,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 fprintf('Done .... \n')
             elseif (strcmpi(obj.flags.doPhaseCorr,'manual')) 
                 dw=obj.DMIPara.dwell; % s
-                n=size(size(obj.img,5));
+                n=size(obj.img,5);
                 faxis=(-n/2:(n/2-1) )*(1/(dw*n));
                 obj.img=fftshift(fft(obj.img,[],5),5);
                 phi0=obj.flags.phaseoffset(1);
@@ -387,7 +387,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function performMetcon(obj,freq)
 
             fids=MetCon_CSI.mat2col(permute(obj.img,[2 3 4 5 1]),obj.mask);
-            nMet=3;
+            nMet=length(freq);
             if(strcmpi(obj.flags.Solver,'AMARES'))
 
                 wbhandle = waitbar(0,'Performing AMARES fitting');
@@ -400,11 +400,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
             offset=0;
             ppmAxis=linspace(-BW/2,BW/2-BW/samples,samples)/imagingFrequency;
-            nMet=3;
+            
             chemShift=freq./imagingFrequency;
-            phase=ones(nMet,1).*0;
-            amplitude=[1 1 1];
-            linewidth=[12 12  12];
+            phase=ones(1,nMet).*0;
+            amplitude=ones(1,nMet);
+            linewidth=ones(1,nMet).*12;
 
             amares_struct=struct('chemShift',chemShift, ...
                 'phase', phase,...
