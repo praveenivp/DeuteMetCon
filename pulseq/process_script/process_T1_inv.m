@@ -11,7 +11,8 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-seq.read(fullfile(sn,'../EXPDATA/pulseq/T1_nonsel_FOCI_2H_10min.seq'))
+% seq.read(fullfile(sn,'../EXPDATA/pulseq/T1_nonsel_FOCI_2H_10min.seq'))
+seq.read(fullfile(sn,'../EXPDATA/pulseq/T1_sel_FOCI_2H_5min.seq'))
 
 st.dwell_s=seq.getDefinition('dwell');
 st.TI_array=seq.getDefinition('TI_array');
@@ -19,7 +20,8 @@ st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-dirst=dir(fullfile(sn,'*pulseq_T1_invFOCI_10mins*.dat'));
+% dirst=dir(fullfile(sn,'*pulseq_T1_invFOCI_10mins*.dat'));
+dirst=dir(fullfile(sn,'*pulseq_T1_invFOCI_sel_5mins*.dat'));
 st.filename=dirst(end).name; %load last file
 twix=mapVBVD(fullfile(sn,st.filename));
 if(iscell(twix)), twix=twix{end}; end
@@ -41,8 +43,8 @@ data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
 
 
 % noise decorr
-dirst=dir(fullfile(sn,'*noise*.dat'));
- twix_noise=mapVBVD(fullfile(dirst(1).folder,dirst(1).name));
+dirst_noise=dir(fullfile(sn,'*noise*.dat'));
+ twix_noise=mapVBVD(fullfile(dirst_noise(1).folder,dirst_noise(1).name));
  if(iscell(twix_noise)), twix_noise=twix_noise{end}; end
  [D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
 
@@ -72,9 +74,9 @@ for rep=1:size(data_whiten,3)
 end
 
 %% phase correction
-Acqdelay=seq.getBlock(5).blockDuration+seq.getBlock(4).rf.shape_dur/2+seq.getBlock(4).rf.ringdownTime; %s
-
-ext_size=round(Acqdelay/st.dwell_s)+1;
+% Acqdelay=seq.getBlock(5).blockDuration+seq.getBlock(4).rf.shape_dur/2+seq.getBlock(4).rf.ringdownTime; %s
+Acqdelay=(seq.getBlock(4).blockDuration/2+seq.getBlock(5).blockDuration);
+ext_size=4;%round(Acqdelay/st.dwell_s)+1;
                  [data_Combined2] = fidExtrp(data_Combined,ext_size);
 
 
@@ -85,7 +87,8 @@ ext_size=round(Acqdelay/st.dwell_s)+1;
  faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,size(spec1,1));
 
   [phi0]=CalcZerothPhase(faxis,spec1,1000);
-spec2=1*spec1.*exp(1i*(median(phi0)+faxis(:).*12e-4));
+% spec2=1*spec1.*exp(1i*(median(phi0)+faxis(:).*12e-4));
+spec2=1*spec1.*exp(1i*(median(phi0)+faxis(:).*0e-4));
 disp(rad2deg(median(phi0)))
 
 
@@ -96,8 +99,8 @@ gof=cell(size(spec2,2),1);
 figure(58),clf,hold on
 amp_all=zeros(length(st.TI_array),length(freq));
 FWHM_all=zeros(length(st.TI_array),length(freq));
-for crep=1:15
-[fitf{crep},fitf{crep},foptions]=NLorentzFit(faxis,real(spec2(:,crep)),freq);
+for crep=1:length(st.TI_array)
+[fitf{crep},gof{crep},foptions]=NLorentzFit(faxis,real(spec2(:,crep)),freq);
 
  amp_all(crep,:)=[fitf{crep}.A1 fitf{crep}.A2 fitf{crep}.A3 fitf{crep}.A4];
   FWHM_all(crep,:)=[fitf{crep}.gamma1 fitf{crep}.gamma2 fitf{crep}.gamma3 fitf{crep}.gamma4];
