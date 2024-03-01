@@ -439,6 +439,29 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
 
         end
+        function PlotResults(obj,fh)
+            if(~exist('fh','var'))
+                fh=figure;
+            end
+
+               
+        tt=tiledlayout(length(obj.metabolites),1,'TileSpacing','compact');
+        slcFac=0.15;
+        slcSel=round(slcFac*size(obj.Metcon,3));
+        slcSel=slcSel:(size(obj.Metcon,3)-slcSel);
+        for i=1:length(obj.metabolites)
+            nexttile()
+            im_curr=createImMontage(abs(obj.Metcon(:,:,slcSel,i)));
+            imagesc(im_curr);
+            colorbar,
+            axis image
+        
+            cax_im=[0 prctile(im_curr(:),95)];
+            clim(cax_im);
+            xticks([]),yticks([]),title(obj.metabolites(i).name)
+        end
+        sgtitle(sprintf('%s',obj.twix.hdr.Config.SequenceDescription),'interpreter','none')
+        end
 
     end
     methods(Static)

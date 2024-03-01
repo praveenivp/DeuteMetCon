@@ -120,35 +120,7 @@ classdef LeastSquares < matlab.mixin.Copyable
             end
         end
 
-
-
-
-        
-        function B0map= getRandomFmap(obj,imSize)
-            % generate random low frequency maps in range -0.5 to 0.5
-            %eg: fmap=getRandomFmap([100 130 1])
-            [x,y,z]=meshgrid(linspace(-1,1,imSize(1)),linspace(-1,1,imSize(2)),linspace(-1,1,imSize(3)));
-            Ncomp=100;
-            B0map=zeros(size(x));
-            meanG=(rand([3, Ncomp])-0.5)*1.3;
-            varG=randi([40,70],[3, Ncomp])./1000;
-
-            for comp=1:Ncomp
-                fac=double(rand(1)>0.5)*2 -1;
-                B0map=B0map+fac*exp(-1*( ((x-meanG(1,comp)).^2)./(2*varG(1,comp)) +...
-                    double(imSize(2)>1)* ((y-meanG(2,comp)).^2)./(2*varG(2,comp)) +...
-                    double(imSize(3)>1)*((z-meanG(3,comp)).^2)./(2*varG(3,comp))  ));
-            end
-            B0map=imfilter(B0map,ones(ceil(size(B0map)./10)),'replicate');
-            %make it in range -0.5 to
-            B0map=(B0map-min(B0map(:)))./(max(B0map(:))-min(B0map(:)))-0.5;
-
-        end
-
         function plotresults(obj,res)
-
-
-
             middle_slice=round(size(res)/2);
             figure,
             tt=tiledlayout(3,size(res,4)+1+(numel(obj.FieldMap)>1),'TileSpacing','compact','Padding','compact');
