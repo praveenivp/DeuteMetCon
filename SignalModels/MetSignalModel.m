@@ -84,10 +84,9 @@ function Sflash=GRESignal(FA,T1,T2star,TE,TR,freqOffset)
 M0    = 1;
 E1    = exp(-TR./T1);
 % https://mriquestions.com/spoiled-gre-parameters.html
-Sflash=sin(FA)*(1-exp(-TR/T1))*exp(-TE/T2star);
-Sflash=Sflash./(1-cos(FA)*exp(-TR/T1));
-Sflash=1;
-Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
+Sflash=M0*sin(FA)*(1-E1)*exp(-TE/T2star);
+Sflash=Sflash./(1-cos(FA)*E1);
+Sflash=1.*exp(-1i*2*pi*freqOffset*TE);
 
 end
 

@@ -49,22 +49,23 @@ classdef MetSim < matlab.mixin.Copyable
         function getSig(obj)
 
             % simualte the signal
-            noise_scale=0.05;
+            noise_scale=obj.flags.NoiseFac;
 %             amp=randi
             [obj.experimental.Phantom,obj.experimental.mask_labels,obj.experimental.id_labels]=...
                 getMetabolMask(obj.flags.MatSize,length(obj.metabolites)) ;
 
             % generate some circles and call it pahnatom
             obj.FieldMap_Hz= zeros(size(getRandomFmap(obj,[obj.flags.MatSize; obj.flags.MatSize;  1])));
-            obj.FieldMap_Hz= 10*((getRandomFmap(obj,[obj.flags.MatSize; obj.flags.MatSize;  1])));
+%              -0.5 to 0.5 Hz
+             obj.FieldMap_Hz= 10*((getRandomFmap(obj,[obj.flags.MatSize; obj.flags.MatSize;  1])));
            
-
+%             obj.FieldMap_Hz=ones(size(obj.FieldMap_Hz))*10.567;
             obj.sig=MetSignalModel(obj.metabolites,obj.TE_s,obj.PhaseCylces,obj.TR_s,obj.FieldMap_Hz(:),obj.FA,obj.seqType);
             
             obj.sig=permute(obj.sig,[5 2 3 4 6 1]);
             obj.sig=reshape(obj.sig,obj.flags.MatSize,obj.flags.MatSize,size(obj.sig,2),size(obj.sig,3),size(obj.sig,4),[]);
             obj.sig=obj.sig.*permute(obj.experimental.Phantom,[1 2 4 5 6 3]);
-            obj.sig=sum(obj.sig,6);
+             obj.sig=sum(obj.sig,6);
             obj.sig=obj.sig+noise_scale *complex(randn(size(obj.sig)),randn(size(obj.sig)));
             
         end
@@ -141,9 +142,10 @@ classdef MetSim < matlab.mixin.Copyable
             p=inputParser;
             p.KeepUnmatched=true;
             addParameter(p,'model','bSSFP',@(x) any(validatestring(x,{'bSSFP','GRE'})));
-            addParameter(p,'PhaseCorr',true,@(x) islogical(x));
+            addParameter(p,'PhaseCorr',false,@(x) islogical(x));
 
             addParameter(p,'MatSize',16,@(x) isscalar(x));
+            addParameter(p,'NoiseFac',0.05,@(x) isscalar(x));
 
             
             parse(p,varargin{:});

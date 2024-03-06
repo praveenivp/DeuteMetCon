@@ -10,7 +10,7 @@ MatSz=[64 64]/2;
 %  fm_Hz= 40*getRandomFmap([MatSz 1]);
 
 %% simulate some signal
- IDEALobj=IDEALsolver(metabolites,TE_s);
+ IDEALobj=IDEAL(metabolites,TE_s);
  sig=IDEALobj.simSig([32; 32;],20,0.01);
  fm_Hz=IDEALobj.FieldMap_Hz;
  metbol_mask=IDEALobj.experimental.Phantom;
