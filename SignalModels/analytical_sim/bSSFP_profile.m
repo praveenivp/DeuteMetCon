@@ -27,6 +27,6 @@ bSSFP = (1-E1).*sin(flip).*(1-E2.*exp(-complex(0,1)*(-phi+shift)))./(C.*cos(-phi
 
 %% Read out signal at t=TE
 
-bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(complex(0,1)*shift*(TE/TR));
+bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(complex(0,-1)*phi*(TE/TR));
 % bSSFP = M0*bSSFP.*exp(-TE./T2);
 end

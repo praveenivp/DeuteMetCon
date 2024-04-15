@@ -63,4 +63,5 @@ if(isequal(sz_all{:}))
    resliced_vol=cat(ndims(resliced_vol{1})+1, resliced_vol{:});
 end
 
+resliced_vol(isnan(resliced_vol))=0;
 end

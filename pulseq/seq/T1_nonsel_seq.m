@@ -37,8 +37,8 @@ assert(TR_array(1)>= (mr.calcDuration(adc)+mr.calcDuration(spoilerx)));
 for rep=1:Nrep
 
 for i=1:(Nav+dummy_scans)
-    rand_phase = mod(117*(i^2 + i + 2), 360)*pi/180;
-    rf = mr.makeBlockPulse(FA,'Duration',2e-3, 'system', system,'phaseOffset', rand_phase);
+    rf = mr.makeBlockPulse(FA,'Duration',2e-3, 'system', system,'phaseOffset', 0);
+    adc = mr.makeAdc(Nx,'Duration',dwell_s*Nx, 'system', system,'delay',system.adcDeadTime,'phaseOffset', 0);
     seq.addBlock(rf,mr.makeDelay(delayTE));
     if(i>dummy_scans)
          seq.addBlock(adc);

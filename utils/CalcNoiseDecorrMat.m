@@ -1,4 +1,4 @@
-function [D_noise,D_image]=CalcNoiseDecorrMat(twix)
+function [D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix)
 
 NormNoiseData=false;
 % CoilSel
@@ -37,6 +37,10 @@ NormNoiseData=false;
                 end
             else
                 D_image = 1;
-            end
+                    end
+% only for imaging sequence
+noise_info.os_flag=    (twix.image.NCol~=twix.hdr.Phoenix.sKSpace.lBaseResolution);
+noise_info.dwell_s=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
 
+                    
 end

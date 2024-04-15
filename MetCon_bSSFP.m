@@ -92,7 +92,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     %                     addParameter(p,'doB0Corr','none',@(x) any(strcmp(x,{'none','MTI','MFI'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
-                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL'})));
+                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','phaseonly'})));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
@@ -193,7 +193,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.sig = obj.twix.image(:, obj.flags.CoilSel,:,:, 1,:,1,obj.flags.EchoSel,obj.flags.PCSel,1,1);
                 % SNR scaling for unit SD : part 1
                 
-                obj.sig=obj.sig./(sqrt(2*sum(abs(obj.sig(:))>0)));
+                obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
                 % Sum averages (if not already done)
                 if(obj.flags.doAverage)
                     obj.sig  = sum(obj.sig,6);
@@ -268,6 +268,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             if(obj.flags.doPhaseCorr)
                 % remove phase of first echo!
                 obj.img=bsxfun(@times,obj.img,exp(-1i*angle(obj.img(:,:,:,:,1,1))));
+                obj.DMIPara.TE=obj.DMIPara.TE-obj.DMIPara.TE(1);
             end
         end
 
@@ -342,9 +343,15 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
 
-                fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+%                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
-                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',0.*fm_meas_Hz,'solver','IDEAL','maxit',5,'mask',obj.mask);
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',5,'mask',obj.mask);
+                obj.Metcon=obj.SolverObj'*im_me;
+            elseif(strcmpi(obj.flags.Solver,'phaseonly'))
+
+%                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+                im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','pinv','mask',obj.mask);
                 obj.Metcon=obj.SolverObj'*im_me;
 
             end
@@ -398,30 +405,22 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
         end
 
-        function WriteImages(obj,niiFileName)
-
+        function niiFileName=WriteImages(obj,niiFileName)
+            %average echo and phase cycling dimension and write nifti
             if(nargin==1)
-
-                [fPath,fn,~]=fileparts(obj.filename);
-                try
-                    if(~isfolder(fullfile(fPath,'processeddata')))
-                        mkdir(fullfile(fPath,'processeddata'))
-                    end
-                catch
-                    fPath=pwd;
-                    if(~isfolder(fullfile(fPath,'processeddata')))
-                        mkdir(fullfile(fPath,'processeddata'))
-                    end
-                end
-                niiFileName=fullfile(fPath,'processeddata',fn);
+                [~,fn,~]=fileparts(obj.filename);
+                niiFileName=fullfile(pwd,fn);
+            elseif(isfolder(niiFileName))
+                [~,fn,~]=fileparts(obj.filename);
+                niiFileName=fullfile(niiFileName,[fn,'.nii']);
             end
 
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
             description='averaged image across echo and phase cycle';
             MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,niiFileName,description);
 
-
         end
+
         function SaveResults(obj)
             % save results toa MAT file
             im=squeeze(obj.img);

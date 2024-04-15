@@ -9,7 +9,7 @@ if(nargin==0)
     [fn,pn]=uigetfile('*Adj*Fre*.dat','select Adj Freq');
     filename=fullfile(pn,fn);
 elseif(isfolder(filename))
-    [fn,pn]=uigetfile(fullfile(filename,'*AdjFre*.dat'),'select Adj Freq');
+    [fn,pn]=uigetfile(fullfile(filename,'*Adj*Fre*.dat'),'select Adj Freq');
     filename=fullfile(pn,fn);
 end
 % GammaH2=6.536e6 ; %Hz/T

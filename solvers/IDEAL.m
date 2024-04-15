@@ -7,6 +7,7 @@ classdef IDEAL < matlab.mixin.Copyable
         experimental% experimental outputs
         flags
         mask
+        FieldMap_Hz
     end
     methods
         function obj=IDEAL(varargin)
@@ -42,7 +43,12 @@ classdef IDEAL < matlab.mixin.Copyable
 
                 res=zeros(size(inp_col,1),size(A,2));
                 res2=zeros(size(inp_col,1),size(A,2));
-                fm_est= zeros(size(inp_col,1),1);
+                if(sum(obj.FieldMap_Hz,'all')==0)
+                    fm_est= zeros(size(inp_col,1),1);
+                else
+                    fm_est=-1*obj.FieldMap_Hz;
+                    fm_est=obj.mat2col(fm_est,obj.mask);
+                end
 
 
                 if(strcmpi(obj.flags.solver,'pinv'))
@@ -116,7 +122,7 @@ classdef IDEAL < matlab.mixin.Copyable
 
         %% supporting functions
         function A=getA23(obj)
-            CDij=@(freq,tn) exp(-1i*2*pi*freq*tn); % Cij i->chemical shift(Hz) tn-> time(s)
+            CDij=@(freq,tn) exp(1i*2*pi*freq*tn); % Cij i->chemical shift(Hz) tn-> time(s)
             A=zeros(length(obj.TE_s), length(obj.metabolites));
             for cMet=1:length(obj.metabolites)
                 CD_cMet=CDij(obj.metabolites(cMet).freq_shift_Hz,obj.TE_s(:));
@@ -195,7 +201,9 @@ classdef IDEAL < matlab.mixin.Copyable
             obj.flags=p.Results;
 
             if(isfield(p.Unmatched,'fm'))
-                obj.FieldMap_Hz=p.Unmatched.fm;
+                obj.FieldMap_Hz=p.Unmatched.fm./(2*pi)*(6.536 /42.567);
+            else
+                obj.FieldMap_Hz=0;
             end
             if(isfield(p.Unmatched,'mask'))
                 obj.mask=p.Unmatched.mask;
