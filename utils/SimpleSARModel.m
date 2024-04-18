@@ -37,7 +37,7 @@ RF_dutyCycle= PulseDur./TR;
 SAR=kFactor*inputPower*RF_dutyCycle;
 
 % 6 min SAR limit. for some reason I can do only 7.5 W/kg not 10 W/kg
-maxSAR_6min=10/1.28; %W/kg
+maxSAR_6min=10; %W/kg
 % maxSAR_10s=20; %W/kg % not relevant mostly in our case
 
 %assuming RF duty cycle is the same

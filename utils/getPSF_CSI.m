@@ -20,7 +20,8 @@ MatSz=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
 res=FOV./MatSz; %mm
 
     
-
+isCSI= contains(twix.hdr.Phoenix.tSequenceFileName,'csi');
+if(isCSI)
 
 % twix=mapVBVD('X:\mrdata\echtdata\studies\48\experiments\KSRI-QYZ6\TWIX\allData#S94Tuebingen#F37802#M376#D170123#T103746#rpcsi_fid.dat');
 % MatSz=[twix.image.NLin, twix.image.NPar, twix.image.NSeg];
@@ -32,8 +33,6 @@ W=zeros(MatSz);
 for i=1:length(LinIdx)
 W(LinIdx(i),ParIdx(i),SegIdx(i))=W(LinIdx(i),ParIdx(i),SegIdx(i))+1;
 end
-% W=ones(size(W));
-PSF=fftshift(fftn(W,ones(1,ndims(W)).*2^9));
 
 % Spectral PSF
 sp=twix.hdr.Phoenix.sSpecPara;
@@ -50,8 +49,25 @@ sig=ones(size(taxis)).*exp(-taxis/T2star).*exp(1i*2*pi*B0*taxis);
 Spec=ifftshift(ifft(sig,2^17));
 spec_axis=linspace(-BW/2,BW/2-BW/length(Spec),length(Spec));
 
-%
+else % multi-echo
+    % twix=mapVBVD('X:\mrdata\echtdata\studies\48\experiments\KSRI-QYZ6\TWIX\allData#S94Tuebingen#F37802#M376#D170123#T103746#rpcsi_fid.dat');
+% MatSz=[twix.image.NLin, twix.image.NPar, twix.image.NSeg];
+LinIdx=twix.image.Lin;
+ParIdx=twix.image.Par;
 
+
+W=zeros(MatSz);
+for i=1:length(LinIdx)
+W(:,LinIdx(i),ParIdx(i))=W(:,LinIdx(i),ParIdx(i))+1;
+end
+
+end
+ W=ones(size(W));
+PSF=fftshift(fftn(W,ones(1,ndims(W)).*2^9));
+
+
+
+%
 kaxis_e1=linspace(-1,1,MatSz(1));
 kaxis_e2=linspace(-1,1,MatSz(2));
 kaxis_e3=linspace(-1,1,MatSz(3));
@@ -60,7 +76,7 @@ kCenter=ceil(MatSz./2);
 FOV_e1=linspace(-FOV(1)/2,FOV(1)/2-FOV(1)/size(PSF,1),size(PSF,1));
 FOV_e2=linspace(-FOV(2)/2,FOV(2)/2-FOV(2)/size(PSF,2),size(PSF,2));
 FOV_e3=linspace(-FOV(3)/2,FOV(3)/2-FOV(3)/size(PSF,3),size(PSF,3));
-PSFc=ceil(size(PSF)/2);
+PSFc=round(size(PSF)/2);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% Plot%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -106,7 +122,7 @@ xlabel('distance (mm)')
 plot(points.x,points.y,'LineWidth',1.4)
 title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(3),res(3)))
 
-
+if(isCSI)
 subplot(2,4,4)
 plot(taxis*1e3,sig)
 xlabel('time (ms)')
@@ -119,7 +135,7 @@ xlabel('frequency (Hz)')
 plot(points.x,points.y,'LineWidth',1.4)
 xlim([-1, 1].*200)
 title(sprintf('PSF FW64%%=%2.2f Hz | Nominal=%1.2f Hz',fw64(4),(1/(2*Tacq))))
-
+end
 
 end
 
