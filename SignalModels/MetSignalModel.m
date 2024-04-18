@@ -74,7 +74,7 @@ bSSFP = -(1i./D).*(1-E1).*sin(flip).*(1-E2.*exp(-1i*theta));
 
 %% Read out signal at t=TE
 
-bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*(TE/TR));
+bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(-1i*off_resonance*(TE/TR));
 end
 
 
@@ -86,7 +86,7 @@ E1    = exp(-TR./T1);
 % https://mriquestions.com/spoiled-gre-parameters.html
 Sflash=M0*sin(FA)*(1-E1)*exp(-TE/T2star);
 Sflash=Sflash./(1-cos(FA)*E1);
-Sflash=1.*exp(-1i*2*pi*freqOffset*TE);
+Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
 
