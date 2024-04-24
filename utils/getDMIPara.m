@@ -1,4 +1,8 @@
 function para=getDMIPara(twix)
+%para=getDMIPara(twix)
+% fucntion to colllect and calculate some sequence parameters for
+% convinience. works for both CSI and ME-bSSFP twix.
+
 
 if(iscell(twix))
     twix=twix{1};
@@ -16,11 +20,15 @@ if(~para.isCSI)
     % para.PCSel=1:twix.image.NRep;
     para.TE=[twix.hdr.Phoenix.alTE{EchoSel}]*1e-6; %s
     para.TR=twix.hdr.Phoenix.alTR{1}*1e-6; %s
+    try
     Range=twix.hdr.Phoenix.sWipMemBlock.alFree{5};
     NRep=twix.image.NRep;
     Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{4};
     if(isempty(Shift));Shift=0;end
     para.PC_deg = (Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
+    catch %for fisp
+      para.PC_deg =ones(twix.image.NRep,1)*180;  
+    end
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
@@ -42,6 +50,14 @@ if(~para.isCSI)
     para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*2.5e-3);
 
     para.seq_details=printSeqeunceDetails(twix);
+
+    % take rmos flag into account
+    para.rmos_flag=twix.image.NCol == size(twix.image(:,:,1),1);
+    if(para.rmos_flag)
+        para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
+    else %'rmos' flag active
+        para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9*2; %s
+    end
 
     %resolution
     sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
@@ -70,7 +86,8 @@ else
     % treat all time axis as echo dimension
     EchoSel=1:twix.hdr.Phoenix.sSpecPara.lVectorSize;
     % take rmos flag into account
-    if(twix.image.NCol == size(twix.image(:,:,1),1))
+    para.rmos_flag=twix.image.NCol == size(twix.image(:,:,1),1);
+    if(para.rmos_flag)
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
     else %'rmos' flag active
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9*2; %s
@@ -111,6 +128,21 @@ else
     para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*2.5e-3);
 
     para.SeqDetails=printSeqeunceDetails(twix);
+
+        %resolution
+    sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
+    kp=twix.hdr.Phoenix.sKSpace;
+
+    try %if slice oversampling!
+        FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution sa.dThickness + sa.dThickness*kp.dSliceOversamplingForDialog]*1e-3; %m
+    catch
+        FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution  sa.dThickness]*1e-3; %m
+    end
+
+    para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
+    para.resolution=FOV./para.MatrixSize; %m
+    para.ShortDescription=sprintf('TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
+
   
 end
 

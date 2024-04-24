@@ -18,6 +18,12 @@ function bSSFP=bSSFP_profile_Ganter(TR,TE,flip,phi,off_resonance,T1,T2)
 %OUTPUT
 %
 %complex bSSFP signal for the given range of RF phase increments phi (bSSFP)
+%
+%
+%Reference: eq 42-44
+% Ganter, C. (2005). https://doi.org/10.1002/mrm.20736 
+%
+% Rahel Heule
 
 M0 = 1;
 E1 = exp(-TR./T1);

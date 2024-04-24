@@ -1,5 +1,5 @@
 classdef IDEAL < matlab.mixin.Copyable
-    %     IDEALsolver(metabolties,TE_s,FieldMap_Hz,Mode{'pinv','IDEAL'},nIteration)
+    %     IDEALsolver(metabolties,TE_s,FieldMap_Hz,Mode{'phaseonly','IDEAL'},nIteration)
     properties
         metabolites % struvt array struct('freq_shift_Hz',79,'con',randi([2,10],1)/10,'name','1.3 ppm','T1_s',297e-3,'T2_s',61e-3)
         TE_s % Echo time in seconds
@@ -28,7 +28,7 @@ classdef IDEAL < matlab.mixin.Copyable
             end
         end
 
-        function res = mtimes(obj,inp)
+        function res= mtimes(obj,inp)
             %             bb=[nFE,nIntlv,nPar,nCha]% adj case
             %             bb=[ImX,Imy,Imz,nCha] % forward case
             res=0;
@@ -42,7 +42,8 @@ classdef IDEAL < matlab.mixin.Copyable
                 inp_col=reshape(obj.mat2col(inp(:,:,:,:,1),obj.mask),[],length(obj.TE_s));
 
                 res=zeros(size(inp_col,1),size(A,2));
-                res2=zeros(size(inp_col,1),size(A,2));
+%                 res2=zeros(size(inp_col,1),size(A,2));
+                residue=zeros(size(inp_col));
                 if(sum(obj.FieldMap_Hz,'all')==0)
                     fm_est= zeros(size(inp_col,1),1);
                 else
@@ -51,11 +52,12 @@ classdef IDEAL < matlab.mixin.Copyable
                 end
 
 
-                if(strcmpi(obj.flags.solver,'pinv'))
+                if(strcmpi(obj.flags.solver,'phaseonly'))
                     for i=1:size(inp_col,1)
                         inp_corr=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*obj.TE_s);
                         %                             res(i,:)=Ainv*[real(inp_corr) imag(inp_corr)]';
                         res(i,:)=Ainv*inp_corr(:);
+                        residue(i,:)=single(inp_corr(:)-A*res(i,:).');
                     end
 
                 else % IDEAL algorithm
@@ -69,9 +71,9 @@ classdef IDEAL < matlab.mixin.Copyable
                             Sn_cap=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*obj.TE_s); % remove Known b0 offresonance
                             metabol_est=A3\Sn_cap(:); % linear prediction
                             % calc residue
-                            residue=Sn_cap(:)-A*metabol_est;
+                            residue_iter=Sn_cap(:)-A*metabol_est;
                             B3=getB23(obj,metabol_est);
-                            delta_2= B3\residue;
+                            delta_2= B3\residue_iter;
 
                             fm_est(i)=fm_est(i)-real(delta_2(1));
                            if(abs(real(delta_2(1)))<obj.flags.tol) %figure,plot(all_B0);
@@ -90,8 +92,8 @@ classdef IDEAL < matlab.mixin.Copyable
                     pb = waitbar(0, 'estimating concentrations(2/2)');
                     for i=1:size(inp_col,1)
                         Sn_cap=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*obj.TE_s); % remove Known b0 offresonance
-                        metabol_con_cv=A\Sn_cap(:);%[real(Sn_cap) imag(Sn_cap)]';
-                        res(i,:)=metabol_con_cv;
+                        res(i,:)=A\Sn_cap(:);%[real(Sn_cap) imag(Sn_cap)]';              
+                        residue(i,:)=single(Sn_cap(:)-A*res(i,:).');
                         waitbar(i/size(inp_col,1), pb);
                     end
                     close(pb)
@@ -101,6 +103,7 @@ classdef IDEAL < matlab.mixin.Copyable
                 %                     res=reshape(res,size(res,1),length(obj.metabolites),2);
                 %                     res=complex(res(:,:,1),res(:,:,2));
                 res=obj.col2mat(res,obj.mask);
+                obj.experimental.residue=obj.col2mat(single(residue),obj.mask);
             else
                 error('forward operation not implemented')
             end
@@ -176,7 +179,7 @@ classdef IDEAL < matlab.mixin.Copyable
             er.LineStyle = 'none';
             er.LineWidth=2;
             % xlim([0.5,4.5])
-            legend('pinv','IDEAL','Original')
+            legend('phaseonly','IDEAL','Original')
             xticklabels({[obj.metabolites(1).name,'(real)'],'imag',[obj.metabolites(2).name,'(real)'],'imag',...
                 [obj.metabolites(3).name,'(real)'],'imag'})
             ylabel('Concentrations (AU)'),title('Metabolite quantification @ 9.4T')
@@ -186,7 +189,7 @@ classdef IDEAL < matlab.mixin.Copyable
 
             p=inputParser;
             p.KeepUnmatched=true;
-            addParameter(p,'solver','IDEAL',@(x) any(validatestring(x,{'pinv','IDEAL'})));
+            addParameter(p,'solver','IDEAL',@(x) any(validatestring(x,{'phaseonly','IDEAL'})));
             % only for IDEAL solver
             addParameter(p,'maxit',20,@(x) isscalar(x));
             addParameter(p,'tol',0.1,@(x) isscalar(x)); % convergence criteria in Hz
@@ -206,7 +209,7 @@ classdef IDEAL < matlab.mixin.Copyable
                 obj.FieldMap_Hz=0;
             end
             if(isfield(p.Unmatched,'mask'))
-                obj.mask=p.Unmatched.mask;
+                obj.mask=p.Unmatched.mask>0;
             end
         end
 

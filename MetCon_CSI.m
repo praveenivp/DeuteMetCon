@@ -118,7 +118,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                         obj.flags.phaseoffset=p.Unmatched.phaseoffset;
                    else
                         Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
-                        obj.flags.phaseoffet=[0 2*pi*Acqdelay];
+                        obj.flags.phaseoffset=[0 2*pi*Acqdelay];
                     end
 
 
@@ -142,7 +142,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         end
 
         function calcNoiseDecorrMatrix(obj,twix)
-            if isfield(twix,'noise')
+            if (~isempty(obj.D)) 
+                %skip if decorrelation matrix is set by getflags()
+                return;
+            elseif(isfield(twix,'noise'))
                 noise                = permute(twix.noise(:,obj.flags.CoilSel,:),[2,1,3]);
                 noise                = noise(:,:)';
                 R                    = cov(noise);
@@ -184,7 +187,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function getSig(obj)
             obj.sig = obj.twix.image(obj.flags.EchoSel,obj.flags.CoilSel,:,:,:,:,:,:,:,:,:,:,:,:,:);
             % scale factor for SNR units reco : step 1
-            obj.sig=obj.sig./(sqrt(2*sum(abs(obj.sig(:))>0)));
+            obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
 
             % Sum averages (if not already done)
             obj.sig  = sum( obj.sig ,6);
@@ -324,53 +327,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         end
 
-        function peformB0mapReslice(obj,regfiles)
-            % we need spm12 in path
-            if(exist('spm','file'))
-
-                % write average volume
-                bSSFP_file='S:\Deuterium\20230920_xpulseq\processeddata\meas_MID00079_FID62457_pvrh_trufi_mc_2H_15mm_150PC.nii';
-
-                % B0 map
-                fm_file='S:\Deuterium\20230920_xpulseq\M80_B0map_rad_s.nii';
-                im_file='S:\Deuterium\20230920_xpulseq\gre_WIP1441B_shim_2mm_R2_e1_mag.nii';
-
-                % write average volume
-                bSSFP_file=regfiles{1};
-
-                % B0 map
-                fm_file=regfiles{2};
-                im_file=regfiles{3};
-
-
-                %spm reslice
-                % Define the input NIfTI files and output directory
-                [input_dir,~,~] = fileparts(fm_file);
-                [output_dir,~,~] = fileparts(bSSFP_file);
-
-                % Define the reslicing parameters (e.g., target space)
-                matlabbatch{1}.spm.spatial.coreg.write.ref = {bSSFP_file};
-                matlabbatch{1}.spm.spatial.coreg.write.source = {fm_file;im_file};
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.interp = 4;
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.wrap = [0 0 0];
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.mask = 0;
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.prefix = 'r_';
-
-
-                % Run the reslicing job
-                spm_jobman('run', matlabbatch);
-
-%                 % Move the resliced files to the output directory
-%             
-%                     [~, niifile, ext] = fileparts(matlabbatch{1}.spm.spatial.coreg.write.source{i});
-%                     movefile(fullfile(input_dir,sprintf('r_*')), output_dir);
-
-
-            else
-                error('Needs spm for reslicing/registration')
-            end
-        end
-
 
 
         function getMask(obj,thres_prctl)
@@ -384,8 +340,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.mask=imdilate(obj.mask,strel('sphere',3));
 
         end
-        function performMetcon(obj,freq)
+        function performMetcon(obj)
 
+            freq=[obj.metabolites.freq_shift_Hz];
             fids=MetCon_CSI.mat2col(permute(obj.img,[2 3 4 5 1]),obj.mask);
             nMet=length(freq);
             if(strcmpi(obj.flags.Solver,'AMARES'))
@@ -418,7 +375,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 'beginTime',0, ...
                 'offset',offset,...
                 'samples',samples, ...
-                'peakName',["water","Glc","Glx","Lac"]);
+                'peakName',string({obj.metabolites.name}));
 
             pk=PriorKnowledge_DMI(amares_struct);
 
@@ -488,11 +445,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
         end
 
-        function demoFit(obj,pxl_idx,freq)
-            
+        function demoFit(obj,pxl_idx)
+%             demoFit(obj,pxl_idx)
 
-%              freq=[-142.7 -51.79 7.82]'; %Hz
 
+            freq=[obj.metabolites.freq_shift_Hz];
             fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
             fid=padarray(fid,[size(fid,1) 0],0,'post');
             fprintf('Performing Nlorentz fit\n')
@@ -504,10 +461,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             freqSel=minIdx:maxIdx; %1:length(faxis)
 
             xdata=faxis(freqSel);
-            spect=1*abs(fftshift(fft(fid*exp(-1i*rad2deg(42.94)))));
-            [fitf,gof,fitoptions]=NLorentzFit(xdata(:),spect(freqSel),freq);
-            figure(34),clf,plot(xdata,spect(freqSel));
+            spect=(fftshift(fft(fid*exp(-1i*rad2deg(42.94)))));
+            [fitf,gof,fitoptions]=NLorentzFit(xdata(:),abs(spect(freqSel)),freq);
+            figure(34),clf,plot(xdata,abs(spect(freqSel)));
             hold on
+            plot(xdata,real(spect(freqSel)));
             plot(xdata,fitf(xdata));
 
             fprintf('Performing AMARES fit\n')
@@ -519,14 +477,15 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
             offset=0;
             ppmAxis=linspace(-BW/2,BW/2-BW/length(fid),length(fid))/imagingFrequency;
-            nMet=3;
+            nMet=length(freq);
             chemShift=freq./imagingFrequency;
-            phase=ones(nMet,1).*0;
-            amplitude=[1 1 1];
-            linewidth=[12 12  12];
+            phase=ones(1,nMet).*0;
+            amplitude=ones(1,nMet);
+            linewidth=ones(1,nMet).*12;
 
             samples=length(fid);
 
+    
             amares_struct=struct('chemShift',chemShift, ...
                 'phase', phase,...
                 'amplitude', amplitude,...
@@ -538,7 +497,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 'ppmAxis',ppmAxis(:), ...
                 'beginTime',0, ...
                 'offset',offset,...
-                'samples',samples);
+                'samples',samples, ...
+                'peakName',string({obj.metabolites.name}));
+
 
             pk=PriorKnowledge_DMI(amares_struct);
 
@@ -560,41 +521,35 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             spec_amares=fftshift(fft(sig1(:)));
             plot(faxis,spec_amares,'LineWidth',2);
             xlim([min(freq)-200 max(freq)+200])
-            legend({'Data','Nlorentzian','AMRARES'})
+            legend({'Data-abs','Data-real','Nlorentzian','AMRARES'})
+            xlabel('Frequency [Hz]')
+            title(sprintf('Fit results of the voxel at (%d,%d,%d)',pxl_idx))
         end
 
         function WriteImages(obj)
-            [fPath,fn,~]=fileparts(obj.filename);
-%             try
-%                 if(~isfolder(fullfile(fPath,'processeddata')))
-%                     mkdir(fullfile(fPath,'processeddata'))
-%                 end
-%             catch
-                fPath=pwd;
-                if(~isfolder(fullfile(fPath,'processeddata')))
-                    mkdir(fullfile(fPath,'processeddata'))
-                end
-%             end
+           
+            fPath=pwd;
+            sprintf('m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr)
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
             description='averaged image across echo and phase cycle';
-            MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,'processeddata',fn),description,-1*[9.8+4;0;9.8]*1.5);
+            MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,-1*[0 0 0]*1.5);
+            
+            sprintf('Metcon_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr)
+            vol_PRS=flip(obj.Metcon,3); %9.4T specific
+            description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
+            MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,-1*[0 0 0]*1.5);
 
 
         end
         function SaveResults(obj)
-            % save results toa MAT file
-            im=squeeze(obj.img);
+            % save results to a MAT file
 
-            flags=obj.flags;
+            OutFile=sprintf('m%d_%s_%s_%s.mat',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
+            mcobj_copy=copy(obj);
+            mcobj_copy.twix=[];
+            mcobj_copy.sig=[];
+            save(OutFile,"mcobj_copy");
 
-            OutFile=sprintf('m%d_B0%s_PhaseC%s.mat',obj.twix.hdr.Config.MeasUID,obj.flags.doMet,obj.flags.doPhaseCorr);
-            sp=obj.DMIPara;
-            fn=obj.filename;
-%             ro=(2*sp.ADCLength*sp.DwellTime)/1e6; % ms
-%             vTR=(sp.TR*sp.Ninterleaves*sp.NPartitions)/(sp.R_PE*sp.R_3D*1e6); %s
-% %             descrip=(sprintf('R%dx%dC%d TR=%.1fms RO=%.2fms vTR=%.1fs',sp.R_PE,sp.R_3D,sp.CAIPIShift,sp.TR/1e3,ro,vTR));
-%             descrip_reco=sprintf('%s PAT=%s coilcomb=%s B0=%s DCF=%s CompMode=%s',flags.CompMode,flags.doPAT, flags.doCoilCombine, flags.doB0Corr,flags.doDCF,flags.CompMode);
-            save(OutFile,'im','sp','flags','descrip','descrip_reco','fn','-v7.3')
 
 
         end
