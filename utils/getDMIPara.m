@@ -23,7 +23,7 @@ if(~para.isCSI)
     try
     Range=twix.hdr.Phoenix.sWipMemBlock.alFree{5};
     NRep=twix.image.NRep;
-    Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{4};
+    Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{6};
     if(isempty(Shift));Shift=0;end
     para.PC_deg = (Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
     catch %for fisp
@@ -32,7 +32,7 @@ if(~para.isCSI)
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
-    para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
+    para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree)/1.07; %rad
     try
         para.pulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
         %only work for rect pulse

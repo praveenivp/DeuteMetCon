@@ -1,5 +1,12 @@
 function [D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix)
-
+% [D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix)
+% function to calc noise correlation function
+% D_noise is noise decorr matrix from trwi.noise
+% D_image is noise decorr matrix from image data (only for 0 flipangle scans)
+% noise_info : struct with dwell time and oversampling removal flag
+if(iscell(twix))
+    twix=twix{end};
+end
 NormNoiseData=false;
 % CoilSel
           if isfield(twix,'noise')

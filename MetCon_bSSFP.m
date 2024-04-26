@@ -176,7 +176,6 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.performNoiseDecorr();
             obj.performZeroPaddding();
             obj.performKspaceFiltering();
-%             obj.sig=obj.sig;
             obj.img=myfft(obj.sig,[2 3 4]).*sqrt(numel(obj.sig));
             obj.performCoilCombination();
             obj.performSVDdenosing();
@@ -317,28 +316,32 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                 tic;
                 B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
-                im1=reshape(obj.img(:,:,:,:,EchoSel,PCSel), ...
-                    [],length(obj.flags.EchoSel)*length(PCSel));
+                im1=reshape(obj.img,[],length(EchoSel)*length(PCSel));
                 im1=im1(obj.mask(:),:);
                 %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
              
                 metabol_con=zeros(size(im1,1),length(obj.metabolites));
                 resi=zeros(size(im1));
                 condnm=zeros(size(im1,1),1);
-                pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
-                parfor i=1:size(im1,1)
-                    [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
+                 fprintf('Calculating bSSFP profile basis\n');
+                 Msig_all=MetSignalModel(met_struct,TE,PC,TR,B0,FA,'bSSFP');
                     if(TE(1)==0)
-                    Msig_all=bsxfun(@times,Msig_all,exp(-1i*angle(Msig_all(:,:,1,:,:,:,:,:,:,:))));
+                    Msig_all=bsxfun(@times,Msig_all,exp(-1i*angle(Msig_all(:,1,:,:,:,:,:,:,:))));
                     end
-%                     A= padarray(reshape(squeeze(Msig_all(1,:,:,:,1,1)),length(met_struct),length(PCSel)*length(EchoSel)),[0 0],1,'pre').';
-                    A= reshape(squeeze(Msig_all(1,:,:,:,1,1)),length(met_struct),length(PCSel)*length(EchoSel)).';
+                 fprintf('done.....\n');
+
+%                 pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
+                for i=1:size(im1,1)
+                    %low mem mode!
+%                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
+%                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
+ 
+                    A= reshape(Msig_all(:,:,:,1,i,1),length(met_struct),length(PCSel)*length(EchoSel)).';
                     b=[ im1(i,:)];
-                    %     b=b./max(abs(b(:)));
                     metabol_con(i,:)=A\b(:);
                     resi(i,:)=b(:) -A*metabol_con(i,:).';
                     condnm(i)=cond(A);
-                    pb.progress();
+%                     pb.progress();
                 end
                 
 
@@ -350,17 +353,17 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
 
 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
-                im_me=squeeze(sum(obj.img(:,:,:,:,EchoSel,PCSel),6)).*obj.mask; % sum phase cycles to get FISP contrast
+                im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',5,'mask',obj.mask);
                 obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
-                obj.Experimental.residue=obj.SolverObj.experimental.residue;
+                obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
                 obj.SolverObj.experimental=[];
 
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
 
 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
-                im_me=squeeze(sum(obj.img(:,:,:,:,EchoSel,PCSel),6)).*obj.mask; % sum phase cycles to get FISP contrast
+                im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','phaseonly','mask',obj.mask);
                obj.Metcon= obj.SolverObj'*im_me;
                 obj.Metcon=obj.SolverObj'*im_me;
@@ -371,7 +374,67 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
 
         end
+        function plotFit(obj,voxel_idx)
+            assert(strcmpi(obj.flags.Solver,'pinv'),'only implemented for pinv mode');
+            vMask=zeros(size(obj.mask),'logical');
+            vMask(voxel_idx(1),voxel_idx(2),voxel_idx(3))=true;
+            Mask_baskup=obj.mask;
+            obj.mask=vMask;
+            obj.Metcon();
+            
+             PCSel=obj.flags.PCSel;
+            EchoSel=obj.flags.EchoSel;
+            FA=obj.DMIPara.FlipAngle; %rad
+            TE=obj.DMIPara.TE(EchoSel); %s
+            TR=obj.DMIPara.TR; %s
+            PC=obj.DMIPara.PhaseCycles(PCSel); %rad
+            met_struct=obj.metabolites;
+            B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);
+%             [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0,FA);
 
+            Msig_all=MetSignalModel(met_struct,TE,PC,TR,B0,FA,'bSSFP');
+            Msig_all = reshape(Msig_all,length(met_struct),length(EchoSel),length(PCSel));
+            imdata=squeeze(obj.img(1,voxel_idx(1),voxel_idx(2),voxel_idx(3),:,:));
+            figure(17),clf
+            tt=tiledlayout(2,3,'TileSpacing','tight');
+            Met_amp=squeeze(obj.Metcon(voxel_idx(1),voxel_idx(2),voxel_idx(3),:));
+           disp(abs(Met_amp))
+                Msig_scaled=Msig_all(:,:).'*Met_amp(:);
+
+                
+                nexttile();
+                plot(rad2deg(PC),abs(reshape(Msig_scaled,[],length(PC)).'))
+                hold on
+                plot(rad2deg(PC),abs(imdata).','.')
+                ylabel('amplitude [a.u]')
+                xlabel('RF phase increment [deg]')
+                title('magnitude: data vs fit')
+                set(gca,'colororder',jet(size(imdata,1)))
+
+                %plot phase wrt PC
+                nexttile();
+                plot(rad2deg(PC),rad2deg(angle(reshape(Msig_scaled,[],length(PC)).')))
+                hold on
+                plot(rad2deg(PC),rad2deg(angle(imdata).'),'.')
+                set(gca,'colororder',jet(size(imdata,1)))
+                ylabel('phase [deg]')
+                xlabel('RF phase increment [deg]')
+                title('Phase: data vs fit')
+
+
+             for i=1:length(met_struct)
+                 nexttile();
+                 plot(rad2deg(PC),abs(reshape(Msig_all(i,:,:),[],length(PC)).'))
+                 yyaxis right
+                 plot(rad2deg(PC),rad2deg(angle(reshape(Msig_all(i,:,:),[],length(PC)).')),'--')
+                 set(gca,'colororder',jet(size(imdata,1)))
+                title(obj.metabolites(i).name)
+            end
+    
+            obj.mask=Mask_baskup;
+
+
+        end
         function peformB0mapReslice(obj,regfiles)
             % we need spm12 in path
             if(exist('spm','file'))
