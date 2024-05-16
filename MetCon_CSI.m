@@ -2,7 +2,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
     properties
         time  %[s]
 
-        B0Map %spatial [rad/s]
+        FieldMap %B0 spatial [rad/s]
         mask 
 
         twix
@@ -89,7 +89,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
-                    addParameter(p,'Solver','AMARES',@(x) any(strcmp(x,{'pinv','IDEAL','AMARES','LorentzFit'})));
+                    addParameter(p,'Solver','AMARES',@(x) any(strcmp(x,{'phaseonly','IDEAL','AMARES','LorentzFit'})));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
@@ -106,7 +106,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                         %                         obj.flags.doPAT='CGSENSE';
                     end
                     if(isfield(p.Unmatched,'fm'))
-                        obj.B0Map=p.Unmatched.fm;
+                        obj.FieldMap=p.Unmatched.fm;
+                    else
+                        obj.FieldMap=[];
                     end
                     if(isfield(p.Unmatched,'mask'))
                         obj.mask=p.Unmatched.mask;
@@ -207,7 +209,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             disp(['initial CSI data size:           ', num2str(size(obj.sig))])
             % additional zeropadding data
             if(isempty(obj.flags.ZeroPadSize))
-                pad_size=[0 0 0 0];
+                pad_size=[0 0 0 0 0];
                 % add missing voxels to keep center voxels to the center
                 sSpecPara=obj.twix.hdr.MeasYaps.sSpecPara;
                 % Add missing voxels
@@ -219,10 +221,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             else
                 zp_PRS=obj.flags.ZeroPadSize(1:3);
-                pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3))];
+                pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3)) 0];
             end
             obj.sig=padarray(obj.sig,pad_size,0,'both'); % spatial zeropad
-            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*pad_size(4))],0,'post'); % spectral zerpoad
+            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.ZeroPadSize(4))],0,'post'); % spectral zerpoad
 
             disp(['final CSI data size:           ', num2str(size(obj.sig))])
         end
@@ -320,13 +322,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         end
 
 
-        function performMetaboliteMapping(obj)
-            obj.SolverObj=LeastSquares(obj.metabolites,obj.DMIPara.TE,'fm',obj.B0Map);
-            obj.Metcon=obj.SolverObj'*squeeze(obj.img);
-
-
-        end
-
 
 
         function getMask(obj,thres_prctl)
@@ -350,34 +345,34 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 wbhandle = waitbar(0,'Performing AMARES fitting');
 
 
-                            DW= obj.DMIPara.dwell;
-            BW=1/DW; %Hz
-            samples=size(obj.img,5);
-            timeAxis=0:DW:(samples-1)*DW;
-            imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
-            offset=0;
-            ppmAxis=linspace(-BW/2,BW/2-BW/samples,samples)/imagingFrequency;
-            
-            chemShift=freq./imagingFrequency;
-            phase=ones(1,nMet).*0;
-            amplitude=ones(1,nMet);
-            linewidth=ones(1,nMet).*12;
+                DW= obj.DMIPara.dwell;
+                BW=1/DW; %Hz
+                samples=size(obj.img,5);
+                timeAxis=0:DW:(samples-1)*DW;
+                imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
+                offset=0;
+                ppmAxis=linspace(-BW/2,BW/2-BW/samples,samples)/imagingFrequency;
 
-            amares_struct=struct('chemShift',chemShift, ...
-                'phase', phase,...
-                'amplitude', amplitude,...
-                'linewidth',linewidth, ...
-                'imagingFrequency', imagingFrequency,...
-                'BW', BW,...
-                'timeAxis', timeAxis(:), ...
-                'dwellTime', DW,...
-                'ppmAxis',ppmAxis(:), ...
-                'beginTime',0, ...
-                'offset',offset,...
-                'samples',samples, ...
-                'peakName',string({obj.metabolites.name}));
+                chemShift=freq./imagingFrequency;
+                phase=ones(1,nMet).*0;
+                amplitude=ones(1,nMet);
+                linewidth=ones(1,nMet).*12;
 
-            pk=PriorKnowledge_DMI(amares_struct);
+                amares_struct=struct('chemShift',chemShift, ...
+                    'phase', phase,...
+                    'amplitude', amplitude,...
+                    'linewidth',linewidth, ...
+                    'imagingFrequency', imagingFrequency,...
+                    'BW', BW,...
+                    'timeAxis', timeAxis(:), ...
+                    'dwellTime', DW,...
+                    'ppmAxis',ppmAxis(:), ...
+                    'beginTime',0, ...
+                    'offset',offset,...
+                    'samples',samples, ...
+                    'peakName',string({obj.metabolites.name}));
+
+                pk=PriorKnowledge_DMI(amares_struct);
 
 
                 metabol_con=zeros(size(fids,1),nMet*3+3);
@@ -385,7 +380,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                 parfor i=1:size(fids,1)
                     %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
-%                     waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
+                    %                     waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
                     [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
                     metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
 
@@ -405,7 +400,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
                 dw=obj.DMIPara.dwell;
                 faxis=linspace(-0.5/dw,0.5/dw,size(obj.img,5));
-%                 freq=[-148.7 -54.79 7.82]'; %Hz
+                %                 freq=[-148.7 -54.79 7.82]'; %Hz
                 % nlorentz fitting
 
                 % make the fitting faster by limiting the range +-200 Hz
@@ -422,7 +417,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 rSQ=zeros(size(spectrum_All,1),1);
                 sRMSE=zeros(size(spectrum_All,1),1);
                 %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
-                
+
                 for i=1:size(spectrum_All,1)
                     %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
                     waitbar(i/size(fids,1),wbhandle,'Performing nLorentzian fitting');
@@ -441,7 +436,20 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.rSQ=MetCon_CSI.col2mat(rSQ,obj.mask);
                 obj.Experimental.sRMSE=MetCon_CSI.col2mat(sRMSE,obj.mask);
 
-
+            elseif(strcmpi(obj.flags.Solver,'IDEAL')) 
+                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask);
+                obj.Metcon=obj.SolverObj'*squeeze(obj.img);
+                obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
+                obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
+                obj.SolverObj.experimental=[];
+            elseif(strcmpi(obj.flags.Solver,'phaseonly'))                           
+                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask);
+                obj.Metcon=obj.SolverObj'*squeeze(obj.img);
+                obj.Experimental.fm_est=[];
+                obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
+                obj.SolverObj.experimental=[];
+            else
+                error('Unknown Solver : use {''phaseonly'',''IDEAL'',''AMARES'',''LorentzFit''} \n')
             end
         end
 

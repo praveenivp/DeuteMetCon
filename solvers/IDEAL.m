@@ -33,7 +33,7 @@ classdef IDEAL < matlab.mixin.Copyable
             %             bb=[ImX,Imy,Imz,nCha] % forward case
             res=0;
             if (obj.transp)
-                A=getA23(obj);
+                A=getA(obj);
                 Ainv=pinv(A);
                 if(isempty(obj.mask))
                     obj.mask=ones(size(inp,1),size(inp,2),size(inp,3))>0;
@@ -67,7 +67,7 @@ classdef IDEAL < matlab.mixin.Copyable
 
                     for i=1:size(inp_col,1)
                         for it=1:obj.flags.maxit
-                            A3=getA23(obj);
+                            A3=getA(obj);
                             Sn_cap=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*obj.TE_s); % remove Known b0 offresonance
                             metabol_est=A3\Sn_cap(:); % linear prediction
                             % calc residue
@@ -126,7 +126,7 @@ classdef IDEAL < matlab.mixin.Copyable
 
 
         %% supporting functions
-        function A=getA23(obj)
+        function A=getA(obj)
             CDij=@(freq,tn) exp(1i*2*pi*freq*tn); % Cij i->chemical shift(Hz) tn-> time(s)
             A=zeros(length(obj.TE_s), length(obj.metabolites));
             for cMet=1:length(obj.metabolites)
@@ -136,7 +136,7 @@ classdef IDEAL < matlab.mixin.Copyable
             end
         end
         function B=getB23(obj,metabol_est)
-            A=obj.getA23();
+            A=obj.getA();
             Gjn=1i*(A*metabol_est);
             B=[ 2*pi*obj.TE_s(:).*Gjn, A];
         end
@@ -196,11 +196,10 @@ classdef IDEAL < matlab.mixin.Copyable
             addParameter(p,'maxit',20,@(x) isscalar(x));
             addParameter(p,'tol',0.1,@(x) isscalar(x)); % convergence criteria in Hz
             addParameter(p,'PhaseCorr',false,@(x) islogical(x));
-            %                     addParameter(p,'doMasking',true,@(x) islogical(x)); %just during resampling
-            %                     addParameter(p,'Interpmode','linear',@(x) any(validatestring(x,{'linear','pchip','spline'})));
-            %                     addParameter(p,'doRegistration',false,@(x)islogical(x));
-
-            %                     addParameter(p,'is3D',(obj.reco_obj.twix.image.NPar>1),@(x)islogical(x));
+%             addParameter(p,'doMasking',true,@(x) islogical(x)); %just during resampling
+%             addParameter(p,'Interpmode','linear',@(x) any(validatestring(x,{'linear','pchip','spline'})));
+%             addParameter(p,'doRegistration',false,@(x)islogical(x));
+%             addParameter(p,'is3D',(obj.reco_obj.twix.image.NPar>1),@(x)islogical(x));
 
             parse(p,varargin{:});
             obj.flags=p.Results;

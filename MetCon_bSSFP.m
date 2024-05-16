@@ -353,7 +353,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
 
 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
-                im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
+                im_me=squeeze(sum(obj.img,6)); % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',5,'mask',obj.mask);
                 obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
@@ -363,10 +363,9 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
 
 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
-                im_me=squeeze(sum(obj.img,6)).*obj.mask; % sum phase cycles to get FISP contrast
+                im_me=squeeze(sum(obj.img,6)); % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','phaseonly','mask',obj.mask);
                obj.Metcon= obj.SolverObj'*im_me;
-                obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=[];
                 obj.Experimental.residue=obj.SolverObj.experimental.residue;
                 obj.SolverObj.experimental=[];
