@@ -71,7 +71,7 @@ if(~para.isCSI)
 
     para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
     para.resolution=FOV./para.MatrixSize; %m
-    para.ShortDescription=sprintf('TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
+    para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
 else
 

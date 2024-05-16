@@ -101,7 +101,7 @@ else
     MatSize=round(FOV_PRS./Res_PRS);
 end
 
- offcenter_SCT=(twix.image.slicePos(1:3,1)+0*shift_mm);
+ offcenter_SCT=(twix.image.slicePos(1:3,1)+0*shift_mm(:));
 % seems like siemens always measure CSI wrt isocenter
 % have to check sequence whether they use NCO objects properly
 % offcenter_SCT(1:3)=0;

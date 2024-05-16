@@ -84,7 +84,9 @@ classdef IDEAL < matlab.mixin.Copyable
                      end
 
                     fm_est=obj.col2mat(fm_est,obj.mask);
+                    
 %                     fm_est=medfilt3(fm_est,[1 1 1]*3);
+%                     fm_est=imgaussfilt3(fm_est,3);
                     %     as(fm_est.*(sum(metbol_mask,4)>0),'title','estimated field map(Hz)','colormap','jet')
                     fm_est=obj.mat2col(fm_est,obj.mask);
                     close(pb)
