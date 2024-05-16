@@ -84,10 +84,15 @@ classdef IDEAL < matlab.mixin.Copyable
                      end
 
                     fm_est=obj.col2mat(fm_est,obj.mask);
-                    
-%                     fm_est=medfilt3(fm_est,[1 1 1]*3);
-%                     fm_est=imgaussfilt3(fm_est,3);
-                    %     as(fm_est.*(sum(metbol_mask,4)>0),'title','estimated field map(Hz)','colormap','jet')
+
+                    % smooth estimated fieldmap(deafult=0)
+                    if(obj.flags.SmoothFM>0)
+                        fm_est=imgaussfilt3(fm_est,obj.flags.SmoothFM);
+                    elseif((obj.flags.SmoothFM<0))
+                        fm_est=medfilt3(fm_est,[1 1 1]*obj.flags.SmoothFM*-1);
+                    end
+
+
                     fm_est=obj.mat2col(fm_est,obj.mask);
                     close(pb)
 
@@ -196,6 +201,7 @@ classdef IDEAL < matlab.mixin.Copyable
             addParameter(p,'maxit',20,@(x) isscalar(x));
             addParameter(p,'tol',0.1,@(x) isscalar(x)); % convergence criteria in Hz
             addParameter(p,'PhaseCorr',false,@(x) islogical(x));
+            addParameter(p,'SmoothFM',0,@(x)isscalar(x));
 %             addParameter(p,'doMasking',true,@(x) islogical(x)); %just during resampling
 %             addParameter(p,'Interpmode','linear',@(x) any(validatestring(x,{'linear','pchip','spline'})));
 %             addParameter(p,'doRegistration',false,@(x)islogical(x));
