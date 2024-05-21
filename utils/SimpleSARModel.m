@@ -21,7 +21,10 @@ if(~exist('RefAmp','var'))
 end
 
 if(~exist('kFactor','var'))
-    kFactor=1; %[1/kg]
+    %for 2H, TALES measurement uncertainity for was muc higher (0.28 vs 0.03 for 1H)
+    % Eventhough the k-factor was 0.6 in coil file, we use emperical 0.83
+    % for good prediction
+    kFactor=0.83; %[1/kg]
 end
 
 % A 0.5 ms block pulse with reference ampltitude yields 90 deg flipangle.
