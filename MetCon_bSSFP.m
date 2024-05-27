@@ -84,7 +84,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                     addParameter(p,'doZeroPad',[1,1,1],@(x) isvector(x));
                     %-1 for debug
-                    addParameter(p,'doDenosing',0,@(x) isscalar(x));
+                    addParameter(p,'doDenoising',0,@(x) isscalar(x));
                     addParameter(p,'doParFor',inf,@(x) isscalar(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
@@ -178,7 +178,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.performKspaceFiltering();
             obj.img=myfft(obj.sig,[2 3 4]).*sqrt(numel(obj.sig));
             obj.performCoilCombination();
-            obj.performSVDdenosing();
+            obj.performSVDdenoising();
             obj.performPhaseCorr();
 
             print_str = sprintf( 'reco  time = %6.1f s\n', toc);
@@ -243,20 +243,20 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.sig=padarray(obj.sig,pad_size,0,'both');
             
         end
-        function performSVDdenosing(obj)
-            if(all(obj.flags.doDenosing==0))
+        function performSVDdenoising(obj)
+            if(all(obj.flags.doDenoising==0))
                 return;
             end
-            Ncomp=obj.flags.doDenosing;
+            Ncomp=obj.flags.doDenoising;
             imsz=size(obj.img);
             mat=reshape(squeeze(obj.img),[],prod(imsz(5:end)));
             mat_mean=mean(mat,'all','omitnan');
             [U,S,V]=svd(mat-mat_mean,'econ');
             S=diag(S);
             if(Ncomp<0)
-
                 figure,plot(S);
                 Ncomp=input('give Number of component to keep');
+                obj.flags.doDenoising=Ncomp;
             end
             S((Ncomp+1):end)=0;
 
@@ -354,7 +354,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6)); % sum phase cycles to get FISP contrast
-                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',5,'mask',obj.mask);
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',10,'mask',obj.mask,'SmoothFM',1);
                 obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
@@ -526,29 +526,31 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             if(~exist('fh','var'))
                 fh=figure;
             end
-
-
+            
+                
             tt=tiledlayout(2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
-            slcFac=0.16;
-            slcSel=round(slcFac*size(obj.Metcon,3));
-            slcSel=slcSel:(size(obj.Metcon,3)-slcSel);
+            slcFac=0.3;slcdim=2;
+            slcSel=round(slcFac*size(obj.Metcon,slcdim));
+            slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
+  
+            imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[1 3 slcdim 4]),10),30);
             calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
             for i=1:length(obj.metabolites)
                 nexttile()
-                im_curr=createImMontage(abs(obj.Metcon(:,:,slcSel,i)));
+                im_curr=createImMontage(imtransFunc(abs(obj.Metcon(:,:,:,i))));
                 im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize
                 imagesc(im_curr);
                 colorbar,
                 axis image
 
-                cax_im=[0 prctile(im_curr(:),95)];
+                cax_im=[0 prctile(im_curr(:),99)];
                 clim(cax_im);
                 xticks([]),yticks([]),title(obj.metabolites(i).name)
             end
 
             % display residue
             nexttile()
-            im_curr=createImMontage(sos(obj.Experimental.residue(:,:,slcSel,:),4));
+            im_curr=createImMontage(imtransFunc(sos(obj.Experimental.residue(:,:,:,:),4)));
             im_curr=im_curr./calcStd(sos(obj.Experimental.residue,4)); %normalize
             imagesc(im_curr);
             colorbar,
@@ -562,11 +564,11 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
             nexttile()
             if(isfield(obj.Experimental,'fm_est'))
-                fm_Hz=createImMontage(obj.Experimental.fm_est(:,:,slcSel,:));
+                fm_Hz=createImMontage(imtransFunc(obj.Experimental.fm_est(:,:,:,:)));
                 imagesc(fm_Hz);
                 title('estimated 2H fieldmap [Hz]')
             else
-                fm_Hz=createImMontage(obj.FieldMap(:,:,slcSel,:))./(2*pi)*(6.536 /42.567); 
+                fm_Hz=createImMontage(imtransFunc(obj.FieldMap(:,:,:,:)))./(2*pi)*(6.536 /42.567); 
                 imagesc(fm_Hz);
                 title('input 2H fieldmap [Hz]')
             end

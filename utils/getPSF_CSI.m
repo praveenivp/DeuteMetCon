@@ -62,7 +62,7 @@ W(:,LinIdx(i),ParIdx(i))=W(:,LinIdx(i),ParIdx(i))+1;
 end
 
 end
- W=ones(size(W));
+%  W=ones(size(W));
 PSF=fftshift(fftn(W,ones(1,ndims(W)).*2^9));
 
 

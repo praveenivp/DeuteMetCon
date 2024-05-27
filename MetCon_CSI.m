@@ -191,8 +191,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             % scale factor for SNR units reco : step 1
             obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
 
-            % Sum averages (if not already done)
-            obj.sig  = sum( obj.sig ,6);
+            % Sum averages and repetitions(if not already done)
+            obj.sig  = sum( obj.sig ,[6 9]);
 
             % Permute the data
             % COL x CHAx LIN x PAR x SLC x AVE x PxExMxSetsx SEG             ->  LIN  xSEG x PAR CHA xCOL
@@ -559,6 +559,72 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             save(OutFile,"mcobj_copy");
 
 
+
+        end
+
+        function PlotResults(obj,fh)
+            if(~exist('fh','var'))
+                fh=figure;
+            end
+
+
+            tt=tiledlayout(2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
+            slcFac=0.16;
+            slcSel=round(slcFac*size(obj.Metcon,3));
+            slcSel=slcSel:(size(obj.Metcon,3)-slcSel);
+            calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
+            for i=1:length(obj.metabolites)
+                nexttile()
+                im_curr=createImMontage(abs(obj.Metcon(:,:,slcSel,i)));
+                im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize
+                imagesc(im_curr);
+                colorbar,
+                axis image
+
+                cax_im=[0 prctile(im_curr(:),95)];
+                clim(cax_im);
+                xticks([]),yticks([]),title(obj.metabolites(i).name)
+            end
+
+            % display residue
+            nexttile()
+            im_curr=createImMontage(sos(obj.Experimental.residue(:,:,slcSel,:),4));
+            im_curr=im_curr./calcStd(sos(obj.Experimental.residue,4)); %normalize
+            imagesc(im_curr);
+            colorbar,
+
+            axis image
+
+            cax_im=[0 prctile(im_curr(:),95)];
+            clim(cax_im);
+            xticks([]),yticks([]),title('residue')
+
+            %display fieldmaps
+
+            nexttile()
+            if(isfield(obj.Experimental,'fm_est'))
+                fm_Hz=createImMontage(obj.Experimental.fm_est(:,:,slcSel,:));
+                imagesc(fm_Hz);
+                title('estimated 2H fieldmap [Hz]')
+            else
+                fm_Hz=createImMontage(obj.FieldMap(:,:,slcSel,:))./(2*pi)*(6.536 /42.567);
+                imagesc(fm_Hz);
+                title('input 2H fieldmap [Hz]')
+            end
+
+            colorbar,
+            axis image,colormap(gca,'jet');
+            cax_im=[-1*prctile(fm_Hz(:),95) prctile(fm_Hz(:),95)+1];
+            clim(cax_im);
+            xticks([]),yticks([]),
+
+            str=sprintf('%s|%s',obj.DMIPara.ShortDescription,obj.flags.Solver);
+
+            annotation('textbox',[0.5 0.9 0.1 0.1],'String',str,'HorizontalAlignment','center','FontSize',12)
+
+            OutFile=sprintf('%s.fig',strrep(str,'|','_'));
+            OutFile=strrep(OutFile,' ','');
+            savefig(OutFile)
 
         end
 
