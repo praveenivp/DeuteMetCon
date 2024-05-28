@@ -71,6 +71,7 @@ if(~para.isCSI)
 
     para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
     para.resolution=FOV./para.MatrixSize; %m
+    para.resolution_PSF=getPSF_CSI(twix); %m  
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
 else
@@ -121,7 +122,7 @@ else
     end
 
     % get timings probably only work for VE12U
-    para.AcquitionDuration=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s
+    para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s
     tok=regexp(twix.hdr.Phoenix.tReferenceImage0,'.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d+$','tokens');
     tok=cellfun(@(x)(str2double(x)),tok,'UniformOutput',false);
     para.StudyDateTime= datetime(tok{1});
@@ -142,6 +143,7 @@ else
 
     para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
     para.resolution=FOV./para.MatrixSize; %m
+    para.resolution_PSF=getPSF_CSI(twix)*1e-3; %m
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
   

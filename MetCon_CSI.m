@@ -66,6 +66,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
 
             obj.performRecon();
+            obj.getMask(0); % select all voxels
 
         end
         function getflags(obj,varargin)
@@ -124,6 +125,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     end
 
 
+            end
+
+            if( strcmp(obj.flags.Solver,'AMARES'))
+                assert(strcmp(obj.flags.doPhaseCorr,'Burg'),'use ''doPhaseCorr'' flag with ''Burg'' method for ''AMARES''');
+                assert(~isempty(which('AMARES.amaresFit')),'add AMARES to path: <a href="https://github.com/OXSAtoolbox/OXSA.git">OXSA git link</a>');
             end
 
         end
@@ -328,6 +334,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             if(nargin==1)
                 thres_prctl=95;
             end
+            %for initialization
+            if(thres_prctl==0 && isempty(obj.mask) ) 
+                obj.mask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
+            end
+
             im_abs=abs(squeeze(sum(obj.img,5)));
             obj.mask=im_abs>0.1*prctile(im_abs(:),thres_prctl);  
  
@@ -395,7 +406,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.linewidth=metabol_con(:,:,:,((1:nMet)+nMet*(2-1)));
                 obj.Experimental.phase=metabol_con(:,:,:,((1)+nMet*(4-1))); %phase
                 obj.Experimental.relativeNorm=metabol_con(:,:,:,((2)+nMet*(4-1)));
-                obj.Experimental.resNormSq=metabol_con(:,:,:,((3)+nMet*(4-1)));
+%                 resNormSq
+                obj.Experimental.residue=metabol_con(:,:,:,((3)+nMet*(4-1)));
+                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1);
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
                 dw=obj.DMIPara.dwell;
@@ -414,6 +427,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                 wbhandle = waitbar(0,'Performing nLorentzian fitting');
                 metabol_con=zeros(size(spectrum_All,1),nMet);
+                chemicalshift=zeros(size(spectrum_All,1),nMet);
+                gamma=zeros(size(spectrum_All,1),nMet);
                 rSQ=zeros(size(spectrum_All,1),1);
                 sRMSE=zeros(size(spectrum_All,1),1);
                 %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
@@ -423,10 +438,19 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     waitbar(i/size(fids,1),wbhandle,'Performing nLorentzian fitting');
 
                     [fitf,gof,fitoptions]=NLorentzFit(xdata(:),spectrum_All(i,:).',freq);
-                    metabol_con(i,:)= [fitf.A1; fitf.A2; fitf.A3;];
+                    
 
                     rSQ(i)=gof.adjrsquare;
                     sRMSE(i)=gof.rmse;
+                    chemicalshift(i,:)=[fitf.center1; fitf.center2; fitf.center3;];
+
+                    coeff=coeffvalues(fitf{1});
+                    coeff=reshape(coeff(1:end-1),nMet,[]);
+                    metabol_con(i,:)= coeff(:,1);
+                    chemicalshift(i,:)= coeff(:,2);
+                    gamma(i,:)= coeff(:,2);
+
+
 
                 end
                 close(wbhandle);
@@ -434,7 +458,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 % convert to 3D matrix and give resonable names
                 obj.Metcon=MetCon_CSI.col2mat(metabol_con,obj.mask);
                 obj.Experimental.rSQ=MetCon_CSI.col2mat(rSQ,obj.mask);
-                obj.Experimental.sRMSE=MetCon_CSI.col2mat(sRMSE,obj.mask);
+                obj.Experimental.residue=MetCon_CSI.col2mat(sRMSE,obj.mask);
+                obj.Experimental.chemicalshift=MetCon_CSI.col2mat(rSQ,obj.mask);
+                obj.Experimental.gamma=MetCon_CSI.col2mat(rSQ,obj.mask);
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL')) 
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask);
@@ -567,14 +593,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 fh=figure;
             end
 
-
-            tt=tiledlayout(2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
+            
+            tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
             slcFac=0.16;
             slcSel=round(slcFac*size(obj.Metcon,3));
             slcSel=slcSel:(size(obj.Metcon,3)-slcSel);
             calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
             for i=1:length(obj.metabolites)
-                nexttile()
+                nexttile(tt)
                 im_curr=createImMontage(abs(obj.Metcon(:,:,slcSel,i)));
                 im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize
                 imagesc(im_curr);
@@ -587,7 +613,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
 
             % display residue
-            nexttile()
+            nexttile(tt)
             im_curr=createImMontage(sos(obj.Experimental.residue(:,:,slcSel,:),4));
             im_curr=im_curr./calcStd(sos(obj.Experimental.residue,4)); %normalize
             imagesc(im_curr);
@@ -618,14 +644,34 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             clim(cax_im);
             xticks([]),yticks([]),
 
-            str=sprintf('%s|%s',obj.DMIPara.ShortDescription,obj.flags.Solver);
+            temp_str=sprintf('%s|%s',obj.DMIPara.ShortDescription,obj.flags.Solver);
 
-            annotation('textbox',[0.5 0.9 0.1 0.1],'String',str,'HorizontalAlignment','center','FontSize',12)
+            if(isfield(obj.DMIPara,'IntakeTime'))
+                temp_str=sprintf('%s|%d min',temp_str,obj.getMinutesAfterIntake());
+            end
 
-            OutFile=sprintf('%s.fig',strrep(str,'|','_'));
-            OutFile=strrep(OutFile,' ','');
-            savefig(OutFile)
+            annotation('textbox',[0.5 0.9 0.1 0.1],'String',temp_str,'HorizontalAlignment','center','FontSize',12)
 
+            OutfigFile=sprintf('%s.fig',strrep(temp_str,'|','_'));
+            OutfigFile=strrep(OutfigFile,' ','');
+            savefig(fh,OutfigFile)
+
+        end
+
+        function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)
+            %mcobj.getMinutesAfterIntake('hh:mm')
+            if(exist("IntakeTime",'var'))
+                IntakeTime=duration(IntakeTime,'InputFormat','hh:mm');
+                obj.DMIPara.IntakeTime=IntakeTime;
+            elseif(isfield(obj.DMIPara,'IntakeTime'))
+                fprintf('Using glucose intake time : %s\n',obj.DMIPara.IntakeTime);
+            else
+                error('Glucose Intake in hh:mm')
+            end
+
+            MeasStartTime=duration(string(obj.DMIPara.SeriesDateTime_start,'hh:mm:ss'),'InputFormat','hh:mm:ss');
+            timeElapsed=(MeasStartTime-obj.DMIPara.IntakeTime)+seconds(obj.DMIPara.acq_duration_s*0.5);
+            MinuteElapsed=round(minutes(timeElapsed));
         end
 
     end

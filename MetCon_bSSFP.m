@@ -528,7 +528,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
             
                 
-            tt=tiledlayout(2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
+            tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
             slcFac=0.3;slcdim=2;
             slcSel=round(slcFac*size(obj.Metcon,slcdim));
             slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
@@ -536,7 +536,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[1 3 slcdim 4]),10),30);
             calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
             for i=1:length(obj.metabolites)
-                nexttile()
+                nexttile(tt)
                 im_curr=createImMontage(imtransFunc(abs(obj.Metcon(:,:,:,i))));
                 im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize
                 imagesc(im_curr);
@@ -549,7 +549,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
 
             % display residue
-            nexttile()
+            nexttile(tt)
             im_curr=createImMontage(imtransFunc(sos(obj.Experimental.residue(:,:,:,:),4)));
             im_curr=im_curr./calcStd(sos(obj.Experimental.residue,4)); %normalize
             imagesc(im_curr);
@@ -561,16 +561,19 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             xticks([]),yticks([]),title('residue')
 
             %display fieldmaps
-
-            nexttile()
+            nexttile(tt)
             if(isfield(obj.Experimental,'fm_est'))
-                fm_Hz=createImMontage(imtransFunc(obj.Experimental.fm_est(:,:,:,:)));
-                imagesc(fm_Hz);
-                title('estimated 2H fieldmap [Hz]')
-            else
-                fm_Hz=createImMontage(imtransFunc(obj.FieldMap(:,:,:,:)))./(2*pi)*(6.536 /42.567); 
-                imagesc(fm_Hz);
-                title('input 2H fieldmap [Hz]')
+                if(~isempty(obj.Experimental.fm_est))
+                    fm_Hz=createImMontage(imtransFunc(obj.Experimental.fm_est(:,:,:,:)));
+                    imagesc(fm_Hz);
+                    title('estimated 2H fieldmap [Hz]')
+                elseif(~isempty(obj.FieldMap))
+                    fm_Hz=createImMontage(imtransFunc(obj.FieldMap(:,:,:,:)))./(2*pi)*(6.536 /42.567);
+                    imagesc(fm_Hz);
+                    title('input 2H fieldmap [Hz]')
+                else
+                    title('no estimated/input fieldmap');
+                end
             end
             
             colorbar,
@@ -580,14 +583,33 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             xticks([]),yticks([]),
 
             str=sprintf('%s|%s',obj.DMIPara.ShortDescription,obj.flags.Solver);
+            if(isfield(obj.DMIPara,'IntakeTime'))
+                str=sprintf('%s|%d min',str,obj.getMinutesAfterIntake());
+            end
 
             annotation('textbox',[0.5 0.9 0.1 0.1],'String',str,'HorizontalAlignment','center','FontSize',12)
         
             OutFile=sprintf('%s.fig',strrep(str,'|','_'));
             OutFile=strrep(OutFile,' ','');
-            savefig(OutFile)
+            savefig(fh,OutFile)
 
         end
+        function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)
+            %mcobj.getMinutesAfterIntake('hh:mm')
+            if(exist("IntakeTime",'var'))
+                IntakeTime=duration(IntakeTime,'InputFormat','hh:mm');
+                obj.DMIPara.IntakeTime=IntakeTime;
+            elseif(isfield(obj.DMIPara,'IntakeTime'))
+                fprintf('Using glucose intake time : %s\n',obj.DMIPara.IntakeTime);
+            else
+                error('Glucose Intake in hh:mm')
+            end
+
+            MeasStartTime=duration(string(obj.DMIPara.SeriesDateTime_start,'hh:mm:ss'),'InputFormat','hh:mm:ss');
+            timeElapsed=(MeasStartTime-obj.DMIPara.IntakeTime)+seconds(obj.DMIPara.acq_duration_s*0.5);
+            MinuteElapsed=round(minutes(timeElapsed));
+        end
+
 
 
     end
