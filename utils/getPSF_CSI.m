@@ -1,4 +1,4 @@
-function [fw64,PSF,W]=getPSF_CSI(twix)
+function [fw64,PSF,W]=getPSF_CSI(twix,plotOff)
 % [fw64,PSF,W]=getPSF_CSI(twix)
 % function to plot the point spread function of CSI experiment.
 % FW64 not FWHM because FW64(unweighted experiment)/nominal resolution ~=1
@@ -84,60 +84,62 @@ FOV_e3=linspace(-FOV(3)/2,FOV(3)/2-FOV(3)/size(PSF_E3,1),size(PSF_E3,1));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% Plot%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+if(~exist('plotOff','var')), plotOff=true; end
+if(plotOff)
+    figure(14),clf
+    subplot(2,4,1),
+    plot(kaxis_e1,W(:,kCenter(2),kCenter(3)))
+    xlabel('normalized kspace'),title('Acquisition weighting: E1')
 
-figure(14),clf
-subplot(2,4,1),
-plot(kaxis_e1,W(:,kCenter(2),kCenter(3)))
-xlabel('normalized kspace'),title('Acquisition weighting: E1')
-
-subplot(2,4,5),
-plot(FOV_e1,abs(PSF_E1))
-[fw64(1),points]=getFW64(FOV_e1,abs(PSF_E1));
-hold on
-xlabel('distance (mm)')
-plot(points.x,points.y,'LineWidth',1.4)
-title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(1),res(1)))
-
-
-
-subplot(2,4,2),
-plot(kaxis_e2,W(kCenter(1),:,kCenter(3)))
-xlabel('normalized kspace'),title('Acquisition weighting: E2')
-
-subplot(2,4,6),
-plot(FOV_e2,abs(PSF_E2))
-[fw64(2),points]=getFW64(FOV_e2,abs(PSF_E2));
-hold on
-xlabel('distance (mm)')
-plot(points.x,points.y,'LineWidth',1.4)
-title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(2),res(2)))
-
-
-subplot(2,4,3),
-plot(kaxis_e3,squeeze(W(kCenter(1),kCenter(2),:)))
-xlabel('normalized kspace'),title('Acquisition weighting: E3')
-
-subplot(2,4,7),
-plot(FOV_e3,abs(PSF_E3))
-[fw64(3),points]=getFW64(FOV_e3,abs(PSF_E3));
-hold on
-xlabel('distance (mm)')
-plot(points.x,points.y,'LineWidth',1.4)
-title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(3),res(3)))
-
-if(isCSI)
-    subplot(2,4,4)
-    plot(taxis*1e3,sig)
-    xlabel('time (ms)')
-    title(sprintf('T2*= %1.2f ms | B0 = %d Hz',T2star*1e3,B0))
-
-    subplot(2,4,8),plot(spec_axis,abs(Spec))
+    subplot(2,4,5),
+    plot(FOV_e1,abs(PSF_E1))
+    [fw64(1),points]=getFW64(FOV_e1,abs(PSF_E1));
     hold on
-    [fw64(4),points]=getFW64(spec_axis,abs(Spec));
-    xlabel('frequency (Hz)')
+    xlabel('distance (mm)')
     plot(points.x,points.y,'LineWidth',1.4)
-    xlim([-1, 1].*200)
-    title(sprintf('PSF FW64%%=%2.2f Hz | Nominal=%1.2f Hz',fw64(4),(1/(2*Tacq))))
+    title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(1),res(1)))
+
+
+
+    subplot(2,4,2),
+    plot(kaxis_e2,W(kCenter(1),:,kCenter(3)))
+    xlabel('normalized kspace'),title('Acquisition weighting: E2')
+
+    subplot(2,4,6),
+    plot(FOV_e2,abs(PSF_E2))
+    [fw64(2),points]=getFW64(FOV_e2,abs(PSF_E2));
+    hold on
+    xlabel('distance (mm)')
+    plot(points.x,points.y,'LineWidth',1.4)
+    title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(2),res(2)))
+
+
+    subplot(2,4,3),
+    plot(kaxis_e3,squeeze(W(kCenter(1),kCenter(2),:)))
+    xlabel('normalized kspace'),title('Acquisition weighting: E3')
+
+    subplot(2,4,7),
+    plot(FOV_e3,abs(PSF_E3))
+    [fw64(3),points]=getFW64(FOV_e3,abs(PSF_E3));
+    hold on
+    xlabel('distance (mm)')
+    plot(points.x,points.y,'LineWidth',1.4)
+    title(sprintf('PSF FW64%%=%2.2f mm | Nominal=%1.2f mm',fw64(3),res(3)))
+
+    if(isCSI)
+        subplot(2,4,4)
+        plot(taxis*1e3,sig)
+        xlabel('time (ms)')
+        title(sprintf('T2*= %1.2f ms | B0 = %d Hz',T2star*1e3,B0))
+
+        subplot(2,4,8),plot(spec_axis,abs(Spec))
+        hold on
+        [fw64(4),points]=getFW64(spec_axis,abs(Spec));
+        xlabel('frequency (Hz)')
+        plot(points.x,points.y,'LineWidth',1.4)
+        xlim([-1, 1].*200)
+        title(sprintf('PSF FW64%%=%2.2f Hz | Nominal=%1.2f Hz',fw64(4),(1/(2*Tacq))))
+    end
 end
 
 end
@@ -145,13 +147,13 @@ end
 
 %%
 function [fw64,points]=getFW64(x,y)
-    x=x(:);
-    y=y(:);
-    halfMax = (max(y)-min(y)) *(0.64);
-    index1 = find(y >= halfMax, 1, 'first');
-    index2 = find(y >= halfMax, 1, 'last');
-    fw64 = x(index2) - x(index1);
-    
-    points.x=[x(index1); x(index2)];
-    points.y=[y(index1);y(index2)];
+x=x(:);
+y=y(:);
+halfMax = (max(y)-min(y)) *(0.636);
+index1 = find(y >= halfMax, 1, 'first');
+index2 = find(y >= halfMax, 1, 'last');
+fw64 = x(index2) - x(index1);
+
+points.x=[x(index1); x(index2)];
+points.y=[y(index1);y(index2)];
 end

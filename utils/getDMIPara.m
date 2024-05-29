@@ -71,7 +71,7 @@ if(~para.isCSI)
 
     para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
     para.resolution=FOV./para.MatrixSize; %m
-    para.resolution_PSF=getPSF_CSI(twix); %m  
+    para.resolution_PSF=getPSF_CSI(twix,false)*1e-3; %m  
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
 else
@@ -143,7 +143,7 @@ else
 
     para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
     para.resolution=FOV./para.MatrixSize; %m
-    para.resolution_PSF=getPSF_CSI(twix)*1e-3; %m
+    para.resolution_PSF=getPSF_CSI(twix,false)*1e-3; %m
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
   

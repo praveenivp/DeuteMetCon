@@ -63,6 +63,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
 
             obj.performRecon();
+            obj.getMask(0);
 
         end
         function getflags(obj,varargin)
@@ -202,8 +203,21 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                 %Coil x Phase x Read xSlice x echo x PC
                 obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
+        end
+        function getMask(obj,thres_prctl)
+            if(nargin==1)
+                thres_prctl=95;
+            end
+            %for initialization
+            if(thres_prctl==0 && isempty(obj.mask) )
+                obj.mask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
+            end
 
+            im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
+            obj.mask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
 
+            obj.mask=imerode(obj.mask,strel('sphere',2));
+            obj.mask=imdilate(obj.mask,strel('sphere',3));
 
         end
         function performKspaceFiltering(obj)
