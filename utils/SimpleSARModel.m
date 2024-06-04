@@ -2,7 +2,7 @@ function [SAR,maxFA]=SimpleSARModel(FA,PulseDur,TR,RefAmp,kFactor)
 % simple SAR model to calculate average SAR and maximum possible flip angle
 % for rectangular pulse.  
 %
-% [SAR,maxFA]=SimpleSARModel(FA,PulseDur,TR,RefAmp=447,kFactor=1)
+% [SAR,maxFA]=SimpleSARModel(FA,PulseDur,TR,RefAmp=447,kFactor=0.83)
 %
 % INPUTS
 % FA - flip angle in degrees
