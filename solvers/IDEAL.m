@@ -34,7 +34,7 @@ classdef IDEAL < matlab.mixin.Copyable
             res=0;
             if (obj.transp)
                 A=getA(obj);
-                Ainv=pinv(A);
+%                 Ainv=pinv(A);
                 if(isempty(obj.mask))
                     obj.mask=ones(size(inp,1),size(inp,2),size(inp,3))>0;
                 end
@@ -56,7 +56,7 @@ classdef IDEAL < matlab.mixin.Copyable
                     for i=1:size(inp_col,1)
                         inp_corr=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*obj.TE_s);
                         %                             res(i,:)=Ainv*[real(inp_corr) imag(inp_corr)]';
-                        res(i,:)=Ainv*inp_corr(:);
+                        res(i,:)=A\inp_corr(:);
                         residue(i,:)=single(inp_corr(:)-A*res(i,:).');
                     end
 

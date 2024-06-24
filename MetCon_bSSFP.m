@@ -94,7 +94,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     %                     addParameter(p,'doB0Corr','none',@(x) any(strcmp(x,{'none','MTI','MFI'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
-                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','phaseonly'})));
+                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','IDEAL-modes','phaseonly'})));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
@@ -211,13 +211,14 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             %for initialization
             if(thres_prctl==0 && isempty(obj.mask) )
                 obj.mask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
-            end
-
+            elseif(thres_prctl>0) 
+            
             im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
             obj.mask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
 
             obj.mask=imerode(obj.mask,strel('sphere',2));
             obj.mask=imdilate(obj.mask,strel('sphere',3));
+            end
 
         end
         function performKspaceFiltering(obj)
@@ -374,6 +375,48 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
                 obj.SolverObj.experimental=[];
 
+
+            elseif(strcmpi(obj.flags.Solver,'IDEAL-modes'))
+
+
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',10,'mask',obj.mask,'SmoothFM',1);
+                
+                Np=round(length(obj.DMIPara.PhaseCycles)/2);
+                if(Np>5), Np=5; end % higher order doesn't hold that much signal
+                %calculate SSFP configuration modes
+                Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np); 
+                
+                %estimate fieldmap from F0
+                im_me=Fn(:,:,:,:,Np+1); % F0
+                obj.Metcon=obj.SolverObj'*im_me;
+                fm_ideal=obj.SolverObj.experimental.fm_est*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
+
+                
+                %estimate metabolites concentration from all modes
+                Metcon_modes=[];res_all=[];
+                for i=1:size(Fn,5)
+                    TEs=obj.DMIPara.TE +TR*(i-(Np+1));
+                    SolverObj_pinv=IDEAL(obj.metabolites,TEs,'fm',fm_ideal,'solver','phaseonly','mask',obj.mask);
+                    Metcon_temp= SolverObj_pinv'*Fn(:,:,:,:,i);
+
+                    Metcon_modes=cat(5,Metcon_modes,Metcon_temp);
+                    res_all=cat(5,res_all,sos(SolverObj_pinv.experimental.residue,[4 5]));
+                end
+
+                %SVD combine  metcon_all
+
+                [~,S,V]=svd(reshape(Metcon_modes,[],size(Fn,5)),'econ');
+                sz=size(Metcon_modes);
+                Metcon_comb=reshape(reshape(Metcon_modes,[],size(Fn,5))*V,sz(1:5));
+                %pick the first 
+                obj.Metcon=Metcon_comb(:,:,:,:,1);
+
+                obj.Experimental.Metcon_modes=Metcon_modes;
+                obj.Experimental.sing_val=S;
+                obj.Experimental.Metcon_modes_svd=Metcon_comb;
+                obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
+                obj.Experimental.residue=sos(res_all,[4 5]);
+                obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
 
 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
