@@ -45,7 +45,7 @@ Res_PRS=FOV_PRS./MatSz; %mm
 % res=sa.dReadoutFOV/kspst.lBaseResolution;
 % Res_PRS=[res/kspst.dPhaseResolution   res FOV_PRS(3)/kspst.lPartitions];
 
-AffineMat=getAffineMatrix(twix,[size(Vol),1]);
+AffineMat=getAffineNormal(twix,[size(Vol),1]);
 trans_vec=AffineMat(1:3,4);
 
 %% try to write the nifti
@@ -82,6 +82,88 @@ nifti_header.raw=deafult_header;
 %
 niftiwrite(Vol,filename,nifti_header,'Compressed',false)
 end
+function affine=getAffineNormal(twix,MatSize)
+% get affine matrix from nornal vector
+% a little more cleaner code without dicom bullshit
+% https://raw.githubusercontent.com/aghaeifar/RecoTwix/main/recotwix/transformation.py
+% get resolution and FOV
+sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
+try
+    FOV_PRS=[sa.dPhaseFOV  sa.dReadoutFOV  sa.dThickness + sa.dThickness*kspst.dSliceOversamplingForDialog]; %mm
+catch
+    FOV_PRS=[ sa.dPhaseFOV  sa.dReadoutFOV sa.dThickness]; %mm
+end
+
+if(exist('MatSize','var'))
+    Res_PRS=FOV_PRS./MatSize(1:3);
+else
+    res=sa.dReadoutFOV/kspst.lBaseResolution;
+    Res_PRS=[res/kspst.dPhaseResolution   res FOV_PRS(3)/kspst.lPartitions];
+    MatSize=round(FOV_PRS./Res_PRS);
+end
+scaling_affine=diag([Res_PRS(:); 1]);
+
+% get normal
+Normal=zeros(3,1);
+if(isfield(sa.sNormal,'dSag')   ),Normal(1)=sa.sNormal.dSag;end
+if(isfield(sa.sNormal,'dCor')   ),Normal(2)=sa.sNormal.dCor;end
+if(isfield(sa.sNormal,'dTra')   ),Normal(3)=sa.sNormal.dTra;end
+[~,mainOrientation]=max(Normal);
+switch(mainOrientation)
+    case 1
+        Rm1=[[0, 0, 1]; [1, 0, 0]; [0, 1, 0]];
+    case 2
+        Rm1= [[1, 0, 0]; [0, 0, 1]; [0,-1, 0]];
+    case 3
+        Rm1=[[0,-1, 0]; [1, 0, 0]; [0, 0, 1]];
+end
+
+Normal_main=zeros(3,1);
+Normal_main(mainOrientation)=1;
+%rodrigues formula
+v = cross(Normal_main, Normal) ;
+s = norm(v) ;
+c = dot(Normal_main, Normal)  ;
+if (s <= 1e-5)
+    Rm2 = eye(3)*c;
+else
+    I=eye(3);
+    v_x=eye(3);
+    for i=1:3
+        v_x(i,:)=cross(I(i,:),v);
+    end
+    Rm2 = eye(3) + v_x + (v_x*v_x)./(1+c);
+end
+
+Rotmat_normal=Rm2*Rm1;
+
+%inplane rotation
+theta=0;
+if(isfield(sa,'dInPlaneRot')), theta=sa.dInPlaneRot;end
+  rotmat_inplane =  [[cos(-theta), sin(+theta), 0];...
+                    [sin(-theta), cos(-theta), 0];...
+                    [0         , 0         , 1]];
+rotation_affine=eye(4);
+rotation_affine(1:3,1:3)=Rotmat_normal*rotmat_inplane;
+
+%%
+   % translation (center of image)
+    corner_mm =[-1*FOV_PRS(:)/2 ; 1];
+    corner_mm(3)=corner_mm(3)+Res_PRS(3)/2;
+    T=rotation_affine;
+    offcenter_SCT=twix.image.slicePos(1:3,1);
+    T(1:3,4)=offcenter_SCT;
+    offset = T * corner_mm;
+    translation_affine = eye(4);
+    translation_affine(:,4) = offset;
+    % LPS to RAS, Note LPS and PCS (patient coordinate system [Sag, Cor, Tra] ) are identical here (head first/supine).
+    LPS_to_RAS = diag([-1, -1, 1, 1]); % Flip mm coords in x and y directions
+
+    affine = LPS_to_RAS *translation_affine * rotation_affine * scaling_affine;
+
+end
+
+
 function affine=getAffineMatrix(twix,MatSize)
 sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
 kspst=twix.hdr.Phoenix.sKSpace;
