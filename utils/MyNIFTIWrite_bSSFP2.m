@@ -45,7 +45,13 @@ Res_PRS=FOV_PRS./MatSz; %mm
 % res=sa.dReadoutFOV/kspst.lBaseResolution;
 % Res_PRS=[res/kspst.dPhaseResolution   res FOV_PRS(3)/kspst.lPartitions];
 
+
+
 AffineMat=getAffineNormal(twix,[size(Vol),1]);
+Vol=flip(Vol,2); % cartesian
+% Vol=ndflip(Vol,[1 2 3]); % spiral
+
+
 trans_vec=AffineMat(1:3,4);
 
 %% try to write the nifti
