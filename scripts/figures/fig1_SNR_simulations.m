@@ -131,7 +131,7 @@ legend('bSSFP/GRE-TR36','GRE-TR36/TR74','Location','southwest')
 grid minor
 title('ratio')
 
-tab=table(sig_prot1,sig_prot2,sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bssfp19ms','gre36ms','gre76'})
+tab=table(sig_prot1,sig_prot2,sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bssfp19ms','gre36ms','gre74ms'})
 
 %some plot handles: needs second execition
 plotProtGre1= @ () plot(74,57*RFfac,'r*','MarkerSize',10);

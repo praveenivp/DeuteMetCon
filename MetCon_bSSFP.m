@@ -46,8 +46,6 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     obj.filename=fullfile(pathname,fn);
                     obj.twix = mapVBVD(obj.filename, 'rmos');
                 end
-
-
             end
 
             if(iscell(obj.twix)) %VE
@@ -63,7 +61,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
 
             obj.performRecon();
-            obj.getMask(0);
+            
 
         end
         function getflags(obj,varargin)
@@ -81,12 +79,13 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'doPhaseCorr',true,@(x) islogical(x));
                     addParameter(p,'NormNoiseData',false,@(x) islogical(x));
                     addParameter(p,'doAverage',true,@(x) islogical(x));
+                    addParameter(p,'parfor',true,@(x) islogical(x));
 
 
                     addParameter(p,'doZeroPad',[1,1,1],@(x) isvector(x));
                     %-1 for debug
                     addParameter(p,'doDenoising',0,@(x) isscalar(x));
-                    addParameter(p,'doParFor',inf,@(x) isscalar(x));
+                    %                     addParameter(p,'doParFor',inf,@(x) isscalar(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
                     addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=1:obj.twix.image.NRep)) );
@@ -95,12 +94,6 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     %                     addParameter(p,'doB0Corr','none',@(x) any(strcmp(x,{'none','MTI','MFI'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','IDEAL-modes','phaseonly'})));
-                    %                     addParameter(p,'maxit',10,@(x)isscalar(x));
-                    %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
-                    %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
-                    %                     addParameter(p,'reg_lambda',0,@(x)isscalar(x));
-
-                    
                     parse(p,varargin{:});
 
                     obj.flags=p.Results;
@@ -121,16 +114,19 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     if(isfield(p.Unmatched,'metabolites'))
                         obj.metabolites=p.Unmatched.metabolites;
                         %                         obj.flags.doB0Corr='MTI';
+                    else
+                        obj.metabolites=[];
                     end
                     if(isfield(p.Unmatched,'NoiseDecorr'))
                         obj.D=p.Unmatched.NoiseDecorr;
                         %                         obj.flags.doB0Corr='MTI';
                     end
 
-
-
+                    if (obj.twix.image.NRep<4 && strcmp(obj.flags.Solver,'IDEAL-modes'))
+                        obj.flags.Solver='IDEAL';
+                        warning('Not enough phase cycles for IDEAL-modes: Using IDEAL')
+                    end
             end
-
         end
 
 
@@ -182,42 +178,51 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             obj.performSVDdenoising();
             obj.performPhaseCorr();
 
-            print_str = sprintf( 'reco  time = %6.1f s\n', toc);
-            fprintf(print_str);
+            obj.getMask(0);
 
+            fprintf(sprintf( 'reco  time = %6.1f s\n', toc));
+            if(~isempty(obj.metabolites))
+                obj.performMetCon();
+            end
+            fprintf(sprintf( 'Metabolite mapping time = %6.1f s\n', toc));
 
         end
 
         function getSig(obj)
-                %             {'Col','Cha','Lin','Par','Sli','Ave','Phs','Eco','Rep',
-                %     'Set','Seg','Ida','Idb','Idc','Idd','Ide'}
-                obj.sig = obj.twix.image(:, obj.flags.CoilSel,:,:, 1,:,1,obj.flags.EchoSel,obj.flags.PCSel,1,1);
-                % SNR scaling for unit SD : part 1
-                
-                obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
-                % Sum averages (if not already done)
-                if(obj.flags.doAverage)
-                    obj.sig  = sum(obj.sig,6);
-                end
-                
+            %             {'Col','Cha','Lin','Par','Sli','Ave','Phs','Eco','Rep',
+            %     'Set','Seg','Ida','Idb','Idc','Idd','Ide'}
+            obj.sig = obj.twix.image(:, obj.flags.CoilSel,:,:, 1,:,1,obj.flags.EchoSel,obj.flags.PCSel,1,1);
+            % SNR scaling for unit SD : part 1
 
-                %Coil x Phase x Read xSlice x echo x PC
-                obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
+            obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
+            % Sum averages (if not already done)
+            if(obj.flags.doAverage)
+                obj.sig  = sum(obj.sig,6);
+            end
+
+
+            %Coil x Phase x Read xSlice x echo x PC
+            obj.sig=permute(obj.sig,[2 3 1 4 8 9 6 5 7]);
         end
-        function getMask(obj,thres_prctl)
+        function cMask=getMask(obj,thres_prctl)
             if(nargin==1)
                 thres_prctl=95;
             end
             %for initialization
             if(thres_prctl==0 && isempty(obj.mask) )
-                obj.mask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
-            elseif(thres_prctl>0) 
-            
-            im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
-            obj.mask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
+                cMask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
+            elseif(thres_prctl>0)
 
-            obj.mask=imerode(obj.mask,strel('sphere',2));
-            obj.mask=imdilate(obj.mask,strel('sphere',3));
+                im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
+                cMask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
+                voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.doZeroPad(1:3)+1)); %mm
+                cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
+                cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
+
+            end
+
+            if(nargout==0)
+                obj.mask=cMask;
             end
 
         end
@@ -256,7 +261,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             zp_PRS=obj.flags.doZeroPad;
             pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3))];
             obj.sig=padarray(obj.sig,pad_size,0,'both');
-            
+
         end
         function performSVDdenoising(obj)
             if(all(obj.flags.doDenoising==0))
@@ -287,10 +292,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
         end
 
-
-
         function performCoilCombination(obj)
-
 
             if(~(size(obj.img,1)>1))
                 obj.flags.doCoilCombine='none';
@@ -301,9 +303,9 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     obj.img= sqrt(sum(abs(obj.img).^2,1));
                 case 'adapt1' %preserves phase better?
 
-                    [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,1,:),6));
+                    [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,1,:),6),[1 1 1]*7);
                     obj.img=(sum(obj.coilSens.*obj.img,1));
-%                     obj.img=obj.img.*permute(obj.coilNormMat,[5 1 2 3 4]); %norm
+                    %                     obj.img=obj.img.*permute(obj.coilNormMat,[5 1 2 3 4]); %norm
                 case 'adapt2'
                     if(obj.LoopCounter.cRep==1 && ~any(obj.coilSens(:,:,:,:,obj.LoopCounter.cSlc),'all') )
                         [obj.img(1,:,:,:,obj.LoopCounter.cSlc,obj.LoopCounter.cRep), ...
@@ -334,31 +336,31 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 im1=reshape(obj.img,[],length(EchoSel)*length(PCSel));
                 im1=im1(obj.mask(:),:);
                 %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
-             
+
                 metabol_con=zeros(size(im1,1),length(obj.metabolites));
                 resi=zeros(size(im1));
                 condnm=zeros(size(im1,1),1);
-                 fprintf('Calculating bSSFP profile basis\n');
-                 Msig_all=MetSignalModel(met_struct,TE,PC,TR,B0,FA,'bSSFP');
-                    if(TE(1)==0)
+                fprintf('Calculating bSSFP profile basis\n');
+                Msig_all=MetSignalModel(met_struct,TE,PC,TR,B0,FA,'bSSFP');
+                if(TE(1)==0)
                     Msig_all=bsxfun(@times,Msig_all,exp(-1i*angle(Msig_all(:,1,:,:,:,:,:,:,:))));
-                    end
-                 fprintf('done.....\n');
+                end
+                fprintf('done.....\n');
 
-%                 pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
+                %                 pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
                 for i=1:size(im1,1)
                     %low mem mode!
-%                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
-%                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
- 
+                    %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
+                    %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
+
                     A= reshape(Msig_all(:,:,:,1,i,1),length(met_struct),length(PCSel)*length(EchoSel)).';
                     b=[ im1(i,:)];
                     metabol_con(i,:)=A\b(:);
                     resi(i,:)=b(:) -A*metabol_con(i,:).';
                     condnm(i)=cond(A);
-%                     pb.progress();
+                    %                     pb.progress();
                 end
-                
+
 
                 obj.Metcon=obj.col2mat(metabol_con,obj.mask);
                 obj.Experimental.residue=obj.col2mat(single(resi),obj.mask);
@@ -367,9 +369,10 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
 
-%                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+                %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6)); % sum phase cycles to get FISP contrast
-                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',10,'mask',obj.mask,'SmoothFM',1);
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
+                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
@@ -379,19 +382,20 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL-modes'))
 
 
-                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL','maxit',10,'mask',obj.mask,'SmoothFM',1);
-                
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
+                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+
                 Np=round(length(obj.DMIPara.PhaseCycles)/2);
-                if(Np>5), Np=5; end % higher order doesn't hold that much signal
+                if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
-                Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np); 
-                
+                Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
+
                 %estimate fieldmap from F0
                 im_me=Fn(:,:,:,:,Np+1); % F0
                 obj.Metcon=obj.SolverObj'*im_me;
                 fm_ideal=obj.SolverObj.experimental.fm_est*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
 
-                
+
                 %estimate metabolites concentration from all modes
                 Metcon_modes=[];res_all=[];
                 for i=1:size(Fn,5)
@@ -408,7 +412,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 [~,S,V]=svd(reshape(Metcon_modes,[],size(Fn,5)),'econ');
                 sz=size(Metcon_modes);
                 Metcon_comb=reshape(reshape(Metcon_modes,[],size(Fn,5))*V,sz(1:5));
-                %pick the first 
+                %pick the first
                 obj.Metcon=Metcon_comb(:,:,:,:,1);
 
                 obj.Experimental.Metcon_modes=Metcon_modes;
@@ -419,10 +423,10 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
 
-%                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+                %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6)); % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','phaseonly','mask',obj.mask);
-               obj.Metcon= obj.SolverObj'*im_me;
+                obj.Metcon= obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=[];
                 obj.Experimental.residue=obj.SolverObj.experimental.residue;
                 obj.SolverObj.experimental=[];
@@ -430,15 +434,18 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
 
         end
+
         function plotFit(obj,voxel_idx)
+            % plot the fittting results for the voxel with index for debuggig
+            % (voxel_idx: 3x1 array)
             assert(strcmpi(obj.flags.Solver,'pinv'),'only implemented for pinv mode');
             vMask=zeros(size(obj.mask),'logical');
             vMask(voxel_idx(1),voxel_idx(2),voxel_idx(3))=true;
             Mask_baskup=obj.mask;
             obj.mask=vMask;
             obj.Metcon();
-            
-             PCSel=obj.flags.PCSel;
+
+            PCSel=obj.flags.PCSel;
             EchoSel=obj.flags.EchoSel;
             FA=obj.DMIPara.FlipAngle; %rad
             TE=obj.DMIPara.TE(EchoSel); %s
@@ -446,7 +453,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             PC=obj.DMIPara.PhaseCycles(PCSel); %rad
             met_struct=obj.metabolites;
             B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);
-%             [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0,FA);
+            %             [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0,FA);
 
             Msig_all=MetSignalModel(met_struct,TE,PC,TR,B0,FA,'bSSFP');
             Msig_all = reshape(Msig_all,length(met_struct),length(EchoSel),length(PCSel));
@@ -454,90 +461,44 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             figure(17),clf
             tt=tiledlayout(2,3,'TileSpacing','tight');
             Met_amp=squeeze(obj.Metcon(voxel_idx(1),voxel_idx(2),voxel_idx(3),:));
-           disp(abs(Met_amp))
-                Msig_scaled=Msig_all(:,:).'*Met_amp(:);
+            disp(abs(Met_amp))
+            Msig_scaled=Msig_all(:,:).'*Met_amp(:);
 
-                
+
+            nexttile();
+            plot(rad2deg(PC),abs(reshape(Msig_scaled,[],length(PC)).'))
+            hold on
+            plot(rad2deg(PC),abs(imdata).','.')
+            ylabel('amplitude [a.u]')
+            xlabel('RF phase increment [deg]')
+            title('magnitude: data vs fit')
+            set(gca,'colororder',jet(size(imdata,1)))
+
+            %plot phase wrt PC
+            nexttile();
+            plot(rad2deg(PC),rad2deg(angle(reshape(Msig_scaled,[],length(PC)).')))
+            hold on
+            plot(rad2deg(PC),rad2deg(angle(imdata).'),'.')
+            set(gca,'colororder',jet(size(imdata,1)))
+            ylabel('phase [deg]')
+            xlabel('RF phase increment [deg]')
+            title('Phase: data vs fit')
+
+
+            for i=1:length(met_struct)
                 nexttile();
-                plot(rad2deg(PC),abs(reshape(Msig_scaled,[],length(PC)).'))
-                hold on
-                plot(rad2deg(PC),abs(imdata).','.')
-                ylabel('amplitude [a.u]')
-                xlabel('RF phase increment [deg]')
-                title('magnitude: data vs fit')
+                plot(rad2deg(PC),abs(reshape(Msig_all(i,:,:),[],length(PC)).'))
+                yyaxis right
+                plot(rad2deg(PC),rad2deg(angle(reshape(Msig_all(i,:,:),[],length(PC)).')),'--')
                 set(gca,'colororder',jet(size(imdata,1)))
-
-                %plot phase wrt PC
-                nexttile();
-                plot(rad2deg(PC),rad2deg(angle(reshape(Msig_scaled,[],length(PC)).')))
-                hold on
-                plot(rad2deg(PC),rad2deg(angle(imdata).'),'.')
-                set(gca,'colororder',jet(size(imdata,1)))
-                ylabel('phase [deg]')
-                xlabel('RF phase increment [deg]')
-                title('Phase: data vs fit')
-
-
-             for i=1:length(met_struct)
-                 nexttile();
-                 plot(rad2deg(PC),abs(reshape(Msig_all(i,:,:),[],length(PC)).'))
-                 yyaxis right
-                 plot(rad2deg(PC),rad2deg(angle(reshape(Msig_all(i,:,:),[],length(PC)).')),'--')
-                 set(gca,'colororder',jet(size(imdata,1)))
                 title(obj.metabolites(i).name)
             end
-    
+
             obj.mask=Mask_baskup;
 
 
         end
-        function peformB0mapReslice(obj,regfiles)
-            % we need spm12 in path
-            if(exist('spm','file'))
-
-                % write average volume
-                bSSFP_file='S:\Deuterium\20230920_xpulseq\processeddata\meas_MID00079_FID62457_pvrh_trufi_mc_2H_15mm_150PC.nii';
-
-                % B0 map
-                fm_file='S:\Deuterium\20230920_xpulseq\M80_B0map_rad_s.nii';
-                im_file='S:\Deuterium\20230920_xpulseq\gre_WIP1441B_shim_2mm_R2_e1_mag.nii';
-
-                % write average volume
-                bSSFP_file=regfiles{1};
-
-                % B0 map
-                fm_file=regfiles{2};
-                im_file=regfiles{3};
-
-
-                %spm reslice
-                % Define the input NIfTI files and output directory
-                [input_dir,~,~] = fileparts(fm_file);
-                [output_dir,~,~] = fileparts(bSSFP_file);
-
-                % Define the reslicing parameters (e.g., target space)
-                matlabbatch{1}.spm.spatial.coreg.write.ref = {bSSFP_file};
-                matlabbatch{1}.spm.spatial.coreg.write.source = {fm_file;im_file};
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.interp = 4;
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.wrap = [0 0 0];
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.mask = 0;
-                matlabbatch{1}.spm.spatial.coreg.write.roptions.prefix = 'r_';
-
-
-                % Run the reslicing job
-                spm_jobman('run', matlabbatch);
-
-                %                 % Move the resliced files to the output directory
-                %
-                %                     [~, niifile, ext] = fileparts(matlabbatch{1}.spm.spatial.coreg.write.source{i});
-                %                     movefile(fullfile(input_dir,sprintf('r_*')), output_dir);
-
-
-            else
-                error('Needs spm for reslicing/registration')
-            end
-        end
-
+     
         function niiFileName=WriteImages(obj,niiFileName)
             %average echo and phase cycling dimension and write nifti
             if(nargin==1)
@@ -545,7 +506,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             elseif(isfolder(niiFileName))
-                fPath=niiFileName; 
+                fPath=niiFileName;
                 fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             else
@@ -554,7 +515,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
             vol_PRS=single(squeeze(sos(flip(obj.img,3),[5 6]))); % 9.4T specific read flip
             description='averaged image across echo and phase cycle';
-            MyNIFTIWrite_bSSFP2(vol_PRS,obj.twix,niiFileName,description);
+            MyNIFTIWrite_bSSFP3(vol_PRS,obj.twix,niiFileName,description);
 
             if(~isempty(obj.Metcon))
                 fn2=sprintf('Metcon_m%d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
@@ -567,8 +528,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
         function SaveResults(obj)
             % save results toa MAT file
-            
-            
+
+
             OutFile=sprintf('m%d_%s_%s.mat',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
             mcobj_copy=copy(obj);
             mcobj_copy.twix=[];
@@ -576,26 +537,29 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             varName=sprintf('mcobj_m%d_%s',obj.twix.hdr.Config.MeasUID,obj.flags.Solver);
             evalc(sprintf('%s=mcobj_copy;',varName));
             save(OutFile,varName,'-v7.3');
- 
+
 
         end
         function PlotResults(obj,fh)
             if(~exist('fh','var'))
                 fh=figure;
             end
-            
-                
+
+
             tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
             slcFac=0.3;slcdim=2;
             slcSel=round(slcFac*size(obj.Metcon,slcdim));
             slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
-  
+
             imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[1 3 slcdim 4]),10),30);
-            calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
+            noiseMask=obj.getMask(90);
+            %             calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
+            calcStd=@(x) std(obj.mat2col(x,~noiseMask),[],'all','omitnan');
+            calcMean=@(x) mean(obj.mat2col(x,~noiseMask),'all','omitnan');
             for i=1:length(obj.metabolites)
                 nexttile(tt)
                 im_curr=createImMontage(imtransFunc(abs(obj.Metcon(:,:,:,i))));
-                im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize
+                im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize to SNR units
                 imagesc(im_curr);
                 colorbar,
                 axis image
@@ -603,6 +567,11 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 cax_im=[0 prctile(im_curr(:),99)];
                 clim(cax_im);
                 xticks([]),yticks([]),title(obj.metabolites(i).name)
+                % some check for SNR calc
+
+                noise_SNR= abs(calcMean((obj.Metcon(:,:,:,i))))./calcStd(abs(obj.Metcon(:,:,:,i)));
+                if(noise_SNR>0.1), warning('Noise mask probably has signal and your SNR metric is bullshit!'); end
+
             end
 
             % display residue
@@ -632,7 +601,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     title('no estimated/input fieldmap');
                 end
             end
-            
+
             colorbar,
             axis image,colormap(gca,'jet');
             cax_im=[-1*prctile(fm_Hz(:),95) prctile(fm_Hz(:),95)+1];
@@ -645,10 +614,25 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             end
 
             annotation('textbox',[0.5 0.9 0.1 0.1],'String',str,'HorizontalAlignment','center','FontSize',12)
-        
+
             OutFile=sprintf('%s.fig',strrep(str,'|','_'));
             OutFile=strrep(OutFile,' ','');
             savefig(fh,OutFile)
+
+        end
+        function Metcon_norm= getNormalized(obj)
+            % normalize metabolite maps same as plotresults()
+            Metcon_norm=zeros(size(obj.Metcon));
+            noiseMask=obj.getMask(90);
+            calcStd=@(x) std(obj.mat2col(x,~noiseMask),[],'all','omitnan');
+            calcMean=@(x) mean(obj.mat2col(x,~noiseMask),'all','omitnan');
+            for i=1:length(obj.metabolites)
+                Metcon_norm(:,:,:,i)=abs(obj.Metcon(:,:,:,i))./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize to SNR units
+
+
+                noise_SNR= abs(calcMean((obj.Metcon(:,:,:,i))))./calcStd(abs(obj.Metcon(:,:,:,i)));
+                if(noise_SNR>0.1), warning('Noise mask probably has signal and your SNR metric is bullshit!'); end
+            end
 
         end
         function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)

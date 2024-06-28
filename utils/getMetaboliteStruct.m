@@ -24,7 +24,7 @@ switch(DataSelect)
         T2=[272.75,52.09,114.31,245.17]*1e-3; %s
         %         FWHM_hz=median(cell2mat(cellfun(@(x)[x.gamma1,x.gamma2,x.gamma3,x.gamma4],fitf,'UniformOutput',false)),1);
         FWHM_hz=[7.0280   23.7173   13.8651    6.1811]; %Hz
-        T2Star=1000./(pi*FWHM_hz);  %ms
+        T2Star=1./(pi*FWHM_hz);  %s
     case 'invivo1'
         % for invivo we have all values except lactate
 
@@ -35,7 +35,7 @@ switch(DataSelect)
         T1=[351.12 95.51  161.41 154.04]*1e-3;%s
         T2=[52.93 44.96 80.10 96.47]*1e-3;%s
         FWHM_hz =[15.3010   34.9108   20.1527   21.4540];% Hz from T1 data
-        T2Star=1000./(pi*FWHM_hz);  %ms
+        T2Star=1./(pi*FWHM_hz);  %s
     case 'invivo2'
         %invivo: /ptmp/pvalsala/deuterium/DA77-F3UY
         met_name={'water','glucose','Glx','lactate/lipid'};
@@ -46,7 +46,7 @@ switch(DataSelect)
         T1=[343.58 94.21 169.32 263.46]*1e-3;%s
         T2=[80.75 36.83 109.33 117.42]*1e-3;%s
         FWHM_hz =[22.0644   37.6203   18.9945    15.1671]; %Hz from T1 data
-        T2Star=1000./(pi*FWHM_hz);  %ms
+        T2Star=1./(pi*FWHM_hz);  %s
 
     case 'Roig7T'
 %         DOI: 10.1002/mrm.29439
@@ -78,4 +78,9 @@ for i=1:length(met_name)
 end
 
 
+%print if no output arguments
+if(nargout==0)
+disp(table(1e3*[metabolites.T1_s;]',1e3*[metabolites.T2_s;]',1e3*[metabolites.T2star_s;]',freq_shift_ppm',[metabolites.freq_shift_Hz;]','VariableNames',{'T1 [ms]','T2 [ms]','T2* [ms]','chemical shift [ppm]','offset @9.4T [Hz] '},'RowNames',{metabolites.name}))
+clear metabolites;
+end
 end

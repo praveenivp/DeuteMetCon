@@ -31,6 +31,12 @@ classdef IDEAL < matlab.mixin.Copyable
         function res= mtimes(obj,inp)
             %             bb=[nFE,nIntlv,nPar,nCha]% adj case
             %             bb=[ImX,Imy,Imz,nCha] % forward case
+
+            if(obj.flags.parfor) 
+                res= mtimes_parllel(obj,inp);
+                return;
+            end
+
             res=0;
             if (obj.transp)
                 A=getA(obj);
@@ -63,8 +69,6 @@ classdef IDEAL < matlab.mixin.Copyable
                 else % IDEAL algorithm
 
                     pb = waitbar(0, 'estimating field map(1/2)');
-
-
                     for i=1:size(inp_col,1)
                         for it=1:obj.flags.maxit
                             A3=getA(obj);
@@ -72,8 +76,8 @@ classdef IDEAL < matlab.mixin.Copyable
                             metabol_est=A3\Sn_cap(:); % linear prediction
                             % calc residue
                             residue_iter=Sn_cap(:)-A*metabol_est;
-                            B3=getB23(obj,metabol_est);
-                            delta_2= B3\residue_iter;
+                            B=getB(obj,metabol_est);
+                            delta_2= B\residue_iter;
 
                             fm_est(i)=fm_est(i)-real(delta_2(1));
                            if(abs(real(delta_2(1)))<obj.flags.tol) %figure,plot(all_B0);
@@ -116,6 +120,91 @@ classdef IDEAL < matlab.mixin.Copyable
             end
             obj.transp = false;
         end
+                function res= mtimes_parllel(obj,inp)
+            %             bb=[nFE,nIntlv,nPar,nCha]% adj case
+            %             bb=[ImX,Imy,Imz,nCha] % forward case
+
+      
+            res=0;
+            if (obj.transp)
+                A=getA(obj);
+                TE= obj.TE_s;
+%                 Ainv=pinv(A);
+                if(isempty(obj.mask))
+                    obj.mask=ones(size(inp,1),size(inp,2),size(inp,3))>0;
+                end
+
+                inp_col=reshape(obj.mat2col(inp(:,:,:,:,1),obj.mask),[],length(obj.TE_s));
+
+                res=zeros(size(inp_col,1),size(A,2));
+%                 res2=zeros(size(inp_col,1),size(A,2));
+                residue=zeros(size(inp_col));
+                if(sum(obj.FieldMap_Hz,'all')==0)
+                    fm_est= zeros(size(inp_col,1),1);
+                else
+                    fm_est=-1*obj.FieldMap_Hz;
+                    fm_est=obj.mat2col(fm_est,obj.mask);
+                end
+
+
+                if(strcmpi(obj.flags.solver,'phaseonly'))
+                    parfor i=1:size(inp_col,1)
+                        inp_corr=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*TE);
+                        %res(i,:)=Ainv*[real(inp_corr) imag(inp_corr)]';
+                        res(i,:)=A\inp_corr(:);
+                        residue(i,:)=single(inp_corr(:)-A*res(i,:).');
+                    end
+
+                else % IDEAL algorithm
+
+                   fprintf('estimating field map(1/2) \n');
+               
+                    maxit=obj.flags.maxit;
+                    parfor i=1:size(inp_col,1)
+                        for it=1:maxit
+                            Sn_cap=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*TE); % remove Known b0 offresonance
+                            metabol_est=A\Sn_cap(:); % linear prediction
+                            % calc residue
+                            residue_iter=Sn_cap(:)-A*metabol_est;
+                            B=getB(obj,metabol_est);
+                            delta_2= B\residue_iter;
+
+                            fm_est(i)=fm_est(i)-real(delta_2(1));
+                           if(abs(real(delta_2(1)))<obj.flags.tol) %figure,plot(all_B0);
+                                break; end
+
+                        end
+                     end
+
+                    fm_est=obj.col2mat(fm_est,obj.mask);
+
+                    % smooth estimated fieldmap(deafult=0)
+                    if(obj.flags.SmoothFM>0)
+                        fm_est=imgaussfilt3(fm_est,obj.flags.SmoothFM);
+                    elseif((obj.flags.SmoothFM<0))
+                        fm_est=medfilt3(fm_est,[1 1 1]*obj.flags.SmoothFM*-1);
+                    end
+
+
+                    fm_est=obj.mat2col(fm_est,obj.mask);
+                    fprintf('estimating metabolities(2/2) \n');
+                    parfor i=1:size(inp_col,1)
+                        Sn_cap=inp_col(i,:).*exp(1i*2*pi*fm_est(i)*TE); % remove Known b0 offresonance
+                        res(i,:)=A\Sn_cap(:);%[real(Sn_cap) imag(Sn_cap)]';              
+                        residue(i,:)=single(Sn_cap(:)-A*res(i,:).');
+                    end
+
+                    obj.experimental.fm_est=obj.col2mat(fm_est,obj.mask);
+                end
+                %res=reshape(res,size(res,1),length(obj.metabolites),2);
+                %res=complex(res(:,:,1),res(:,:,2));
+                res=obj.col2mat(res,obj.mask);
+                obj.experimental.residue=obj.col2mat(single(residue),obj.mask);
+            else
+                error('forward operation not implemented')
+            end
+            obj.transp = false;
+        end
 
 
 
@@ -140,7 +229,7 @@ classdef IDEAL < matlab.mixin.Copyable
 %                 A(:,((1:2)+2*(cMet-1)))=  [[real(CD_cMet(:)); imag(CD_cMet(:))]  ,[ imag(conj(CD_cMet(:))); real(conj(CD_cMet(:)));] ];
             end
         end
-        function B=getB23(obj,metabol_est)
+        function B=getB(obj,metabol_est)
             A=obj.getA();
             Gjn=1i*(A*metabol_est);
             B=[ 2*pi*obj.TE_s(:).*Gjn, A];
@@ -202,6 +291,7 @@ classdef IDEAL < matlab.mixin.Copyable
             addParameter(p,'tol',0.1,@(x) isscalar(x)); % convergence criteria in Hz
             addParameter(p,'PhaseCorr',false,@(x) islogical(x));
             addParameter(p,'SmoothFM',0,@(x)isscalar(x));
+            addParameter(p,'parfor',false,@(x)islogical(x));
 %             addParameter(p,'doMasking',true,@(x) islogical(x)); %just during resampling
 %             addParameter(p,'Interpmode','linear',@(x) any(validatestring(x,{'linear','pchip','spline'})));
 %             addParameter(p,'doRegistration',false,@(x)islogical(x));
