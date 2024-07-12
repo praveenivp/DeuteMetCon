@@ -18,6 +18,7 @@ classdef IDEAL < matlab.mixin.Copyable
             else
                 error('Input parameter: IDEALsolver(metabolties,TE_s)');
             end
+            obj.TE_s=obj.TE_s(:)';% make it row vector
         end
         function [data]=performPhaseCorr(obj,data)
             % Stupid fucntion to subtract the phase of first echo from all
@@ -33,7 +34,7 @@ classdef IDEAL < matlab.mixin.Copyable
             %             bb=[ImX,Imy,Imz,nCha] % forward case
 
             if(obj.flags.parfor) 
-                res= mtimes_parllel(obj,inp);
+                res= mtimes_parallel(obj,inp);
                 return;
             end
 
@@ -120,7 +121,7 @@ classdef IDEAL < matlab.mixin.Copyable
             end
             obj.transp = false;
         end
-                function res= mtimes_parllel(obj,inp)
+                function res= mtimes_parallel(obj,inp)
             %             bb=[nFE,nIntlv,nPar,nCha]% adj case
             %             bb=[ImX,Imy,Imz,nCha] % forward case
 

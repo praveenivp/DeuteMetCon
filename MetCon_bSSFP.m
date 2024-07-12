@@ -93,7 +93,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     %                     addParameter(p,'doB0Corr','none',@(x) any(strcmp(x,{'none','MTI','MFI'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
-                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','IDEAL-modes','phaseonly'})));
+                    addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','IDEAL-modes','IDEAL-modes2','phaseonly'})));
                     parse(p,varargin{:});
 
                     obj.flags=p.Results;
@@ -389,6 +389,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
+                %sqrt(Np*2+1) scaling for SNR units
+                Fn=Fn.*sqrt(Np*2+1);
 
                 %estimate fieldmap from F0
                 im_me=Fn(:,:,:,:,Np+1); % F0
@@ -400,7 +402,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 Metcon_modes=[];res_all=[];
                 for i=1:size(Fn,5)
                     TEs=obj.DMIPara.TE +TR*(i-(Np+1));
-                    SolverObj_pinv=IDEAL(obj.metabolites,TEs,'fm',fm_ideal,'solver','phaseonly','mask',obj.mask);
+                    SolverObj_pinv=IDEAL(obj.metabolites,TEs,'fm',fm_ideal,'solver','phaseonly','mask',obj.mask,'parfor',obj.flags.parfor);
                     Metcon_temp= SolverObj_pinv'*Fn(:,:,:,:,i);
 
                     Metcon_modes=cat(5,Metcon_modes,Metcon_temp);
@@ -421,6 +423,35 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sos(res_all,[4 5]);
                 obj.SolverObj.experimental=[];
+            elseif(strcmpi(obj.flags.Solver,'IDEAL-modes2'))
+                %we try to fit all modes togther
+
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
+                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+
+                Np=round(length(obj.DMIPara.PhaseCycles)/2);
+                if(Np>10), Np=10; end % higher order doesn't hold that much signal
+                %calculate SSFP configuration modes
+                Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
+
+                %estimate fieldmap from F0
+                im_me=Fn(:,:,:,:,Np+1); % F0
+                obj.Metcon=obj.SolverObj'*im_me;
+                fm_ideal=obj.SolverObj.experimental.fm_est*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
+
+
+
+                TEs=[];
+                for i=1:size(Fn,5)
+                    TEs=[TEs;(obj.DMIPara.TE(:) +TR*(i-(Np+1)))];
+                end
+                    SolverObj_pinv=IDEAL(obj.metabolites,TEs','fm',fm_ideal,'solver','phaseonly','mask',obj.mask,'parfor',obj.flags.parfor);
+                    obj.Metcon= SolverObj_pinv'*Fn(:,:,:,:);
+                obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
+                obj.Experimental.residue=sos(SolverObj_pinv.experimental.residue,[4 5]);
+                obj.SolverObj.experimental=[];
+
+
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
 
                 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
@@ -552,35 +583,25 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
 
             imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[1 3 slcdim 4]),10),30);
-            noiseMask=obj.getMask(90);
-            %             calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
-            calcStd=@(x) std(obj.mat2col(x,~noiseMask),[],'all','omitnan');
-            calcMean=@(x) mean(obj.mat2col(x,~noiseMask),'all','omitnan');
+            %get metcon in normalized SNR units
+            [im_snr,sf]=obj.getNormalized();
             for i=1:length(obj.metabolites)
                 nexttile(tt)
-                im_curr=createImMontage(imtransFunc(abs(obj.Metcon(:,:,:,i))));
-                im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize to SNR units
+                im_curr=createImMontage(imtransFunc(abs(im_snr(:,:,:,i))));
                 imagesc(im_curr);
-                colorbar,
-                axis image
-
+                
+                colorbar,axis image
                 cax_im=[0 prctile(im_curr(:),99)];
                 clim(cax_im);
                 xticks([]),yticks([]),title(obj.metabolites(i).name)
-                % some check for SNR calc
-
-                noise_SNR= abs(calcMean((obj.Metcon(:,:,:,i))))./calcStd(abs(obj.Metcon(:,:,:,i)));
-                if(noise_SNR>0.1), warning('Noise mask probably has signal and your SNR metric is bullshit!'); end
-
             end
 
             % display residue
             nexttile(tt)
-            im_curr=createImMontage(imtransFunc(sos(obj.Experimental.residue(:,:,:,:),4)));
-            im_curr=im_curr./calcStd(sos(obj.Experimental.residue,4)); %normalize
+            residue_norm=sos(obj.Experimental.residue,[4 5])./mean(sf);
+            im_curr=createImMontage(imtransFunc(abs(residue_norm)));
             imagesc(im_curr);
-            colorbar,
-            axis image
+            colorbar,axis image
 
             cax_im=[0 prctile(im_curr(:),95)];
             clim(cax_im);
@@ -620,20 +641,29 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             savefig(fh,OutFile)
 
         end
-        function Metcon_norm= getNormalized(obj)
+        function [Metcon_norm,scale_fac]= getNormalized(obj)
             % normalize metabolite maps same as plotresults()
-            Metcon_norm=zeros(size(obj.Metcon));
-            noiseMask=obj.getMask(90);
-            calcStd=@(x) std(obj.mat2col(x,~noiseMask),[],'all','omitnan');
-            calcMean=@(x) mean(obj.mat2col(x,~noiseMask),'all','omitnan');
-            for i=1:length(obj.metabolites)
-                Metcon_norm(:,:,:,i)=abs(obj.Metcon(:,:,:,i))./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize to SNR units
+            if(any(strcmp(obj.flags.Solver,{'IDEAL','IDEAL-modes','phaseonly'}))) 
+                %analytical SNR
+                Ai=pinv(obj.SolverObj.getA() );
+                scale_fac=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                Metcon_norm=abs(obj.Metcon)./reshape(scale_fac,1,1,1,[]);
+            else % scale by std of noise region
+                Metcon_norm=zeros(size(obj.Metcon));
+                noiseMask=~obj.getMask(90);
+                %for noise measurements
+                if(sum(noiseMask,'all')==0),noiseMask=ones(size(noiseMask),'logical');end
+                calcStd=@(x) std(obj.mat2col(x,noiseMask),[],'all','omitnan');
+                calcMean=@(x) mean(obj.mat2col(x,noiseMask),'all','omitnan');
+                for i=1:length(obj.metabolites)
+                    scale_fac(i)=calcStd(abs(obj.Metcon(:,:,:,i)));
+                    Metcon_norm(:,:,:,i)=abs(obj.Metcon(:,:,:,i))./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize to SNR units
 
 
-                noise_SNR= abs(calcMean((obj.Metcon(:,:,:,i))))./calcStd(abs(obj.Metcon(:,:,:,i)));
-                if(noise_SNR>0.1), warning('Noise mask probably has signal and your SNR metric is bullshit!'); end
+                    noise_SNR= abs(calcMean((obj.Metcon(:,:,:,i))))./calcStd(abs(obj.Metcon(:,:,:,i)));
+                    if(noise_SNR>0.1), warning('Noise mask probably has signal and your SNR metric is bullshit!'); end
+                end
             end
-
         end
         function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)
             %mcobj.getMinutesAfterIntake('hh:mm')

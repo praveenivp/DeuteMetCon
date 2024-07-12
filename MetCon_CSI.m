@@ -3,7 +3,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         time  %[s]
 
         FieldMap %B0 spatial [rad/s]
-        mask 
+        mask
 
         twix
         DMIPara
@@ -19,7 +19,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
         SolverObj
-        Metcon 
+        Metcon
         Experimental
 
         D % noise decoraltion matrix
@@ -46,7 +46,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     [fn, pathname, ~] = uigetfile(strcat(path,'\*.dat'), 'Pick a DATA file');
                     obj.filename=fullfile(pathname,fn);
                     obj.twix = mapVBVD(obj.filename, 'rmos');
-                else 
+                else
                     error('wrong input or file not found')
                 end
 
@@ -90,13 +90,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
-                    addParameter(p,'Solver','AMARES',@(x) any(strcmp(x,{'phaseonly','IDEAL','AMARES','LorentzFit'})));
+                    addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','IDEAL','AMARES','LorentzFit'})));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
                     %                     addParameter(p,'reg_lambda',0,@(x)isscalar(x));
-                    
-                    addParameter(p,'ZeroPadSize',[], @(x) isvector(x)); % [3 physical x 1 time]
+                    addParameter(p,'parfor',true,@(x) islogical(x));
+                    addParameter(p,'ZeroPadSize',[1 1 1 0], @(x) isvector(x)); % [3 physical x 1 time]
                     parse(p,varargin{:});
 
                     obj.flags=p.Results;
@@ -117,9 +117,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     if(isfield(p.Unmatched,'metabolites'))
                         obj.metabolites=p.Unmatched.metabolites;
                     end
-                   if(isfield(p.Unmatched,'phaseoffset'))
+                    if(isfield(p.Unmatched,'phaseoffset'))
                         obj.flags.phaseoffset=p.Unmatched.phaseoffset;
-                   else
+                    else
                         Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
                         obj.flags.phaseoffset=[0 2*pi*Acqdelay];
                     end
@@ -150,7 +150,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         end
 
         function calcNoiseDecorrMatrix(obj,twix)
-            if (~isempty(obj.D)) 
+            if (~isempty(obj.D))
                 %skip if decorrelation matrix is set by getflags()
                 return;
             elseif(isfield(twix,'noise'))
@@ -168,7 +168,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                 end
             else
-               warning('no Noise data');
+                warning('no Noise data');
                 obj.D = 1;
             end
         end
@@ -179,7 +179,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             fprintf('starting reco\n');
             obj.getSig();
             obj.performNoiseDecorr();
-            
+
             obj.performZeroPaddding();
             %scale
             obj.img=myfft(obj.sig,[2 3 4]).*sqrt(numel(obj.sig));%./(sqrt(sum(obj.sig(:)>0)./numel(obj.sig))*sqrt((1685+667+252+49)./(1685)));
@@ -189,7 +189,12 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             print_str = sprintf( 'reco  time = %6.1f s\n', toc);
             fprintf(print_str);
 
-            
+            if(~isempty(obj.metabolites))
+                obj.performMetCon();
+            end
+            fprintf(sprintf( 'Metabolite mapping time = %6.1f s\n', toc));
+
+
         end
 
         function getSig(obj)
@@ -213,22 +218,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function performZeroPaddding(obj)
 
             disp(['initial CSI data size:           ', num2str(size(obj.sig))])
-            % additional zeropadding data
-            if(isempty(obj.flags.ZeroPadSize))
-                pad_size=[0 0 0 0 0];
-                % add missing voxels to keep center voxels to the center
-                sSpecPara=obj.twix.hdr.MeasYaps.sSpecPara;
-                % Add missing voxels
-                MissingVOXRead  = double(sSpecPara.lFinalMatrixSizeRead-size(obj.sig,2));
-                MissingVOXPhase = double(sSpecPara.lFinalMatrixSizePhase-size(obj.sig,3));
-                MissingVOXSlice = double(sSpecPara.lFinalMatrixSizeSlice-size(obj.sig,4));
-                obj.sig= padarray(obj.sig,floor([0,MissingVOXRead,MissingVOXPhase,MissingVOXSlice,0,0]./2),'pre');
-                obj.sig = padarray(obj.sig,ceil([0,MissingVOXRead,MissingVOXPhase,MissingVOXSlice,0,0]./2),'post');
+            zp_PRS=obj.flags.ZeroPadSize(1:3);
+            pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3)) 0];
 
-            else
-                zp_PRS=obj.flags.ZeroPadSize(1:3);
-                pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3)) 0];
-            end
             obj.sig=padarray(obj.sig,pad_size,0,'both'); % spatial zeropad
             obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.ZeroPadSize(4))],0,'post'); % spectral zerpoad
 
@@ -237,7 +229,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function performPhaseCorr(obj)
             if(strcmpi(obj.flags.doPhaseCorr,'none'))
                 return;
-            elseif (strcmpi(obj.flags.doPhaseCorr,'Burg')) 
+            elseif (strcmpi(obj.flags.doPhaseCorr,'Burg'))
                 fprintf('Starting Phase Correction using Burg method \n')
                 %use extrapolation
                 dw=obj.DMIPara.dwell; % s
@@ -250,7 +242,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 phi0=obj.flags.phaseoffset(1);
                 obj.img=obj.img.*exp(-1i*phi0);
                 fprintf('Done .... \n')
-            elseif (strcmpi(obj.flags.doPhaseCorr,'manual')) 
+            elseif (strcmpi(obj.flags.doPhaseCorr,'manual'))
                 dw=obj.DMIPara.dwell; % s
                 n=size(obj.img,5);
                 faxis=(-n/2:(n/2-1) )*(1/(dw*n));
@@ -274,13 +266,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 case 'adapt1' %preserves phase better?
 
                     [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,:,:),[5 6]));
-                    
+
                     obj.img=(sum(obj.coilSens.*obj.img,1));
                 case 'adapt2'
                     error('not implemented')
                 case 'wsvd'
 
-                    
+
                     %% Combine coil data
                     CSI_DataSize=size(obj.img);
                     %we already have noise decorrelated data!
@@ -289,7 +281,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     CSI_Data=permute(CSI_Data,[2 3 1]);
                     CSI_Combined=zeros([prod(CSI_DataSize(2:4)),CSI_DataSize(5)]);
                     CoilWeights = zeros([prod(CSI_DataSize(1:3)),CSI_DataSize(1)]);
-                    for vx=1:size(CSI_Data,1)
+                    parfor vx=1:size(CSI_Data,1)
                         rawSpectra=squeeze(CSI_Data(vx,:,:,1));  % Spectrum x Coil
                         [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], CSI_wsvdOption);
                         CoilWeights(vx,:) = wsvdWeights;
@@ -329,24 +321,29 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
 
-
-        function getMask(obj,thres_prctl)
+        function cMask=getMask(obj,thres_prctl)
             if(nargin==1)
                 thres_prctl=95;
             end
             %for initialization
-            if(thres_prctl==0 && isempty(obj.mask) ) 
-                obj.mask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
+            if(thres_prctl==0 && isempty(obj.mask) )
+                cMask=ones(size(obj.img,2),size(obj.img,3),size(obj.img,4),'logical');
+            elseif(thres_prctl>0)
+
+                im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
+                cMask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
+                voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.ZeroPadSize(1:3)+1)); %mm
+                cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
+                cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
+
             end
 
-            im_abs=abs(squeeze(sum(obj.img,5)));
-            obj.mask=im_abs>0.1*prctile(im_abs(:),thres_prctl);  
- 
-            obj.mask=imerode(obj.mask,strel('sphere',2));
-            obj.mask=imdilate(obj.mask,strel('sphere',3));
+            if(nargout==0)
+                obj.mask=cMask;
+            end
 
         end
-        function performMetcon(obj)
+        function performMetCon(obj)
 
             freq=[obj.metabolites.freq_shift_Hz];
             fids=MetCon_CSI.mat2col(permute(obj.img,[2 3 4 5 1]),obj.mask);
@@ -406,14 +403,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.linewidth=metabol_con(:,:,:,((1:nMet)+nMet*(2-1)));
                 obj.Experimental.phase=metabol_con(:,:,:,((1)+nMet*(4-1))); %phase
                 obj.Experimental.relativeNorm=metabol_con(:,:,:,((2)+nMet*(4-1)));
-%                 resNormSq
+                %                 resNormSq
                 obj.Experimental.residue=metabol_con(:,:,:,((3)+nMet*(4-1)));
                 obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1);
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
                 dw=obj.DMIPara.dwell;
                 faxis=linspace(-0.5/dw,0.5/dw,size(obj.img,5));
-                %                 freq=[-148.7 -54.79 7.82]'; %Hz
                 % nlorentz fitting
 
                 % make the fitting faster by limiting the range +-200 Hz
@@ -438,7 +434,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     waitbar(i/size(fids,1),wbhandle,'Performing nLorentzian fitting');
 
                     [fitf,gof,fitoptions]=NLorentzFit(xdata(:),spectrum_All(i,:).',freq);
-                    
+
 
                     rSQ(i)=gof.adjrsquare;
                     sRMSE(i)=gof.rmse;
@@ -462,16 +458,15 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.chemicalshift=MetCon_CSI.col2mat(rSQ,obj.mask);
                 obj.Experimental.gamma=MetCon_CSI.col2mat(rSQ,obj.mask);
 
-            elseif(strcmpi(obj.flags.Solver,'IDEAL')) 
-                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask);
+            elseif(strcmpi(obj.flags.Solver,'IDEAL'))
+                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*squeeze(obj.img);
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
                 obj.SolverObj.experimental=[];
-            elseif(strcmpi(obj.flags.Solver,'phaseonly'))                           
-                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask);
+            elseif(strcmpi(obj.flags.Solver,'phaseonly'))
+                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*squeeze(obj.img);
-                obj.Experimental.fm_est=[];
                 obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
                 obj.SolverObj.experimental=[];
             else
@@ -480,14 +475,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         end
 
         function demoFit(obj,pxl_idx)
-%             demoFit(obj,pxl_idx)
+            %             demoFit(obj,pxl_idx)
 
 
             freq=[obj.metabolites.freq_shift_Hz];
             fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
             fid=padarray(fid,[size(fid,1) 0],0,'post');
             fprintf('Performing Nlorentz fit\n')
-           
+
             dw=obj.DMIPara.dwell;
             faxis=linspace(-0.5/dw,0.5/dw,length(fid));
             [~,minIdx]=min(abs(faxis-(min(freq)-200)));
@@ -519,7 +514,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             samples=length(fid);
 
-    
+
             amares_struct=struct('chemShift',chemShift, ...
                 'phase', phase,...
                 'amplitude', amplitude,...
@@ -561,13 +556,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         end
 
         function WriteImages(obj)
-           
+
             fPath=pwd;
             fn=sprintf('m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
             description='averaged image across echo and phase cycle';
             MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,-1*[0 0 0]*1.5);
-            
+
             fn=sprintf('Metcon_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
             vol_PRS=flip(obj.Metcon,3); %9.4T specific
             description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
@@ -593,29 +588,32 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 fh=figure;
             end
 
-            
+
             tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
-            slcFac=0.16;
-            slcSel=round(slcFac*size(obj.Metcon,3));
-            slcSel=slcSel:(size(obj.Metcon,3)-slcSel);
-            calcStd=@(x) std([reshape(x([1,end],:,:,1),[],1);reshape(x(:,[1,end],:,1),[],1);reshape(x(:,:,[1,end],1),[],1)],[],'all');
+            slcFac=0.3;slcdim=2;
+            slcSel=round(slcFac*size(obj.Metcon,slcdim));
+            slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
+
+            imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[1 3 slcdim 4]),10),30);
+            %get metcon in normalized SNR units
+            [im_snr,sf]=obj.getNormalized();
             for i=1:length(obj.metabolites)
                 nexttile(tt)
-                im_curr=createImMontage(abs(obj.Metcon(:,:,slcSel,i)));
-                im_curr=im_curr./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize
+                im_curr=createImMontage(imtransFunc(abs(im_snr(:,:,:,i))));
                 imagesc(im_curr);
                 colorbar,
                 axis image
 
-                cax_im=[0 prctile(im_curr(:),95)];
+                cax_im=[0 prctile(im_curr(:),99)];
                 clim(cax_im);
                 xticks([]),yticks([]),title(obj.metabolites(i).name)
+
             end
 
             % display residue
             nexttile(tt)
-            im_curr=createImMontage(sos(obj.Experimental.residue(:,:,slcSel,:),4));
-            im_curr=im_curr./calcStd(sos(obj.Experimental.residue,4)); %normalize
+            residue_norm=sos(obj.Experimental.residue(:,:,slcSel,:)./reshape(sf,1,1,1,[]),4);
+            im_curr=createImMontage(residue_norm);
             imagesc(im_curr);
             colorbar,
 
@@ -627,22 +625,21 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             %display fieldmaps
 
-            nexttile()
             if(isfield(obj.Experimental,'fm_est'))
                 fm_Hz=createImMontage(obj.Experimental.fm_est(:,:,slcSel,:));
-                imagesc(fm_Hz);
-                title('estimated 2H fieldmap [Hz]')
-            else
+            elseif(~isempty(obj.FieldMap))
                 fm_Hz=createImMontage(obj.FieldMap(:,:,slcSel,:))./(2*pi)*(6.536 /42.567);
+            end
+            if(exist('fm_Hz','var'))
+                nexttile()
                 imagesc(fm_Hz);
                 title('input 2H fieldmap [Hz]')
+                cax_im=[-1*prctile(fm_Hz(:),95) prctile(fm_Hz(:),95)+1];
+                clim(cax_im);
+                colorbar,
+                axis image,colormap(gca,'jet');
+                xticks([]),yticks([]),
             end
-
-            colorbar,
-            axis image,colormap(gca,'jet');
-            cax_im=[-1*prctile(fm_Hz(:),95) prctile(fm_Hz(:),95)+1];
-            clim(cax_im);
-            xticks([]),yticks([]),
 
             temp_str=sprintf('%s|%s',obj.DMIPara.ShortDescription,obj.flags.Solver);
 
@@ -657,7 +654,31 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             savefig(fh,OutfigFile)
 
         end
+        function [Metcon_norm,scale_fac]= getNormalized(obj)
+            % normalize metabolite maps same as plotresults()
+            if(any(strcmp(obj.flags.Solver,{'IDEAL','IDEAL-modes','phaseonly'})))
+                %more analytical
+                Ai=pinv(  obj.SolverObj.getA() );
+                scale_fac=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                Metcon_norm=((obj.Metcon)./reshape(scale_fac,1,1,1,[]));
 
+            else % scale by std of noise region
+                Metcon_norm=zeros(size(obj.Metcon));
+                noiseMask=~obj.getMask(90);
+                %for noise measurements
+                if(sum(noiseMask,'all')==0),noiseMask=ones(size(noiseMask),'logical');end
+                calcStd=@(x) std(obj.mat2col(x,noiseMask),[],'all','omitnan');
+                calcMean=@(x) mean(obj.mat2col(x,noiseMask),'all','omitnan');
+                for i=1:length(obj.metabolites)
+                    scale_fac(i)=calcStd(abs(obj.Metcon(:,:,:,i)));
+                    Metcon_norm(:,:,:,i)=abs(obj.Metcon(:,:,:,i))./calcStd(abs(obj.Metcon(:,:,:,i))); %normalize to SNR units
+
+
+                    noise_SNR= abs(calcMean((obj.Metcon(:,:,:,i))))./calcStd(abs(obj.Metcon(:,:,:,i)));
+                    if(noise_SNR>0.1), warning('Noise mask probably has signal and your SNR metric is bullshit!'); end
+                end
+            end
+        end
         function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)
             %mcobj.getMinutesAfterIntake('hh:mm')
             if(exist("IntakeTime",'var'))
@@ -688,7 +709,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             col_vec=reshape(col_vec,sz(1),[]);
             mat=zeros([numel(mask) prod(sz(2:end))]);
             for i=1:size(mat,2)
-            mat(mask,i)=col_vec(:,i);
+                mat(mask,i)=col_vec(:,i);
             end
             mat=reshape(mat,[size(mask) sz(2:end)]);
 

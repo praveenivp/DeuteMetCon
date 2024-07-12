@@ -140,6 +140,11 @@ if(plotOff)
         xlim([-1, 1].*200)
         title(sprintf('PSF FW64%%=%2.2f Hz | Nominal=%1.2f Hz',fw64(4),(1/(2*Tacq))))
     end
+else
+    [fw64(1),~]=getFW64(FOV_e1,abs(PSF_E1));
+    [fw64(2),~]=getFW64(FOV_e2,abs(PSF_E2));
+    [fw64(3),~]=getFW64(FOV_e3,abs(PSF_E3));
+if(isCSI),[fw64(4),~]=getFW64(spec_axis,abs(Spec));end
 end
 
 end

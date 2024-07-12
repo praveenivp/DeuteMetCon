@@ -68,21 +68,17 @@ if(~para.isCSI)
     catch
         FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution  sa.dThickness]*1e-3; %m
     end
-
+      
     para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
     para.resolution=FOV./para.MatrixSize; %m
     para.resolution_PSF=getPSF_CSI(twix,false)*1e-3; %m  
+    %ADC duty cycle
+     para.DutyCycle= (para.MatrixSize(1)*para.dwell*length(para.TE))./para.TR;
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
 else
 
-    CSI_VectorSize   = twix.image.NCol;
-    CSI_SamplingTime = twix.hdr.MeasYaps.sRXSPEC.alDwellTime{1}*CSI_VectorSize*1e-9;
-    CSI_TimePoints   = [0:(CSI_VectorSize-1)]'*CSI_SamplingTime/CSI_VectorSize;
-    CSI_DwellTime    = CSI_SamplingTime/CSI_VectorSize;
-    para.Bandwidth    = 1/CSI_DwellTime;
-    % CSI_ppmRange     = CSI_Bandwidth/CSI_sMrprot.Dicom.lFrequency*1e6;
-    para.FreqAxis=linspace(-0.5/CSI_DwellTime,0.5/CSI_DwellTime,(CSI_VectorSize));
+
 
     % treat all time axis as echo dimension
     EchoSel=1:twix.hdr.Phoenix.sSpecPara.lVectorSize;
@@ -94,6 +90,13 @@ else
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9*2; %s
     end
 
+
+    para.VectorSize   = twix.image.NCol;
+    para.dwell    = twix.hdr.MeasYaps.sRXSPEC.alDwellTime{1}*1e-9; %[s]
+    para.Bandwidth    = 1/para.dwell;
+    para.FreqAxis=linspace(-0.5*para.Bandwidth ,0.5*para.Bandwidth, para.VectorSize);
+
+    
 
     % para.PCSel=1:twix.image.NRep;
     para.TE=linspace(0,para.dwell*EchoSel(end-1),EchoSel(end)); %s
@@ -120,6 +123,8 @@ else
         para.PulseDur=twix.hdr.Phoenix.sWipMemBlock.alFree{4}*1e-6; %s
         para.PulseVoltage=para.RefVoltage*(0.5/para.PulseDur)*(para.FlipAngle/90);
     end
+    %adc duty cycle
+    para.DutyCycle=(para.VectorSize*para.dwell)./para.TR;
 
     % get timings probably only work for VE12U
     para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s
@@ -148,5 +153,9 @@ else
 
   
 end
+
+
+para.gammaH1=42.577478461; % [MHz/T]
+para.gammaH2=6.536 ; % [MHz/T]
 
 end
