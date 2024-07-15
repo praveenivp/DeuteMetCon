@@ -1,4 +1,4 @@
-function Msig_all=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type)
+function Msig_all=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type,DutyCycle)
 % [Msig_all]=SignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type)
 % FA : flipangle in radians
 % T1,T2,TE,TR are in seconds
@@ -7,8 +7,10 @@ function Msig_all=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type)
 % Species is a struct array with all relavent properties of your chemical compound
 % Species(1)=struct('T1_s',300e-3,'T2_s',200e-3,'freq_shift_Hz',0,'name','water');
 % TYPE: {'bSSFP','GRE','FISP'}
-
-
+% Dutycycle : 0-1 scalar
+if(exist('DutyCycle','var'))
+    DutyCycle=1;
+end
 
 % first vectorize along dfreq which can get quite slow with 3D field map
 Msig_all=zeros(length(Metabolites),length(TE),length(PhaseCyles),length(TR),length(dfreq),length(FA));
@@ -31,6 +33,11 @@ for cMb=1:length(Metabolites)
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
+                        case 'GRE-peters'
+                            T2star=Metabolites(cMb).T2star_s;
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
+                                GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset,DutyCycle);
+
                     end
                 end
             end
@@ -78,6 +85,22 @@ bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
 end
 
 
+function bSSFP=bSSFP_peters(flip,T1,T2,TE, TR,phi,off_resonance)
+% Equation 2 from  DOI: 10.1002/mrm.28906
+
+M0 = 1;
+E1 = exp(-TR./T1);
+E2 = exp(-TR./T2);
+
+
+num=M0*exp(-(TR/2)/T2)*(1-E1).*sin(flip);
+
+bSSFP=num./(1- (E1-E2)*cos(flip)-E1*E2);
+%phase evolution: not relavant for SNR
+bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
+end
+
+
 function Sflash=GRESignal(FA,T1,T2star,TE,TR,freqOffset)
 %     sig=GREsignalmodel(flip,T1,T2star,TE,TR,freqOffset)
 
@@ -86,6 +109,22 @@ E1    = exp(-TR./T1);
 % https://mriquestions.com/spoiled-gre-parameters.html
 Sflash=M0*sin(FA)*(1-E1)*exp(-TE/T2star);
 Sflash=Sflash./(1-cos(FA)*E1);
+Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
+
+end
+
+function Sflash=GRESignal_peters(FA,T1,T2star,TE,TR,freqOffset,DutyCycle)
+%     sig=GREsignalmodel(flip,T1,T2star,TE,TR,freqOffset)
+
+M0    = 1;
+E1    = exp(-TR./T1);
+% https://mriquestions.com/spoiled-gre-parameters.html
+Sflash=M0*sin(FA)*(1-E1);
+Sflash=Sflash./(1-cos(FA)*E1);
+t=TE+(0:1e-6:TR*DutyCycle);
+
+Sflash=Sflash.*sum(exp(-t./T2star))*1e-6;
+%phase evolution: not relavant for SNR
 Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
