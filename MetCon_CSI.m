@@ -91,12 +91,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
                     addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','IDEAL','AMARES','LorentzFit'})));
+                    addParameter(p,'IdealSetttings',{},@(x)iscell(x) && mod(length(x),2)==0 );
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
                     %                     addParameter(p,'reg_lambda',0,@(x)isscalar(x));
                     addParameter(p,'parfor',true,@(x) islogical(x));
-                    addParameter(p,'ZeroPadSize',[1 1 1 0], @(x) isvector(x)); % [3 physical x 1 time]
+                    addParameter(p,'doZeroPad',[1 1 1 0], @(x) isvector(x)); % [3 physical x 1 time]
                     parse(p,varargin{:});
 
                     obj.flags=p.Results;
@@ -188,7 +189,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.performSVDdenosing();
             print_str = sprintf( 'reco  time = %6.1f s\n', toc);
             fprintf(print_str);
-
+            obj.getMask(0);
             if(~isempty(obj.metabolites))
                 obj.performMetCon();
             end
@@ -218,11 +219,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function performZeroPaddding(obj)
 
             disp(['initial CSI data size:           ', num2str(size(obj.sig))])
-            zp_PRS=obj.flags.ZeroPadSize(1:3);
+            zp_PRS=obj.flags.doZeroPad(1:3);
             pad_size=[0 round(size(obj.sig,2)*zp_PRS(1)) round(size(obj.sig,3)*zp_PRS(2))  round(size(obj.sig,4)*zp_PRS(3)) 0];
 
             obj.sig=padarray(obj.sig,pad_size,0,'both'); % spatial zeropad
-            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.ZeroPadSize(4))],0,'post'); % spectral zerpoad
+            obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.doZeroPad(4))],0,'post'); % spectral zerpoad
 
             disp(['final CSI data size:           ', num2str(size(obj.sig))])
         end
@@ -332,10 +333,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                 im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
                 cMask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
-                voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.ZeroPadSize(1:3)+1)); %mm
+                voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.doZeroPad(1:3)+1)); %mm
                 cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
                 cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
-
+            else 
+                return;
             end
 
             if(nargout==0)
@@ -350,8 +352,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             nMet=length(freq);
             if(strcmpi(obj.flags.Solver,'AMARES'))
 
-                wbhandle = waitbar(0,'Performing AMARES fitting');
-
+                fprintf('Performing AMARES fitting');
 
                 DW= obj.DMIPara.dwell;
                 BW=1/DW; %Hz
@@ -386,14 +387,19 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 metabol_con=zeros(size(fids,1),nMet*3+3);
                 %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
 
-                parfor i=1:size(fids,1)
-                    %                 if(mod(i,1000)==0), fprintf('%.0f %d done\n',i/size(fids,1)*100); drawnow(); end
-                    %                     waitbar(i/size(fids,1),wbhandle,'Performing AMARES fitting');
-                    [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
-                    metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
-
+                if(obj.flags.parfor)
+                    parfor i=1:size(fids,1)
+                        [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
+                        metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
+                    end
+                else
+                    for i=1:size(fids,1)
+                        [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
+                        metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
+                    end
                 end
-                close(wbhandle);
+
+
 
                 % convert to 3D matrix and give resonable names
                 metabol_con=MetCon_CSI.col2mat(metabol_con,obj.mask);
@@ -459,7 +465,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.gamma=MetCon_CSI.col2mat(rSQ,obj.mask);
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
-                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
+                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
+                    'mask',obj.mask,'parfor',obj.flags.parfor,obj.flags.IdealSetttings{:});
                 obj.Metcon=obj.SolverObj'*squeeze(obj.img);
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
@@ -590,11 +597,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
             tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
-            slcFac=0.3;slcdim=2;
+            slcFac=0.3;slcdim=3;
             slcSel=round(slcFac*size(obj.Metcon,slcdim));
             slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
 
-            imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[1 3 slcdim 4]),10),30);
+            imtransFunc=@(x) flip(flip(permute(x(:,:,slcSel),[1 2 slcdim 4]),10),30);
             %get metcon in normalized SNR units
             [im_snr,sf]=obj.getNormalized();
             for i=1:length(obj.metabolites)
@@ -655,7 +662,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         end
         function [Metcon_norm,scale_fac]= getNormalized(obj)
-            % normalize metabolite maps same as plotresults()
+            % normalize metabolite maps to get SNR units hoprfully!
             if(any(strcmp(obj.flags.Solver,{'IDEAL','IDEAL-modes','phaseonly'})))
                 %more analytical
                 Ai=pinv(  obj.SolverObj.getA() );
@@ -679,6 +686,33 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 end
             end
         end
+        function [Metcon_mM,scale_fac]= getmM(obj)
+            % convert metabolite amplitudes into mM
+            % assuming water concentration is 10 mM 
+            %reference: peters et al DOI: 10.1002/mrm.28906 , equation 6
+            
+            TR=obj.DMIPara.TR;
+            TE=obj.DMIPara.TE(1);
+            DC=obj.DMIPara.DutyCycle;
+            %Actual reference voltage is between 500 and 550
+            FA_rad=obj.DMIPara.FlipAngle*(obj.DMIPara.RefVoltage/500);
+
+            if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'GRE-peters',DC);
+            else
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'bSSFP',DC);
+            end
+
+            Sig_theory=mean(abs(squeeze(Msig_all)),[2 3 4]);
+            Sig_theory=Sig_theory(1)./Sig_theory;
+            scale_fac=10*Sig_theory./[1;2;2;2]; % mM
+            metcon_w=obj.Metcon./obj.Metcon(:,:,:,1);
+            Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
+            as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
+        end
+
+
+
         function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)
             %mcobj.getMinutesAfterIntake('hh:mm')
             if(exist("IntakeTime",'var'))

@@ -52,11 +52,11 @@ if(~para.isCSI)
     para.seq_details=printSeqeunceDetails(twix);
 
     % take rmos flag into account
-    para.rmos_flag=twix.image.NCol == size(twix.image(:,:,1),1);
+    para.rmos_flag=twix.image.NCol ~= size(twix.image(:,:,1),1);
     if(para.rmos_flag)
-        para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
-    else %'rmos' flag active
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9*2; %s
+    else %'rmos' flag active
+        para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
     end
 
     %resolution
@@ -83,16 +83,17 @@ else
     % treat all time axis as echo dimension
     EchoSel=1:twix.hdr.Phoenix.sSpecPara.lVectorSize;
     % take rmos flag into account
-    para.rmos_flag=twix.image.NCol == size(twix.image(:,:,1),1);
+    para.rmos_flag=twix.image.NCol/2 == size(twix.image(:,:,1),1);
     if(para.rmos_flag)
-        para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
-    else %'rmos' flag active
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9*2; %s
+        para.VectorSize   = twix.image.NCol/2;
+    else %'rmos' flag active == true
+        para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
+        para.VectorSize   = twix.image.NCol;
     end
 
 
-    para.VectorSize   = twix.image.NCol;
-    para.dwell    = twix.hdr.MeasYaps.sRXSPEC.alDwellTime{1}*1e-9; %[s]
+    
     para.Bandwidth    = 1/para.dwell;
     para.FreqAxis=linspace(-0.5*para.Bandwidth ,0.5*para.Bandwidth, para.VectorSize);
 
