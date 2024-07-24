@@ -21,24 +21,33 @@ if(~para.isCSI)
     para.TE=[twix.hdr.Phoenix.alTE{EchoSel}]*1e-6; %s
     para.TR=twix.hdr.Phoenix.alTR{1}*1e-6; %s
     try
-    Range=twix.hdr.Phoenix.sWipMemBlock.alFree{5};
-    NRep=twix.image.NRep;
-    Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{6};
-    if(isempty(Shift));Shift=0;end
-    para.PC_deg = (Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
+        Range=twix.hdr.Phoenix.sWipMemBlock.alFree{5};
+        NRep=twix.image.NRep;
+        Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{6};
+        if(isempty(Shift));Shift=0;end
+        para.PC_deg = (Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
+        %Range!=360 correction
+        para.PC_deg  =para.PC_deg +(360-Range)/2;
+        %discretisation error(not accurate) for odd phasecycles
+        error=Range/(2*NRep) -floor(Range/(2*NRep))-0.5;
+        para.PC_deg =para.PC_deg +error.*(1:NRep);
     catch %for fisp
-      para.PC_deg =ones(twix.image.NRep,1)*180;  
+        para.PC_deg =ones(twix.image.NRep,1)*180;
     end
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
-    para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree)/1.07; %rad
+    
+    para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
     try
         para.pulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
         %only work for rect pulse
         para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
-        para.PulseDur=(para.RefVoltage/para.pulseVoltage)*(0.5*45/90);
+        %0.5 ms*refvoltage -> 90
+        para.PulseDur=1e-3*(para.RefVoltage/para.pulseVoltage)*(0.5*rad2deg(para.FlipAngle)/90);
     end
+    para.pulseCorrectionFactor=550/para.RefVoltage;
+    para.FlipAngle=para.FlipAngle*para.pulseCorrectionFactor;
     para.FrequencySystem=twix.hdr.Dicom.lFrequency;
 
     % get timings probably only work for VE12U
@@ -118,11 +127,11 @@ else
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
     try
         para.PulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
-        para.PulseDur=(para.RefVoltage/para.PulseVoltage)*(0.5*para.FlipAngle/90);
+        para.PulseDur=1e-3*(para.RefVoltage/para.PulseVoltage)*(0.5*rad2deg(para.FlipAngle)/90); %[s]
     catch
 
         para.PulseDur=twix.hdr.Phoenix.sWipMemBlock.alFree{4}*1e-6; %s
-        para.PulseVoltage=para.RefVoltage*(0.5/para.PulseDur)*(para.FlipAngle/90);
+        para.PulseVoltage=para.RefVoltage*(0.5/para.PulseDur)*(rad2deg(para.FlipAngle)/90);
     end
     %adc duty cycle
     para.DutyCycle=(para.VectorSize*para.dwell)./para.TR;
