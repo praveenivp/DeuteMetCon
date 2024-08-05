@@ -8,7 +8,7 @@ function Msig_all=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type,Duty
 % Species(1)=struct('T1_s',300e-3,'T2_s',200e-3,'freq_shift_Hz',0,'name','water');
 % TYPE: {'bSSFP','GRE','FISP'}
 % Dutycycle : 0-1 scalar
-if(exist('DutyCycle','var'))
+if(~exist('DutyCycle','var'))
     DutyCycle=1;
 end
 
@@ -33,6 +33,9 @@ for cMb=1:length(Metabolites)
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
+                        case 'bSSFP-peters'
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
+                                bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR));
                         case 'GRE-peters'
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
@@ -85,7 +88,7 @@ bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
 end
 
 
-function bSSFP=bSSFP_peters(flip,T1,T2,TE, TR,phi,off_resonance)
+function bSSFP=bSSFP_peters(flip,T1,T2,TE, TR)
 % Equation 2 from  DOI: 10.1002/mrm.28906
 
 M0 = 1;
@@ -97,7 +100,7 @@ num=M0*exp(-(TR/2)/T2)*(1-E1).*sin(flip);
 
 bSSFP=num./(1- (E1-E2)*cos(flip)-E1*E2);
 %phase evolution: not relavant for SNR
-bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
+% bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
 end
 
 
@@ -121,9 +124,12 @@ E1    = exp(-TR./T1);
 % https://mriquestions.com/spoiled-gre-parameters.html
 Sflash=M0*sin(FA)*(1-E1);
 Sflash=Sflash./(1-cos(FA)*E1);
-t=TE+(0:1e-6:TR*DutyCycle);
 
-Sflash=Sflash.*sum(exp(-t./T2star))*1e-6;
+%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
+dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
+dc_fac=dc_fac./(DutyCycle*TR); %normalization
+
+Sflash=Sflash.*dc_fac;
 %phase evolution: not relavant for SNR
 Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 

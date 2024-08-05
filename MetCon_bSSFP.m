@@ -214,11 +214,20 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             elseif(thres_prctl>0)
 
                 im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
-                cMask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
+                cMask=im_abs>prctile(im_abs(:),thres_prctl);
+                voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.doZeroPad(1:3)+1)); %mm
+                cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
+                cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
+            elseif(isscalar(obj.mask))
+                thres_prctl=obj.mask;
+                im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
+                cMask=im_abs>prctile(im_abs(:),thres_prctl);
                 voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.doZeroPad(1:3)+1)); %mm
                 cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
                 cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
 
+            else 
+                return;
             end
 
             if(nargout==0)
@@ -332,6 +341,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             if(strcmpi(obj.flags.Solver,'pinv'))
 
                 tic;
+                if(isempty(obj.FieldMap)),obj.FieldMap=zeros(size(obj.mask));end
                 B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
                 im1=reshape(obj.img,[],length(EchoSel)*length(PCSel));
                 im1=im1(obj.mask(:),:);
@@ -340,6 +350,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 metabol_con=zeros(size(im1,1),length(obj.metabolites));
                 resi=zeros(size(im1));
                 condnm=zeros(size(im1,1),1);
+                sclfac=zeros(size(im1,1),length(obj.metabolites));
                 fprintf('Calculating bSSFP profile basis\n');
                 Msig_all=MetSignalModel(met_struct,TE,PC,TR,B0,FA,'bSSFP');
                 if(TE(1)==0)
@@ -359,12 +370,15 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     resi(i,:)=b(:) -A*metabol_con(i,:).';
                     condnm(i)=cond(A);
                     %                     pb.progress();
+                    Ai=pinv(A);
+                   sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
                 end
 
 
                 obj.Metcon=obj.col2mat(metabol_con,obj.mask);
                 obj.Experimental.residue=obj.col2mat(single(resi),obj.mask);
                 obj.Experimental.condition=obj.col2mat(single(condnm(:)),obj.mask);
+                obj.Experimental.sclfac=obj.col2mat(sclfac,obj.mask);
 
                 fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
@@ -565,9 +579,9 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             mcobj_copy=copy(obj);
             mcobj_copy.twix=[];
             mcobj_copy.sig=[];
-            varName=sprintf('mcobj_m%d_%s',obj.twix.hdr.Config.MeasUID,obj.flags.Solver);
-            evalc(sprintf('%s=mcobj_copy;',varName));
-            save(OutFile,varName,'-v7.3');
+%             varName=sprintf('mcobj_m%d_%s',obj.twix.hdr.Config.MeasUID,obj.flags.Solver);
+%             evalc(sprintf('%s=mcobj_copy;',varName));
+            save(OutFile,"mcobj_copy",'-v7.3');
 
 
         end
@@ -588,8 +602,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             for i=1:length(obj.metabolites)
                 nexttile(tt)
                 im_curr=createImMontage(imtransFunc(abs(im_snr(:,:,:,i))));
+                im_curr(isnan(im_curr))=0;
                 imagesc(im_curr);
-                
                 colorbar,axis image
                 cax_im=[0 prctile(im_curr(:),99)];
                 clim(cax_im);
@@ -665,6 +679,32 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 end
             end
         end
+
+        function [Metcon_mM,scale_fac]= getmM(obj)
+            % convert metabolite amplitudes into mM
+            % assuming water concentration is 10 mM 
+            %reference: peters et al DOI: 10.1002/mrm.28906 , equation 6
+            
+            TR=obj.DMIPara.TR;
+            TE=obj.DMIPara.TE(1);
+            DC=obj.DMIPara.DutyCycle;
+            %Actual reference voltage is between 500 and 550
+            FA_rad=obj.DMIPara.FlipAngle*(obj.DMIPara.RefVoltage/500);
+
+            if(~contains(obj.twix.hdr.Config.SequenceFileName,'trufi'))
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'GRE-peters',DC);
+            else
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'bSSFP',DC);
+            end
+
+            Sig_theory=mean(abs(squeeze(Msig_all)),[2 3 4]);
+            Sig_theory=Sig_theory(1)./Sig_theory;
+            scale_fac=10*Sig_theory./[1;2;2;2]; % mM
+            metcon_w=obj.Metcon./obj.Metcon(:,:,:,1);
+            Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
+%             as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
+        end
+
         function MinuteElapsed=getMinutesAfterIntake(obj,IntakeTime)
             %mcobj.getMinutesAfterIntake('hh:mm')
             if(exist("IntakeTime",'var'))

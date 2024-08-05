@@ -129,7 +129,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
 
             if( strcmp(obj.flags.Solver,'AMARES'))
-                assert(strcmp(obj.flags.doPhaseCorr,'Burg'),'use ''doPhaseCorr'' flag with ''Burg'' method for ''AMARES''');
+%                 assert(strcmp(obj.flags.doPhaseCorr,'Burg'),'use ''doPhaseCorr'' flag with ''Burg'' method for ''AMARES''');
                 assert(~isempty(which('AMARES.amaresFit')),'add AMARES to path: <a href="https://github.com/OXSAtoolbox/OXSA.git">OXSA git link</a>');
             end
 
@@ -236,6 +236,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 dw=obj.DMIPara.dwell; % s
                 %  Acqdelay=mcobj.twix.hdr.MeasYaps.alTE{1}*1e-6; %s
                 Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
+%                 Acqdelay=1.9e-3+300e-3;
                 ext_size=round(Acqdelay/dw);
 
                 [obj.img] = fidExtrp(permute(obj.img,[5 1 2 3 4]),ext_size);
@@ -332,10 +333,18 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             elseif(thres_prctl>0)
 
                 im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
-                cMask=im_abs>0.2*prctile(im_abs(:),thres_prctl);
+                cMask=im_abs>prctile(im_abs(:),thres_prctl);
                 voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.doZeroPad(1:3)+1)); %mm
                 cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
                 cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
+            elseif(isscalar(obj.mask))
+                thres_prctl=obj.mask;
+                im_abs=abs(squeeze(sum(obj.img,[5 6 7])));
+                cMask=im_abs>prctile(im_abs(:),thres_prctl);
+                voxel_size=1e3*mean(obj.DMIPara.resolution/(obj.flags.doZeroPad(1:3)+1)); %mm
+                cMask=imerode(cMask,strel('sphere',ceil(15/voxel_size))); % 15 mm
+                cMask=imdilate(cMask,strel('sphere',ceil(30/voxel_size))); %30 mm
+
             else 
                 return;
             end
@@ -364,7 +373,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                 chemShift=freq./imagingFrequency;
                 phase=ones(1,nMet).*0;
-                amplitude=ones(1,nMet);
+                amplitude=ones(1,nMet)*max(abs(obj.img),[],'all');
                 linewidth=ones(1,nMet).*12;
 
                 amares_struct=struct('chemShift',chemShift, ...
@@ -391,11 +400,22 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     parfor i=1:size(fids,1)
                         [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
                         metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
+
+
                     end
                 else
-                    for i=1:size(fids,1)
-                        [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
-                        metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
+                    if(strcmp(obj.flags.doPhaseCorr,'Burg'))
+                        for i=1:size(fids,1)
+                            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
+                            metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
+                        end
+                    else
+                        for i=1:size(fids,1)
+                            beginTime=1.9e-3; %from idea sim
+                            amares_struct.signals={fids(i,:).'};
+                            fitResults= AMARES.amares( amares_struct,1,1,beginTime,0, pk, false,'quiet',true);
+                            metabol_con(i,:)=[fitResults.ChemicalShifts, fitResults.Amplitudes fitResults.Linewidths fitResults.Phases(1),fitResults.relativeNorm(1),fitResults.relativeNorm(1) ];
+                        end
                     end
                 end
 
@@ -542,7 +562,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
 
-            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid), amares_struct, pk, 0,'quiet',true);
+            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid), amares_struct, pk, true,'quiet',true);
 
             taxis=0:dw:dw*(size(fid,1)-1);
             sig1=zeros(size(taxis));
@@ -555,6 +575,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 sig1=sig1+a(i)*exp(-1i*phi(i)).*exp(-(pi*d(i))*taxis).*exp(1i*2*pi*f(i)*taxis);
             end
             spec_amares=fftshift(fft(sig1(:)));
+            figure(34),
             plot(faxis,spec_amares,'LineWidth',2);
             xlim([min(freq)-200 max(freq)+200])
             legend({'Data-abs','Data-real','Nlorentzian','AMRARES'})
@@ -597,13 +618,16 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
             tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
-            slcFac=0.3;slcdim=3;
+            slcFac=0.3;slcdim=2;
             slcSel=round(slcFac*size(obj.Metcon,slcdim));
             slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
 
-            imtransFunc=@(x) flip(flip(permute(x(:,:,slcSel),[1 2 slcdim 4]),10),30);
+            imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[setdiff(1:3,slcdim) slcdim 4]),10),30);
             %get metcon in normalized SNR units
             [im_snr,sf]=obj.getNormalized();
+
+%             [im_snr,sf]=obj.getmM();
+%             im_snr(:,:,:,1)=im_snr1(:,:,:,1);% replace water with SNR 
             for i=1:length(obj.metabolites)
                 nexttile(tt)
                 im_curr=createImMontage(imtransFunc(abs(im_snr(:,:,:,i))));
@@ -619,7 +643,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             % display residue
             nexttile(tt)
-            residue_norm=sos(obj.Experimental.residue(:,:,slcSel,:)./reshape(sf,1,1,1,[]),4);
+            residue_norm=sos(imtransFunc(obj.Experimental.residue)./reshape(sf,1,1,1,[]),4);
             im_curr=createImMontage(residue_norm);
             imagesc(im_curr);
             colorbar,
@@ -633,9 +657,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %display fieldmaps
 
             if(isfield(obj.Experimental,'fm_est'))
-                fm_Hz=createImMontage(obj.Experimental.fm_est(:,:,slcSel,:));
+                fm_Hz=createImMontage(imtransFunc(obj.Experimental.fm_est));
             elseif(~isempty(obj.FieldMap))
-                fm_Hz=createImMontage(obj.FieldMap(:,:,slcSel,:))./(2*pi)*(6.536 /42.567);
+                fm_Hz=createImMontage(imtransFunc(obj.FieldMap))./(2*pi)*(6.536 /42.567);
             end
             if(exist('fm_Hz','var'))
                 nexttile()
@@ -708,7 +732,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             scale_fac=10*Sig_theory./[1;2;2;2]; % mM
             metcon_w=obj.Metcon./obj.Metcon(:,:,:,1);
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
-            as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
+%             as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
         end
 
 
