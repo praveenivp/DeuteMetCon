@@ -236,7 +236,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 dw=obj.DMIPara.dwell; % s
                 %  Acqdelay=mcobj.twix.hdr.MeasYaps.alTE{1}*1e-6; %s
                 Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
-%                 Acqdelay=1.9e-3+300e-3;
                 ext_size=round(Acqdelay/dw);
 
                 [obj.img] = fidExtrp(permute(obj.img,[5 1 2 3 4]),ext_size);
@@ -283,12 +282,22 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     CSI_Data=permute(CSI_Data,[2 3 1]);
                     CSI_Combined=zeros([prod(CSI_DataSize(2:4)),CSI_DataSize(5)]);
                     CoilWeights = zeros([prod(CSI_DataSize(1:3)),CSI_DataSize(1)]);
-                    parfor vx=1:size(CSI_Data,1)
-                        rawSpectra=squeeze(CSI_Data(vx,:,:,1));  % Spectrum x Coil
-                        [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], CSI_wsvdOption);
-                        CoilWeights(vx,:) = wsvdWeights;
-                        CSI_Combined(vx,:)=wsvdCombination;
+                    if(obj.flags.parfor)
+                        parfor vx=1:size(CSI_Data,1)
+                            rawSpectra=squeeze(CSI_Data(vx,:,:,1));  % Spectrum x Coil
+                            [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], CSI_wsvdOption);
+                            CoilWeights(vx,:) = wsvdWeights;
+                            CSI_Combined(vx,:)=wsvdCombination;
+                        end
+                    else
+                        parfor vx=1:size(CSI_Data,1)
+                            rawSpectra=squeeze(CSI_Data(vx,:,:,1));  % Spectrum x Coil
+                            [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], CSI_wsvdOption);
+                            CoilWeights(vx,:) = wsvdWeights;
+                            CSI_Combined(vx,:)=wsvdCombination;
+                        end
                     end
+
                     % Combine later?
                     %  CSI = sum(bsxfun (@times,CSI_Data_Filtered,permute(CoilWeights,[1 3 2])),3);
                     obj.coilSens=reshape(CoilWeights.',[CSI_DataSize(1:4)]);
@@ -361,65 +370,38 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             nMet=length(freq);
             if(strcmpi(obj.flags.Solver,'AMARES'))
 
-                fprintf('Performing AMARES fitting');
+                fprintf('Performing AMARES fitting on %d voxels\n', size(fids,1));
 
-                DW= obj.DMIPara.dwell;
-                BW=1/DW; %Hz
-                samples=size(obj.img,5);
-                timeAxis=0:DW:(samples-1)*DW;
-                imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
-                offset=0;
-                ppmAxis=linspace(-BW/2,BW/2-BW/samples,samples)/imagingFrequency;
+                  if(sum(obj.FieldMap,'all')==0 || isempty(obj.FieldMap))
+                    fm_est= zeros(size(fids,1),1);
+                else
+                    fm_est=-1*obj.FieldMap;
+                    fm_est=obj.mat2col(fm_est,obj.mask);
+                    fm_est=fm_est./(2*pi)*(6.536 /42.567); % [Hz]   
+                    fm_est=fm_est./obj.DMIPara.ImagingFrequency_MHz; %ppm
+                  end
 
-                chemShift=freq./imagingFrequency;
-                phase=ones(1,nMet).*0;
-                amplitude=ones(1,nMet)*max(abs(obj.img),[],'all');
-                linewidth=ones(1,nMet).*12;
-
-                amares_struct=struct('chemShift',chemShift, ...
-                    'phase', phase,...
-                    'amplitude', amplitude,...
-                    'linewidth',linewidth, ...
-                    'imagingFrequency', imagingFrequency,...
-                    'BW', BW,...
-                    'timeAxis', timeAxis(:), ...
-                    'dwellTime', DW,...
-                    'ppmAxis',ppmAxis(:), ...
-                    'beginTime',0, ...
-                    'offset',offset,...
-                    'samples',samples, ...
-                    'peakName',string({obj.metabolites.name}));
-
-                pk=PriorKnowledge_DMI(amares_struct);
-
-
+                [expParams,pk]=getAMARES_structs(obj);
                 metabol_con=zeros(size(fids,1),nMet*3+3);
                 %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
-
-                if(obj.flags.parfor)
+                 if(obj.flags.parfor)
+                    parfevalOnAll(@warning,0,'off','MATLAB:singularMatrix');
                     parfor i=1:size(fids,1)
-                        [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
-                        metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
-
-
+                        expParams_2=expParams;
+                        expParams_2.offset=fm_est(i);
+                        [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fids(i,:).'), expParams_2, pk, 0,'quiet',true);
+                         metabol_con(i,:)=[fitResults.chemShift,fitResults.linewidth,fitResults.amplitude,...
+                            fitResults.phase(1),fitStatus.relativeNorm(1),fitStatus.resNormSq(1)];
                     end
-                else
-                    if(strcmp(obj.flags.doPhaseCorr,'Burg'))
-                        for i=1:size(fids,1)
-                            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fids(i,:).'), amares_struct, pk, 0,'quiet',true);
-                            metabol_con(i,:)= [fitStatus.xFit fitStatus.relativeNorm fitStatus.resNormSq]';
-                        end
-                    else
-                        for i=1:size(fids,1)
-                            beginTime=1.9e-3; %from idea sim
-                            amares_struct.signals={fids(i,:).'};
-                            fitResults= AMARES.amares( amares_struct,1,1,beginTime,0, pk, false,'quiet',true);
-                            metabol_con(i,:)=[fitResults.ChemicalShifts, fitResults.Amplitudes fitResults.Linewidths fitResults.Phases(1),fitResults.relativeNorm(1),fitResults.relativeNorm(1) ];
-                        end
-                    end
-                end
-
-
+                 else
+                     warning('off','MATLAB:singularMatrix');
+                   for i=1:size(fids,1)
+                        expParams.offset=fm_est(i);
+                        [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fids(i,:).'), expParams, pk, 0,'quiet',true);
+                        metabol_con(i,:)=[fitResults.chemShift,fitResults.linewidth,fitResults.amplitude,...
+                            fitResults.phase(1),fitStatus.relativeNorm(1),fitStatus.resNormSq(1)];
+                   end
+                 end
 
                 % convert to 3D matrix and give resonable names
                 metabol_con=MetCon_CSI.col2mat(metabol_con,obj.mask);
@@ -429,9 +411,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.linewidth=metabol_con(:,:,:,((1:nMet)+nMet*(2-1)));
                 obj.Experimental.phase=metabol_con(:,:,:,((1)+nMet*(4-1))); %phase
                 obj.Experimental.relativeNorm=metabol_con(:,:,:,((2)+nMet*(4-1)));
-                %                 resNormSq
                 obj.Experimental.residue=metabol_con(:,:,:,((3)+nMet*(4-1)));
-                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1);
+                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1); %ppm
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
                 dw=obj.DMIPara.dwell;
@@ -524,53 +505,30 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             plot(xdata,real(spect(freqSel)));
             plot(xdata,fitf(xdata));
 
-            fprintf('Performing AMARES fit\n')
 
+            %test AMARES fit
+            fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
+            [expParams,pk]=getAMARES_structs(mcobj);
+            if(ismatrix(obj.FieldMap))
+                fm_est=-1*obj.FieldMap(pxl_idx(1),pxl_idx(2),pxl_idx(3));
+                fm_est=obj.mat2col(fm_est,obj.mask);
+                fm_est=fm_est./(2*pi)*(6.536 /42.567); % [Hz]
+                fm_est=fm_est./obj.DMIPara.ImagingFrequency_MHz;
+            else
+                fm_est=0;
+            end
+            
+            expParams.offset=fm_est;
+            [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fid(:)), expParams, pk,true,'quiet',false);
+            disp(fitResults)
 
-            DW= obj.DMIPara.dwell;
-            BW=1/DW; %Hz
-            timeAxis=0:DW:(length(fid)-1)*DW;
-            imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6;
-            offset=0;
-            ppmAxis=linspace(-BW/2,BW/2-BW/length(fid),length(fid))/imagingFrequency;
-            nMet=length(freq);
-            chemShift=freq./imagingFrequency;
-            phase=ones(1,nMet).*0;
-            amplitude=ones(1,nMet);
-            linewidth=ones(1,nMet).*12;
-
-            samples=length(fid);
-
-
-            amares_struct=struct('chemShift',chemShift, ...
-                'phase', phase,...
-                'amplitude', amplitude,...
-                'linewidth',linewidth, ...
-                'imagingFrequency', imagingFrequency,...
-                'BW', BW,...
-                'timeAxis', timeAxis(:), ...
-                'dwellTime', DW,...
-                'ppmAxis',ppmAxis(:), ...
-                'beginTime',0, ...
-                'offset',offset,...
-                'samples',samples, ...
-                'peakName',string({obj.metabolites.name}));
-
-
-            pk=PriorKnowledge_DMI(amares_struct);
-
-
-
-
-            [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid), amares_struct, pk, true,'quiet',true);
-
-            taxis=0:dw:dw*(size(fid,1)-1);
+            % try to reconstruct fitted spectrum
+            taxis=expParams.timeAxis;
             sig1=zeros(size(taxis));
             a=fitResults.amplitude;
             f=fitResults.chemShift*amares_struct.imagingFrequency;
             phi=0.*deg2rad(fitResults.phase);
             d=fitResults.linewidth; % [Hz]
-
             for i=1:length(a)
                 sig1=sig1+a(i)*exp(-1i*phi(i)).*exp(-(pi*d(i))*taxis).*exp(1i*2*pi*f(i)*taxis);
             end
@@ -752,7 +710,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             timeElapsed=(MeasStartTime-obj.DMIPara.IntakeTime)+seconds(obj.DMIPara.acq_duration_s*0.5);
             MinuteElapsed=round(minutes(timeElapsed));
         end
-
+    function ppm=Hz2ppm(freq)
+        imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6; %MHz
+        ppm=freq./imagingFrequency;
+    end
     end
 
     methods(Static)
@@ -772,6 +733,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             mat=reshape(mat,[size(mask) sz(2:end)]);
 
         end
+
     end
 end
 

@@ -37,7 +37,7 @@ if(~para.isCSI)
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
-    
+    para.ImagingFrequency_MHz=twix.hdr.Dicom.lFrequency*1e-6; %MHz
     para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
     try
         para.pulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
@@ -88,7 +88,8 @@ if(~para.isCSI)
 else
 
 
-
+    para.ImagingFrequency_MHz=twix.hdr.Dicom.lFrequency*1e-6; %MHz
+    para.AcqDelay_s=twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
     % treat all time axis as echo dimension
     EchoSel=1:twix.hdr.Phoenix.sSpecPara.lVectorSize;
     % take rmos flag into account
