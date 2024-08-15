@@ -51,7 +51,9 @@ fh=figure(3);
 set(fh,'OuterPosition',[1 41 1920 1082]),clf
 tt=tiledlayout(3,4,"TileSpacing","compact",'Padding','compact');
 for i=1:length(metabolites)
+    
 
+    % plot GRE signal efficiency
     ax=nexttile(tt,i);
     imagesc((TR_all_gre*1e3),FA_all,sig_all_gre(:,:,i)'),colorbar
     hold on
@@ -82,7 +84,7 @@ for i=1:length(metabolites)
     ax.ColorOrder = mycolors;
     % plotMax((TR_all*1e3),FA_all,sig_all(:,:,i),ax)
     % imagesc((TR_all*1e3),FA_all,sig_all_bssfp(:,:,i)'),colorbar
-    title(sprintf('%s | T1/T2 =%.2f/%.2f ms',metabolites(i).name,metabolites(i).T1_s*1e3,metabolites(i).T2_s*1e3))
+    title(sprintf('%s | T1/T2* =%.2f/%.2f ms',metabolites(i).name,metabolites(i).T1_s*1e3,metabolites(i).T2star*1e3))
     ax=gca;
     ax.XAxis.Direction="normal";
     ax.YAxis.Direction="normal";

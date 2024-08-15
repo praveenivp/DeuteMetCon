@@ -36,7 +36,7 @@ V=flip(permute(V,[2 1 3 4 ]),2); %9.4 T transverter
 ```
 %new phantom: /ptmp/pvalsala/deuterium/20240102_new2Hphantom
 met_name={'water','glucose','Glx','lactate'};
-freq_shift=[1.3 -65 -154 -214]; %Hz
+freq_shift=[ -65 -154 -214]; %Hz
 T1=[444.30, 69.53, 157.65, 244.38]*1e-3; %s
 T2=[272.75,52.09,114.31,245.17]*1e-3; %s
 ```
@@ -45,15 +45,22 @@ for invivo we have all values except lactate
 ```
 %invivo: /ptmp/pvalsala/deuterium/EAZW-GUMK/proc
 met_name={'water','glucose','Glx','lactate'};
-freq_shift_WGX=[3.9 -58.7  -152 -200];
-T1=[432.88 69.65 147.6 190.64]*1e-3;%s
+freq_shift=[3.9 -58.7  -152 -200]; % Hz
+T1=[342.04 56.62  151.55 165.02]*1e-3;%s
+T2=[53.93 45.96 80.10 96.47]*1e-3;%s
+```
+```
+%invivo: /ptmp/pvalsala/deuterium/DA77-F3UY
+met_name={'water','glucose','Glx','lactate'};
+freq_shift=[3.9 -58.7  -152 -200]; %Hz
+T1=[343.58 94.21 169.32 190.64]*1e-3;%s
 T2=[287 65.88 124.5 180]*1e-3;%s
 ```
 
 ```
 clear metabolites;
-for i=1:length(freq_shift_WGX)
-    metabolites(i)=struct('T1_s',T1(i),'T2_s',T2(i),'freq_shift_Hz',freq_shift_WGX(i),'name',met_name{i});
+for i=1:length(freq_shift)
+    metabolites(i)=struct('T1_s',T1(i),'T2_s',T2(i),'freq_shift_Hz',freq_shift(i),'name',met_name{i});
 end
 ```
 

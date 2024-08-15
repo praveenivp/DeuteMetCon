@@ -1,6 +1,5 @@
 %% test
 clearvars
-    cs_ppm=[0 1.0256 ]*1e-6; %D20 Glu Glx Lac/fat
     freq_shift_WGX=[3.9 -58.7  -152 -215];
     T1=[432.88 69.65 147.6 190.64]*1e-3;%s
     T2=[287 65.88 124.5 180]*1e-3;%s
@@ -47,7 +46,7 @@ as(sig2);
 
 
 cMask=sum(MetSimObj_bssfp.experimental.Phantom,3)>0;
- IDEALobj_pinv=IDEAL(metabolites,TE,'solver','pinv','fm',0*fm,'mask',cMask,'PhaseCorr',true,'mask',cMask);
+ IDEALobj_pinv=IDEAL(metabolites,TE,'solver','phaseonly','fm',0*fm,'mask',cMask,'PhaseCorr',true,'mask',cMask);
  metabol_con_pinv=IDEALobj_pinv'*permute(sig2,[1 2 4 3]);
 as(metabol_con_pinv,'select',':,:,:','title','pinv','complexSelect','m','colormap','jet')
 %%
@@ -59,10 +58,9 @@ as(metabol_con_ideal,'select',':,:,:','title','IDEAL','complexSelect','m','color
 %%
 clearvars
     cs_ppm=[0 1.0256 ]*1e-6; %D20 Glu Glx Lac/fat
-    freq_shift_WGX=[3.9 -58.7  -152 -215];
+    freq_shift_WGX=[3.9 -58.7  -152 -215]+5;
     T1=[432.88 69.65 147.6 190.64]*1e-3;%s
     T2=[287 65.88 124.5 180]*1e-3;%s
-
 
 %      T2star=[287 65.88 124.5 180]*1e-3*(1/10);%s
      T2star=[20 13 15 15]*1e-3;
@@ -86,18 +84,21 @@ xlabel('echo time [ms]')
 legend(sp_name{1:3},sp_name{1:3})
 
 %% plot conditioning/NSA
-%     cs_ppm=[4.8   3.7 1.3]; %D20 Glu Glx Lac/fat
-%     freq_shift_WGX=(cs_ppm-2)*6.5*15.2;
-%     T1=[320 64 297]*1e-3;%s
-%     T2=[12 32 61]*1e-3;%s
-% 
-%      T2star=[10 15 15 15]*1e-3;
-% clear metabolites
-%     sp_name={'D20','Glucose','Glutamate','Lactate'};
-%     for i=1:3
-%         metabolites(i)=struct('T1_s',T1(i),'T2_s',T2(i),'freq_shift_Hz',freq_shift_WGX(i),'T2star_s',T2star(i),'name',sp_name{i});
-%     end
-figure, 
+clearvars
+    cs_ppm=[0 1.0256 ]*1e-6; %D20 Glu Glx Lac/fat
+%     freq_shift_WGX=[3.9 -58.7  -152 -215];
+freq_shift_WGX=[3.9 -56.1  -145.2 -201.4];
+    T1=[432.88 69.65 147.6 190.64]*1e-3;%s
+    T2=[287 65.88 124.5 180]*1e-3;%s
+
+%      T2star=[287 65.88 124.5 180]*1e-3*(1/10);%s
+     T2star=[20 13 15 15]*1e-3;
+clear metabolites
+    sp_name={'D20','Glucose','Glutamate','Lactate'};
+    for i=1:4
+        metabolites(i)=struct('T1_s',T1(i),'T2_s',T2(i),'freq_shift_Hz',freq_shift_WGX(i),'T2star_s',T2star(i),'name',sp_name{i});
+    end
+% figure, 
 deltaT_={(0.1:0.01:6)*1e-3,(0.1:0.01:0.5)*1e-3};
 N_=[5, 64];
 
@@ -107,7 +108,7 @@ for i=1:2
 NSA=zeros(length(metabolites),length(deltaT));
 for cDT=1:length(deltaT)
     TE=2e-3+(0:N-1)*deltaT(cDT);
- IDEALobj_pinv=IDEAL(metabolites,TE,'solver','pinv','PhaseCorr',true);
+ IDEALobj_pinv=IDEAL(metabolites,TE,'solver','phaseonly','PhaseCorr',true);
  A=(IDEALobj_pinv.getA);
 NSA(:,cDT)=abs(diag(inv(A'*A)));
 end
