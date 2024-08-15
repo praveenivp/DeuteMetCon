@@ -343,7 +343,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 tic;
                 if(isempty(obj.FieldMap)),obj.FieldMap=zeros(size(obj.mask));end
                 B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
-                im1=reshape(obj.img,[],length(EchoSel)*length(PCSel));
+                im1=reshape(obj.img(:,:,:,:,EchoSel,PCSel),[],length(EchoSel)*length(PCSel));
                 im1=im1(obj.mask(:),:);
                 %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
 

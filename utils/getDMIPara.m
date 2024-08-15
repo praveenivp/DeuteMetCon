@@ -34,6 +34,7 @@ if(~para.isCSI)
     catch %for fisp
         para.PC_deg =ones(twix.image.NRep,1)*180;
     end
+    if(NRep==1), para.PC_deg=180; end;
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter

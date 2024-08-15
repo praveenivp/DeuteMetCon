@@ -1,5 +1,5 @@
 
-refVoltage=500; % upto 520
+refVoltage=520; % upto 520
 kFactor=0.83;
 RFfac=447/refVoltage; % Flip angle scale factor
 
@@ -8,7 +8,7 @@ pc_range=linspace(0,359,18)+180;
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
 FA_all=linspace(10,80,60);
-TE=1e-3;
+TE=2e-3;
 
 %% SSFP signal signal
 
@@ -21,7 +21,7 @@ for cTR=1:size(sig_all_bssfp,1)
     [~,maxFA_bssfp(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_bssfp,3)
     %off-resonance is set to -1*chemical shift otherwise increase phase-cyles
-        [Msig_all]=MetSignalModel   (metabolites(CM),TE,deg2rad(pc_range),TR_all_bssfp(cTR),-1*metabolites(CM).freq_shift_Hz,deg2rad(FA_all),'bSSFP');
+        [Msig_all]=MetSignalModel   (metabolites(CM),TE,deg2rad(pc_range),TR_all_bssfp(cTR),-1*metabolites(CM).freq_shift_Hz,deg2rad(FA_all),'bSSFP-peters');
         sig_all_bssfp(cTR,:,CM)=mean(abs(Msig_all),3);
         %            nexttile(), plot(pc_range,abs(Msig_all(:)))
     end
@@ -84,7 +84,7 @@ for i=1:length(metabolites)
     ax.ColorOrder = mycolors;
     % plotMax((TR_all*1e3),FA_all,sig_all(:,:,i),ax)
     % imagesc((TR_all*1e3),FA_all,sig_all_bssfp(:,:,i)'),colorbar
-    title(sprintf('%s | T1/T2* =%.2f/%.2f ms',metabolites(i).name,metabolites(i).T1_s*1e3,metabolites(i).T2star*1e3))
+    title(sprintf('%s | T1/T2 =%.2f/%.2f ms',metabolites(i).name,metabolites(i).T1_s*1e3,metabolites(i).T2_s*1e3))
     ax=gca;
     ax.XAxis.Direction="normal";
     ax.YAxis.Direction="normal";
@@ -139,7 +139,7 @@ tab=table(sig_prot1,sig_prot2,sig_prot3,'RowNames',{metabolites.name},'VariableN
 %some plot handles: needs second execition
 plotProtGre1= @ () plot(74,57*RFfac,'r*','MarkerSize',10);
 plotProtGre2= @ () plot(36,41*RFfac,'r*','MarkerSize',10);
-plotProtbssfp= @ () plot(19,FA_bSSFP,'r*','MarkerSize',10);
+plotProtbssfp= @ () plot(19,50*RFfac,'r*','MarkerSize',10);
 
 
 %%
