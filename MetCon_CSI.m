@@ -385,7 +385,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 metabol_con=zeros(size(fids,1),nMet*3+3);
                 %             output format (4th dim) : use xFit order [chemicalshift x N] [linewidth xN] [amplitude xN] [phase x1] fitStatus.relativeNorm fitStatus.resNormSq]
                  if(obj.flags.parfor)
-                    parfevalOnAll(@warning,0,'off','MATLAB:singularMatrix');
+                    parfevalOnAll(@warning,0,'off','all');
                     parfor i=1:size(fids,1)
                         expParams_2=expParams;
                         expParams_2.offset=fm_est(i);
@@ -393,14 +393,16 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                          metabol_con(i,:)=[fitResults.chemShift,fitResults.linewidth,fitResults.amplitude,...
                             fitResults.phase(1),fitStatus.relativeNorm(1),fitStatus.resNormSq(1)];
                     end
+                    parfevalOnAll(@warning,0,'on','all');
                  else
-                     warning('off','MATLAB:singularMatrix');
+                     warning('off','all');
                    for i=1:size(fids,1)
                         expParams.offset=fm_est(i);
                         [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fids(i,:).'), expParams, pk, 0,'quiet',true);
                         metabol_con(i,:)=[fitResults.chemShift,fitResults.linewidth,fitResults.amplitude,...
                             fitResults.phase(1),fitStatus.relativeNorm(1),fitStatus.resNormSq(1)];
                    end
+                   warning('on','all');
                  end
 
                 % convert to 3D matrix and give resonable names
@@ -543,17 +545,28 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         function WriteImages(obj)
 
+            if(nargin==1)
+                fPath=pwd;
+                fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                niiFileName=fullfile(fPath,fn);
+            elseif(isfolder(niiFileName))
+                fPath=niiFileName;
+                fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                niiFileName=fullfile(fPath,fn);
+            else
+                [fPath,~]=fileparts(niiFileName);
+            end
+
             fPath=pwd;
-            fn=sprintf('m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
             description='averaged image across echo and phase cycle';
-            MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,-1*[0 0 0]*1.5);
-
-            fn=sprintf('Metcon_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
-            vol_PRS=flip(obj.Metcon,3); %9.4T specific
-            description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
-            MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,-1*[0 0 0]*1.5);
-
+            MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,niiFileName,description,-1*[0 0 0]*1.5);
+            if(~isempty(obj.Metcon))
+                fn=sprintf('Metcon_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
+                vol_PRS=flip(obj.getNormalized,2); %9.4T specific
+                description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
+                MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,1*[1 2 4]*8.3);
+            end
 
         end
         function SaveResults(obj)
@@ -649,11 +662,12 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 %more analytical
                 Ai=pinv(  obj.SolverObj.getA() );
                 scale_fac=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                 scale_fac=diag(abs(Ai*Ai'))*sqrt(size(Ai,2))*sqrt(2);
                 Metcon_norm=((obj.Metcon)./reshape(scale_fac,1,1,1,[]));
 
             else % scale by std of noise region
                 Metcon_norm=zeros(size(obj.Metcon));
-                noiseMask=~obj.getMask(90);
+                noiseMask=~obj.getMask(30);
                 %for noise measurements
                 if(sum(noiseMask,'all')==0),noiseMask=ones(size(noiseMask),'logical');end
                 calcStd=@(x) std(obj.mat2col(x,noiseMask),[],'all','omitnan');

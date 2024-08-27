@@ -536,7 +536,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 yyaxis right
                 plot(rad2deg(PC),rad2deg(angle(reshape(Msig_all(i,:,:),[],length(PC)).')),'--')
                 set(gca,'colororder',jet(size(imdata,1)))
-                title(obj.metabolites(i).name)
+                title([obj.metabolites(i).name,' basis'])
             end
 
             obj.mask=Mask_baskup;
@@ -564,7 +564,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
             if(~isempty(obj.Metcon))
                 fn2=sprintf('Metcon_m%d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
-                vol_PRS=single(abs(flip(obj.Metcon,2))); %9.4T specific read flip
+                vol_PRS=single(abs(flip(obj.getNormalized,2))); %9.4T specific read flip
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn2),description);
             end

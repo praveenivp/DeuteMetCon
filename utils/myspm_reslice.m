@@ -2,7 +2,10 @@
 function resliced_vol=myspm_reslice(def_space, reslice_vols, interp_method,prefix)
 % myspm_reslice(def_space, reslice_vols, interp_method,prefix)
 %example
-% myspm_reslice(def_space, reslice_vols, 'nearest','r')
+% resliced_vol=myspm_reslice(def_space, reslice_vols, 'nearest','r')
+%
+%INPUTS
+% def_space, reslice_vols : file pattern for dir command or dir output struct
 
 
 if(~exist('interp_method','var'))
@@ -20,13 +23,16 @@ if(~exist('spm_jobman','file'))
     addpath('/ptmp/pvalsala/Packages/spm12/')
 end
 
-
-def_space=dir(def_space);
+if(~isstruct(def_space))
+    def_space=dir(def_space);
+end
 def_space={sprintf('%s,1',fullfile(def_space(1).folder,def_space(1).name))};
 
 % collect all volumes to reslice
-
+if(~isstruct(reslice_vols))
 reslice_vols=dir(reslice_vols);
+
+end
 fprintf('reslicing %d volumes: %s\n%s\n%s\n%s\n', length(reslice_vols),reslice_vols.name);
 source={};idx=1;
 for i=1:length(reslice_vols)

@@ -40,6 +40,8 @@ for cMb=1:length(Metabolites)
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset,DutyCycle);
+                        otherwise
+                            error('unknown mode: {''bSSFP'',''GRE'',''bSSFP-peters'',''GRE-peters''}')
 
                     end
                 end
