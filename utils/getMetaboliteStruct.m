@@ -17,36 +17,34 @@ switch(DataSelect)
     case 'phantom'
         %new phantom: /ptmp/pvalsala/deuterium/20240102_new2Hphantom
         met_name={'water','glucose','glutamic acid','lactate'};
-        %         median(cell2mat(cellfun(@(x)[x.center1,x.center2,x.center3,x.center4],fitf,'UniformOutput',false)),1)
-        freq_shift=[2.68  -63.83 -152.88 -213.58]; %Hz
-        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
+
         T1=[444.30, 69.53, 157.65, 244.38]*1e-3; %s
         T2=[272.75,52.09,114.31,245.17]*1e-3; %s
-        %         FWHM_hz=median(cell2mat(cellfun(@(x)[x.gamma1,x.gamma2,x.gamma3,x.gamma4],fitf,'UniformOutput',false)),1);
-        FWHM_hz=[7.0280   23.7173   13.8651    6.1811]; %Hz
-        T2Star=1./(pi*FWHM_hz);  %s
+        %CSI dataset='20240813_spectral/meas_MID00857_FID14528_rpcsi_fid_Stan_res15_6_optimal.dat'; see plotT2star.m
+        freq_shift=[-3.4080 -63.5005 -150.2146 -205.1276]; % Hz
+        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
+        T2Star=[77.9295   18.8752   14.0095   15.9714]*1e-3; % s
     case 'invivo1'
         % for invivo we have all values except lactate
 
         %invivo: /ptmp/pvalsala/deuterium/EAZW-GUMK/proc
         met_name={'water','glucose','Glx','lactate/lipid'};
-        freq_shift=[2.0703  -51.2287 -138.3513 -195.4183]; % Hz from T1 data
-        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
+
         T1=[351.12 95.51  161.41 154.04]*1e-3;%s
         T2=[52.93 44.96 80.10 96.47]*1e-3;%s
-        FWHM_hz =[15.3010   34.9108   20.1527   21.4540];% Hz from T1 data
-        T2Star=1./(pi*FWHM_hz);  %s
+        %CSI dataset: M412 % see plotT2star.m
+        freq_shift=[-0.6647  -55.7530 -144.9229 -205.0421]; % Hz
+        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
+        T2Star=[24.3812   17.0160   25.2516   23.8431]*1e-3; %s
     case 'invivo2'
         %invivo: /ptmp/pvalsala/deuterium/DA77-F3UY
         met_name={'water','glucose','Glx','lactate/lipid'};
-
-
-        freq_shift=[7.5280  -44.7456 -132.6490 -196.8160]; %Hz from T1 data
-        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T1=[343.58 94.21 169.32 263.46]*1e-3;%s
         T2=[80.75 36.83 109.33 117.42]*1e-3;%s
-        FWHM_hz =[22.0644   37.6203   18.9945    15.1671]; %Hz from T1 data
-        T2Star=1./(pi*FWHM_hz);  %s
+        %CSI dataset: M695 % see plotT2star.m
+        freq_shift=[9.0229 -46.9185 -135.4832 -198.4703]; % Hz
+        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
+        T2Star=[20.5969 14.2529 22.2796 25.2529]*1e-3; %s
 
     case 'Roig7T'
 %         DOI: 10.1002/mrm.29439
