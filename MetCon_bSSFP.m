@@ -623,19 +623,18 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
             %display fieldmaps
             nexttile(tt)
-            if(isfield(obj.Experimental,'fm_est'))
-                if(~isempty(obj.Experimental.fm_est))
-                    fm_Hz=createImMontage(imtransFunc(obj.Experimental.fm_est(:,:,:,:)));
-                    imagesc(fm_Hz);
-                    title('estimated 2H fieldmap [Hz]')
-                elseif(~isempty(obj.FieldMap))
-                    fm_Hz=createImMontage(imtransFunc(obj.FieldMap(:,:,:,:)))./(2*pi)*(6.536 /42.567);
-                    imagesc(fm_Hz);
-                    title('input 2H fieldmap [Hz]')
-                else
-                    title('no estimated/input fieldmap');
-                end
+            if(isfield(obj.Experimental,'fm_est') && ~isempty(obj.Experimental.fm_est))
+                fm_Hz=createImMontage(imtransFunc(obj.Experimental.fm_est(:,:,:,:)));
+                imagesc(fm_Hz);
+                title('estimated 2H fieldmap [Hz]')
+            elseif(~isempty(obj.FieldMap))
+                fm_Hz=createImMontage(imtransFunc(obj.FieldMap(:,:,:,:)))./(2*pi)*(6.536 /42.567);
+                imagesc(fm_Hz);
+                title('input 2H fieldmap [Hz]')
+            else
+                title('no estimated/input fieldmap');
             end
+        
 
             colorbar,
             axis image,colormap(gca,'jet');
@@ -662,6 +661,9 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 Ai=pinv(obj.SolverObj.getA() );
                 scale_fac=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
                 Metcon_norm=abs(obj.Metcon)./reshape(scale_fac,1,1,1,[]);
+            elseif(any(strcmp(obj.flags.Solver,{'pinv'}))) 
+                Metcon_norm=abs(obj.Metcon)./obj.Experimental.sclfac;
+                scale_fac=squeeze(mean(obj.Experimental.sclfac,[1 2 3]));
             else % scale by std of noise region
                 Metcon_norm=zeros(size(obj.Metcon));
                 noiseMask=~obj.getMask(90);
