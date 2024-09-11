@@ -290,7 +290,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                             CSI_Combined(vx,:)=wsvdCombination;
                         end
                     else
-                        parfor vx=1:size(CSI_Data,1)
+                        for vx=1:size(CSI_Data,1)
                             rawSpectra=squeeze(CSI_Data(vx,:,:,1));  % Spectrum x Coil
                             [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], CSI_wsvdOption);
                             CoilWeights(vx,:) = wsvdWeights;
@@ -408,13 +408,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 % convert to 3D matrix and give resonable names
                 metabol_con=MetCon_CSI.col2mat(metabol_con,obj.mask);
 
-                obj.Experimental.chemicalshift=metabol_con(:,:,:,((1:nMet)+nMet*(1-1))); %chemical shift ppm
+                obj.Experimental.chemicalshift=metabol_con(:,:,:,((1:nMet)+nMet*(1-1)))*obj.DMIPara.ImagingFrequency_MHz; %chemical shift in Hz
                 obj.Metcon=metabol_con(:,:,:,((1:nMet)+nMet*(3-1)));  %amplitudes
                 obj.Experimental.linewidth=metabol_con(:,:,:,((1:nMet)+nMet*(2-1)));
                 obj.Experimental.phase=metabol_con(:,:,:,((1)+nMet*(4-1))); %phase
                 obj.Experimental.relativeNorm=metabol_con(:,:,:,((2)+nMet*(4-1)));
                 obj.Experimental.residue=metabol_con(:,:,:,((3)+nMet*(4-1)));
-                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1); %ppm
+                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1)*obj.DMIPara.ImagingFrequency_MHz; %water peak in Hz
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
                 dw=obj.DMIPara.dwell;
@@ -464,20 +464,20 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Metcon=MetCon_CSI.col2mat(metabol_con,obj.mask);
                 obj.Experimental.rSQ=MetCon_CSI.col2mat(rSQ,obj.mask);
                 obj.Experimental.residue=MetCon_CSI.col2mat(sRMSE,obj.mask);
-                obj.Experimental.chemicalshift=MetCon_CSI.col2mat(rSQ,obj.mask);
-                obj.Experimental.gamma=MetCon_CSI.col2mat(rSQ,obj.mask);
+                obj.Experimental.chemicalshift=MetCon_CSI.col2mat(chemicalshift,obj.mask);
+                obj.Experimental.gamma=MetCon_CSI.col2mat(gamma,obj.mask);
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
                     'mask',obj.mask,'parfor',obj.flags.parfor,obj.flags.IdealSetttings{:});
                 obj.Metcon=obj.SolverObj'*squeeze(obj.img);
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
-                obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
+                obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]); %squared sum of residual
                 obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*squeeze(obj.img);
-                obj.Experimental.residue=sos(obj.SolverObj.experimental.residue,[4 5]);
+                obj.Experimental.residue=sum((obj.SolverObj.experimental.residue).^2,[4 5]); %Squared norm of residual
                 obj.SolverObj.experimental=[];
             else
                 error('Unknown Solver : use {''phaseonly'',''IDEAL'',''AMARES'',''LorentzFit''} \n')
