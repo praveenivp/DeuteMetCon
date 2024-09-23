@@ -65,7 +65,7 @@ for i=1:length(reslice_vols)
     resliced_vol{i}=niftiread(resliced_vol_fn);
 end
 sz_all=cellfun(@(x1)size(x1), resliced_vol,'UniformOutput',false);
-if(isequal(sz_all{:}))
+if(length(sz_all)<2||isequal(sz_all{:}))
    resliced_vol=cat(ndims(resliced_vol{1})+1, resliced_vol{:});
 end
 

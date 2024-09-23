@@ -1,5 +1,5 @@
 
-refVoltage=520; % upto 520
+refVoltage=550; % upto 520
 kFactor=0.83;
 RFfac=447/refVoltage; % Flip angle scale factor
 
@@ -21,14 +21,14 @@ for cTR=1:size(sig_all_bssfp,1)
     [~,maxFA_bssfp(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_bssfp,3)
     %off-resonance is set to -1*chemical shift otherwise increase phase-cyles
-        [Msig_all]=MetSignalModel   (metabolites(CM),TE,deg2rad(pc_range),TR_all_bssfp(cTR),-1*metabolites(CM).freq_shift_Hz,deg2rad(FA_all),'bSSFP-peters');
+        [Msig_all]=MetSignalModel   (metabolites(CM),TE,deg2rad(pc_range),TR_all_bssfp(cTR),-1*metabolites(CM).freq_shift_Hz,deg2rad(FA_all),'bSSFP');
         sig_all_bssfp(cTR,:,CM)=mean(abs(Msig_all),3);
         %            nexttile(), plot(pc_range,abs(Msig_all(:)))
     end
 end
-DC=0.79;
+% DC=0.79;
 %calcualte signal efficiency
-sig_all_bssfp=sig_all_bssfp./sqrt(TR_all_bssfp(:))*sqrt(DC);
+ sig_all_bssfp=sig_all_bssfp./sqrt(TR_all_bssfp(:));%*sqrt(DC);
 %% GRE signal efficiency
 sig_all_gre=zeros(length(TR_all_gre),length(FA_all),length(metabolites));
 maxFA_gre=zeros([length(TR_all_gre) 3]);
@@ -44,7 +44,7 @@ for cTR=1:size(sig_all_gre,1)
     end
 end
 %calcualte signal efficiency
-sig_all_gre=sig_all_gre./sqrt(TR_all_gre(:));
+ sig_all_gre=sig_all_gre./sqrt(TR_all_gre(:));
 
 
 fh=figure(3);
@@ -134,7 +134,7 @@ legend('bSSFP/GRE-TR36','GRE-TR36/TR74','Location','southwest')
 grid minor
 title('ratio')
 
-tab=table(sig_prot1,sig_prot2,sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bssfp19ms','gre36ms','gre74ms'})
+tab=table(sig_prot1,sig_prot2,sig_prot3,sig_prot1./sig_prot2,'RowNames',{metabolites.name},'VariableNames',{'bssfp19ms','gre36ms','gre74ms','bSSFP/GRE-TR36'})
 
 %some plot handles: needs second execition
 plotProtGre1= @ () plot(74,57*RFfac,'r*','MarkerSize',10);

@@ -84,9 +84,16 @@ D = (1-E1.*cos(flip)).*(1-E2.*cos(theta))-(E1-cos(flip)).*(E2-cos(theta)).*E2;
 % equation 42
 bSSFP = -(1i./D).*(1-E1).*sin(flip).*(1-E2.*exp(-1i*theta));
 
+
+%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
+DutyCycle=(TR-4e-3)/TR;
+dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
+dc_fac=dc_fac./(DutyCycle*TR); %normalization
+bSSFP=bSSFP*dc_fac;
+
 %% Read out signal at t=TE
 
-bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
+% bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
 end
 
 
@@ -101,6 +108,13 @@ E2 = exp(-TR./T2);
 num=M0*exp(-(TR/2)/T2)*(1-E1).*sin(flip);
 
 bSSFP=num./(1- (E1-E2)*cos(flip)-E1*E2);
+
+%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
+DutyCycle=0.8;
+dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
+dc_fac=dc_fac./(DutyCycle*TR); %normalization
+bSSFP=bSSFP*dc_fac;
+
 %phase evolution: not relavant for SNR
 % bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
 end
@@ -128,6 +142,7 @@ Sflash=M0*sin(FA)*(1-E1);
 Sflash=Sflash./(1-cos(FA)*E1);
 
 %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
+DutyCycle=(TR-4e-3)/TR;
 dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
 dc_fac=dc_fac./(DutyCycle*TR); %normalization
 

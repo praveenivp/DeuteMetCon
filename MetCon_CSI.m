@@ -90,7 +90,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
-                    addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','IDEAL','AMARES','LorentzFit'})));
+                    addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','pinv','IDEAL','IDEAL-modes','AMARES','LorentzFit'})));
                     addParameter(p,'IdealSetttings',{},@(x)iscell(x) && mod(length(x),2)==0 );
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
@@ -204,17 +204,24 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
 
             % Sum averages and repetitions(if not already done)
-            obj.sig  = sum( obj.sig ,[6 9]);
+            obj.sig  = sum( obj.sig ,[6]);
 
             % Permute the data
-            % COL x CHAx LIN x PAR x SLC x AVE x PxExMxSetsx SEG             ->  LIN  xSEG x PAR CHA xCOL
-            obj.sig = permute( obj.sig ,[2 3 11 4  1 [5:6 7:10]]);
+            % COL x CHAx LIN x PAR x SLC x AVE x PxExMxSetsx SEG     ->  CHAx LIN  xSEG x PAR   x COL x REP 
+            obj.sig = permute( obj.sig ,[2 3 11 4  1 9 [5:6 7 8 10]]);
 
             ksp=obj.twix.hdr.Phoenix.sKSpace;
             MissingVOXLIN  = double(ksp.lBaseResolution -obj.twix.image.NLin);
             MissingVOXPAR = double(ksp.lPhaseEncodingLines-  obj.twix.image.NPar);
             MissingVOXSEG = double(ksp.lPartitions- obj.twix.image.NSeg);
             obj.sig  = padarray( obj.sig ,[0,MissingVOXLIN,MissingVOXSEG,MissingVOXPAR,0,0],'post');
+
+            %if you are smart enough to adjust ADC phase to correct for FOV Shift, do it now!
+            if(obj.DMIPara.SeriesDateTime_start>datetime('20-Sep-2024') && ...
+                    contains(obj.twix.hdr.Config.SequenceFileName,'ssfp') )
+                obj.sig=performFOVShift(obj.sig,obj.twix);
+            end
+
         end
         function performZeroPaddding(obj)
 
@@ -263,7 +270,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %coil combination
             switch(obj.flags.doCoilCombine) %{'none','sos','adapt','adapt2'}
                 case 'sos'
-                    obj.img(1,:,:,:,obj.LoopCounter.cSlc,obj.LoopCounter.cRep) = sqrt(sum(abs(obj.img(:,:,:,:,obj.LoopCounter.cSlc,obj.LoopCounter.cRep)).^2,1));
+                    obj.img(1,:,:,:,:,:) = sqrt(sum(abs(obj.img).^2,1));
                 case 'adapt1' %preserves phase better?
 
                     [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,:,:),[5 6]));
@@ -278,7 +285,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     CSI_DataSize=size(obj.img);
                     %we already have noise decorrelated data!
                     CSI_wsvdOption.noiseCov         =0.5*eye(CSI_DataSize(1));
-                    CSI_Data=reshape(obj.img,size(obj.img,1),[],size(obj.img,5));
+                    CSI_Data=reshape(mean(obj.img,6),size(obj.img,1),[],size(obj.img,5));
                     CSI_Data=permute(CSI_Data,[2 3 1]);
                     CSI_Combined=zeros([prod(CSI_DataSize(2:4)),CSI_DataSize(5)]);
                     CoilWeights = zeros([prod(CSI_DataSize(1:3)),CSI_DataSize(1)]);
@@ -301,7 +308,12 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     % Combine later?
                     %  CSI = sum(bsxfun (@times,CSI_Data_Filtered,permute(CoilWeights,[1 3 2])),3);
                     obj.coilSens=reshape(CoilWeights.',[CSI_DataSize(1:4)]);
-                    obj.img=reshape(CSI_Combined,[1 CSI_DataSize(2:5)]);
+
+                    if(CSI_DataSize(6)>1)
+                        obj.img=(sum(obj.coilSens.*obj.img,1));
+                    else
+                        obj.img=reshape(CSI_Combined,[1 CSI_DataSize(2:5)]);
+                    end
 
 
             end
@@ -366,12 +378,12 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         function performMetCon(obj)
 
             freq=[obj.metabolites.freq_shift_Hz];
-            fids=MetCon_CSI.mat2col(permute(obj.img,[2 3 4 5 1]),obj.mask);
+            
             nMet=length(freq);
             if(strcmpi(obj.flags.Solver,'AMARES'))
 
                 fprintf('Performing AMARES fitting on %d voxels\n', size(fids,1));
-
+                fids=MetCon_CSI.mat2col(permute(mean(obj.img,6),[2 3 4 5 1]),obj.mask);
                   if(sum(obj.FieldMap,'all')==0 || isempty(obj.FieldMap))
                     fm_est= zeros(size(fids,1),1);
                 else
@@ -417,6 +429,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1)*obj.DMIPara.ImagingFrequency_MHz; %water peak in Hz
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
+                fids=MetCon_CSI.mat2col(permute(mean(obj.img,6),[2 3 4 5 1]),obj.mask);
                 dw=obj.DMIPara.dwell;
                 faxis=linspace(-0.5/dw,0.5/dw,size(obj.img,5));
                 % nlorentz fitting
@@ -470,17 +483,102 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
                     'mask',obj.mask,'parfor',obj.flags.parfor,obj.flags.IdealSetttings{:});
-                obj.Metcon=obj.SolverObj'*squeeze(obj.img);
+                obj.Metcon=obj.SolverObj'*squeeze(mean(obj.img,6));
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]); %squared sum of residual
                 obj.SolverObj.experimental=[];
+
+            elseif(strcmpi(obj.flags.Solver,'IDEAL-modes'))
+                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver','IDEAL', ...
+                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+
+                Np=round(length(obj.DMIPara.PhaseCycles)/2);
+                if(Np>10), Np=10; end % higher order doesn't hold that much signal
+                %calculate SSFP configuration modes
+                Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
+                %sqrt(Np*2+1) scaling for SNR units
+                Fn=Fn.*sqrt(Np*2+1);
+
+                %estimate fieldmap from F0
+                im_me=Fn(:,:,:,:,Np+1); % F0
+                obj.Metcon=obj.SolverObj'*im_me;
+                fm_ideal=obj.SolverObj.experimental.fm_est*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
+
+
+                %estimate metabolites concentration from all modes
+                Metcon_modes=[];res_all=[];
+                for i=1:size(Fn,5)
+                    TEs=obj.DMIPara.TE +obj.DMIPara.TR*(i-(Np+1));
+                    SolverObj_pinv=IDEAL(obj.metabolites,TEs,'fm',fm_ideal,'solver','phaseonly','mask',obj.mask,'parfor',obj.flags.parfor);
+                    Metcon_temp= SolverObj_pinv'*Fn(:,:,:,:,i);
+
+                    Metcon_modes=cat(5,Metcon_modes,Metcon_temp);
+                    res_all=cat(6,res_all,SolverObj_pinv.experimental.residue);
+                end
+
+                %SVD combine  metcon_all
+
+                [~,S,V]=svd(reshape(Metcon_modes,[],size(Fn,5)),'econ');
+                sz=size(Metcon_modes);
+                Metcon_comb=reshape(reshape(Metcon_modes,[],size(Fn,5))*V,sz(1:5));
+                %pick the first
+                obj.Metcon=Metcon_comb(:,:,:,:,1);
+
+                obj.Experimental.Metcon_modes=Metcon_modes;
+                obj.Experimental.sing_val=S;
+                obj.Experimental.Metcon_modes_svd=Metcon_comb;
+                obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
+                obj.Experimental.residue=sum(res_all.^2,[4 5 6]);
+                obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
-                obj.Metcon=obj.SolverObj'*squeeze(obj.img);
+                obj.Metcon=obj.SolverObj'*squeeze(mean(obj.img,6));
                 obj.Experimental.residue=sum((obj.SolverObj.experimental.residue).^2,[4 5]); %Squared norm of residual
                 obj.SolverObj.experimental=[];
+            elseif((strcmpi(obj.flags.Solver,'pinv')))
+                EchoSel=1:size(obj.img,5);
+                PCSel=1:size(obj.img,6);
+                FA=obj.DMIPara.FlipAngle*obj.DMIPara.pulseCorrectionFactor; %rad
+                tic;
+                if(isempty(obj.FieldMap)),obj.FieldMap=zeros(size(obj.mask));end
+                B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
+                im1=reshape(obj.img(:,:,:,:,EchoSel,PCSel),[],length(EchoSel)*length(PCSel));
+                im1=im1(obj.mask(:),:);
+                %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
+
+                metabol_con=zeros(size(im1,1),length(obj.metabolites));
+                resi=zeros(size(im1));
+                condnm=zeros(size(im1,1),1);
+                sclfac=zeros(size(im1,1),length(obj.metabolites));
+                fprintf('Calculating bSSFP profile basis\n');
+                Msig_all=MetSignalModel(obj.metabolites,obj.DMIPara.TE,obj.DMIPara.PhaseCycles,obj.DMIPara.TR,B0,FA,'bSSFP');
+                fprintf('done.....\n');
+
+                %                 pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
+                for i=1:size(im1,1)
+                    %low mem mode!
+                    %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
+                    %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
+
+                    A= reshape(Msig_all(:,:,:,1,i,1),length(obj.metabolites),length(PCSel)*length(EchoSel)).';
+                    b=[ im1(i,:)];
+                    metabol_con(i,:)=A\b(:);
+                    resi(i,:)=b(:) -A*metabol_con(i,:).';
+                    condnm(i)=cond(A);
+                    %                     pb.progress();
+                    Ai=pinv(A);
+                   sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                end
+
+
+                obj.Metcon=obj.col2mat(metabol_con,obj.mask);
+                obj.Experimental.residue=sum(obj.col2mat(single(resi),obj.mask).^2,[4 5]);
+                obj.Experimental.condition=obj.col2mat(single(condnm(:)),obj.mask);
+                obj.Experimental.sclfac=obj.col2mat(sclfac,obj.mask);
+
+                fprintf('\n Metabolite fitting done in %0.1f s ! \n',toc)
             else
-                error('Unknown Solver : use {''phaseonly'',''IDEAL'',''AMARES'',''LorentzFit''} \n')
+                error('Unknown Solver : use {''phaseonly'',''pinv'',''IDEAL'',''IDEAL-modes'',''AMARES'',''LorentzFit''} \n')
             end
         end
 
@@ -543,9 +641,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             title(sprintf('Fit results of the voxel at (%d,%d,%d)',pxl_idx))
         end
 
-        function WriteImages(obj)
-
-            if(nargin==1)
+        function niiFileName=WriteImages(obj,niiFileName,Select)
+            %average echo and phase cycling dimension and write nifti
+            if(nargin==1 || isempty(niiFileName))
                 fPath=pwd;
                 fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
@@ -556,16 +654,25 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             else
                 [fPath,~]=fileparts(niiFileName);
             end
-
-            fPath=pwd;
+            if(nargin<2)
+            Select={'image','snr','mm'};
+            end
+            if(any(strcmpi(Select,'image')))
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
             description='averaged image across echo and phase cycle';
             MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,niiFileName,description,-1*[0 0 0]*1.5);
-            if(~isempty(obj.Metcon))
-                fn=sprintf('Metcon_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
+            end
+            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'snr')))
+                fn=sprintf('Metcon_SNR_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
                 vol_PRS=flip(obj.getNormalized,2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,1*[1 2 4]*8.3);
+            end
+            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mm')))
+                fn=sprintf('Metcon_mm_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
+                vol_PRS=flip(obj.getmM,2); %9.4T specific
+                description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
+                MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,0*[1 2 4]*8.3);
             end
 
         end
@@ -589,11 +696,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
             tt=tiledlayout(fh,2,ceil(length(obj.metabolites)/2+1),'TileSpacing','compact','Padding','compact');
-            slcFac=0.3;slcdim=2;
+            slcFac=0.3;slcdim=3;
             slcSel=round(slcFac*size(obj.Metcon,slcdim));
             slcSel=slcSel:(size(obj.Metcon,slcdim)-slcSel);
 
-            imtransFunc=@(x) flip(flip(permute(x(:,slcSel,:),[setdiff(1:3,slcdim) slcdim 4]),10),30);
+            imtransFunc=@(x) flip(flip(permute(x(:,:,slcSel),[setdiff(1:3,slcdim) slcdim 4]),10),30);
             %get metcon in normalized SNR units
             [im_snr,sf]=obj.getNormalized();
 
@@ -664,6 +771,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 scale_fac=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
                  scale_fac=diag(abs(Ai*Ai'))*sqrt(size(Ai,2))*sqrt(2);
                 Metcon_norm=((obj.Metcon)./reshape(scale_fac,1,1,1,[]));
+% 
+%             elseif(any(strcmp(obj.flags.Solver,{'AMARES'})))
+%                 %ideally metabolite Peak amplitude is the SNR?
+%                 scale_fac=size(size(obj.Metcon,4),1);
+%                 Metcon_norm=(obj.Metcon)/reshape(scale_fac,1,1,1,[]);
+            elseif(any(strcmp(obj.flags.Solver,{'pinv'}))) 
+                Metcon_norm=abs(obj.Metcon)./obj.Experimental.sclfac;
+                scale_fac=squeeze(mean(obj.Experimental.sclfac,[1 2 3]));
 
             else % scale by std of noise region
                 Metcon_norm=zeros(size(obj.Metcon));
@@ -688,23 +803,33 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %reference: peters et al DOI: 10.1002/mrm.28906 , equation 6
             
             TR=obj.DMIPara.TR;
-            TE=obj.DMIPara.TE(1);
+            TE=obj.DMIPara.TE;
             DC=obj.DMIPara.DutyCycle;
-            %Actual reference voltage is between 500 and 550
-            FA_rad=obj.DMIPara.FlipAngle*(obj.DMIPara.RefVoltage/500);
+            %Actual reference voltage is between 500 and 550 not 447 V
+            FA_rad=obj.DMIPara.FlipAngle*obj.DMIPara.pulseCorrectionFactor;
 
             if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
-                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'GRE-peters',DC);
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,pi,TR,0,FA_rad,'GRE-peters',DC);
             else
-                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'bSSFP',DC);
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,pi,TR,0,FA_rad,'bSSFP',DC);
             end
 
             Sig_theory=mean(abs(squeeze(Msig_all)),[2 3 4]);
             Sig_theory=Sig_theory(1)./Sig_theory;
-            scale_fac=10*Sig_theory./[1;2;2;2]; % mM
-            metcon_w=obj.Metcon./obj.Metcon(:,:,:,1);
+            % 111 M H20 *0.0115% 2H *80% water in brain= 10.12 mM
+            % 1.33 Glx label loss in TCA cycle De Feyter et al 2018
+            Average_deuterons=[1;2;1.33;2];
+            scale_fac=10.12*Sig_theory./Average_deuterons(length(obj.metabolites)); % mM
+            metcon_w=abs(obj.Metcon)./smooth3(obj.Metcon(:,:,:,1));
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
-%             as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
+%           as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])            
+            % all higher values are probably noise
+            Metcon_mM(Metcon_mM>11)=0;
+            Mask50=obj.getMask(50);
+            Metcon_mM(:,:,:,1)=Metcon_mM(:,:,:,1).*Mask50;
+            % account for deuterium label loss did before
+%             https://pubs.acs.org/doi/full/10.1021/acschemneuro.0c00711
+%             mc_mm(:,:,:,3)=mc_mm(:,:,:,3)/(1-mean([41.5e-2,37.9e-2])); % 
         end
 
 

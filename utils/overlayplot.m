@@ -5,8 +5,11 @@ function [cb,cax]=overlayplot(anat,metabol,varargin)
 
 
 %tra
-anat_vol=double(niftiread(fullfile(anat(1).folder,anat(1).name)));
-
+if(isstruct(metabol))
+ anat_vol=double(niftiread(fullfile(anat(1).folder,anat(1).name)));
+else
+    anat_vol=anat;
+end
 if(isstruct(metabol))
 met_vol=[];
 for i=1:length(metabol)
@@ -34,7 +37,7 @@ imSize=size(anat_vol);
 %     +circshift(met_vol,2,3)+circshift(met_vol,-2,3);
 if(st.norm)
 %norm
-normat=met_vol(:,:,:,3,1); %water 1st time point
+normat=met_vol(:,:,:,1,1); %water 1st time point
 normat(normat<prctile(normat(:),10))=prctile(normat(:),10);
  normat=1./(normat);
 %  normat(normat>prctile(normat(:),80))=prctile(normat(:),80);
@@ -73,8 +76,9 @@ end
 
 slcSel=st.SlcSel;
 anat_vol=repmat(anat_vol(:,:,slcSel),[1 1 1 nTimePoints]);
-mask1=imdilate(anat_vol(:,:,1)>0.1,strel('sphere',10));
+mask1=imdilate(anat_vol(:,:,1)>0,strel('sphere',10));
 % mask1=imdilate(mask1,strel('sphere',100)); %extra
+mask1=ones(size(mask1),'logical');
 met_vol=met_vol(:,:,slcSel,st.MetIdx,:).*mask1;
 
 if(nTimePoints>1)

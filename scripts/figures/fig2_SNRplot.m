@@ -11,7 +11,7 @@ addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
 
-metabolites=getMetaboliteStruct('phantom',-4);
+metabolites=getMetaboliteStruct('phantom');
 
 %% process noise anf get fieldmap
 fn_noise=dir(fullfile(sn,"*Noise*.dat"));
@@ -43,8 +43,8 @@ for cf=1:length(dirst_me)
 end
 %  mcobj_me{1}.PlotResults
 %% reslicing and registration
-%  cellfun(@(x) x.WriteImages,mcobj_csi,'UniformOutput',false)
-%  cellfun(@(x) x.WriteImages,mcobj_me,'UniformOutput',false)
+%   cellfun(@(x) x.WriteImages,mcobj_csi,'UniformOutput',false)
+%   cellfun(@(x) x.WriteImages,mcobj_me,'UniformOutput',false)
 dirst_nii=dir(fullfile(pwd,"Metcon*.nii"));
 resliced_vol=myspm_reslice(dirst_nii(1).name,dirst_nii,'linear','r');
 [realigned_vol]=realign_vol(resliced_vol);
@@ -58,7 +58,7 @@ AllDescription=cellfun(@(obj) getDescription(obj),[mcobj_me(1:2);mcobj_csi(1:5)]
 %mask 
 % imMask=CreateMask(squeeze(realigned_vol3(:,slcSel,:,1,1)));
 
-% save('processced_data.mat','dirst*','CSI_setting','ME_setting','mcobj_me','mcobj_csi','slcSel','tubes','realigned_vol3','vox_vol','imMask','AllDescription','-v7.3')
+ save('processced_data.mat','dirst*','CSI_setting','ME_setting','mcobj_me','mcobj_csi','slcSel','tubes','realigned_vol3','vox_vol','imMask','AllDescription','-v7.3')
 
 %% get ROIs
 getRotm= @(theta)[cosd(theta) sind(theta); -sind(theta) cosd(theta)];

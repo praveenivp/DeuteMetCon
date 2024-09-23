@@ -26,11 +26,12 @@ if(~para.isCSI)
         Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{6};
         if(isempty(Shift));Shift=0;end
         para.PC_deg = (Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
-        %Range!=360 correction
+        %Range<360 correction
         para.PC_deg  =para.PC_deg +(360-Range)/2;
         %discretisation error(not accurate) for odd phasecycles
-        error=Range/(2*NRep) -floor(Range/(2*NRep))-0.5;
-        para.PC_deg =para.PC_deg +error.*(1:NRep);
+%         error=Range/(2*NRep) -floor(Range/(2*NRep))-0.5;
+%         para.PC_deg =para.PC_deg +error.*(1:NRep);
+        warning('only works for new data after 20.Sep.24');
     catch %for fisp
         para.PC_deg =ones(twix.image.NRep,1)*180;
     end
@@ -46,9 +47,12 @@ if(~para.isCSI)
         para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
         %0.5 ms*refvoltage -> 90
         para.PulseDur=1e-3*(para.RefVoltage/para.pulseVoltage)*(0.5*rad2deg(para.FlipAngle)/90);
+    catch
+        para.RefVoltage=447;
+
     end
-    para.pulseCorrectionFactor=550/para.RefVoltage;
-    para.FlipAngle=para.FlipAngle*para.pulseCorrectionFactor;
+    para.pulseCorrectionFactor=para.RefVoltage/550;
+    para.FlipAngle=para.FlipAngle;
     para.FrequencySystem=twix.hdr.Dicom.lFrequency;
 
     % get timings probably only work for VE12U
@@ -115,18 +119,27 @@ else
 %     para.TE=para.TE+twix.hdr.Phoenix.alTE{1}*1e-6; %s
     para.TE=para.TE+twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6;
     para.TR=twix.hdr.Phoenix.alTR{1}*1e-6; %s
-    Range=0; %twix.hdr.Phoenix.sWipMemBlock.alFree{5};
     NRep=twix.image.NRep;
-    Shift=[]; %twix.hdr.Phoenix.sWipMemBlock.alFree{6};
-    if(isempty(Shift));Shift=0;end
-    para.PC_deg = 0; %(Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
-    para.PhaseCycles=1; %deg2rad(para.PC_deg);
+
+     try
+        Range=360;
+        NRep=twix.image.NRep;
+        Shift=twix.hdr.Phoenix.sWipMemBlock.alFree{11};
+        if(isempty(Shift));Shift=0;end
+        para.PC_deg = Shift+(0:(NRep-1))*(Range/NRep);
+    catch 
+        para.PC_deg =ones(twix.image.NRep,1)*180;
+    end
+    if(NRep==1), para.PC_deg=180; end;
+    para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
     para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
 
     %only work for rect pulse
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
+    para.pulseCorrectionFactor=para.RefVoltage/550;
+    para.FlipAngle=para.FlipAngle;
     try
         para.PulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
         para.PulseDur=1e-3*(para.RefVoltage/para.PulseVoltage)*(0.5*rad2deg(para.FlipAngle)/90); %[s]
