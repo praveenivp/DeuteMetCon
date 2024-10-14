@@ -132,6 +132,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 %                 assert(strcmp(obj.flags.doPhaseCorr,'Burg'),'use ''doPhaseCorr'' flag with ''Burg'' method for ''AMARES''');
                 assert(~isempty(which('AMARES.amaresFit')),'add AMARES to path: <a href="https://github.com/OXSAtoolbox/OXSA.git">OXSA git link</a>');
             end
+            if (obj.twix.image.NRep<4 && strcmp(obj.flags.Solver,'IDEAL-modes'))
+                obj.flags.Solver='IDEAL';
+                warning('Not enough phase cycles for IDEAL-modes: Using IDEAL mode')
+            end
 
         end
 
@@ -381,10 +385,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             
             nMet=length(freq);
             if(strcmpi(obj.flags.Solver,'AMARES'))
-
-                fprintf('Performing AMARES fitting on %d voxels\n', size(fids,1));
                 fids=MetCon_CSI.mat2col(permute(mean(obj.img,6),[2 3 4 5 1]),obj.mask);
-                  if(sum(obj.FieldMap,'all')==0 || isempty(obj.FieldMap))
+                fprintf('Performing AMARES fitting on %d voxels\n', size(fids,1));
+
+                if(sum(obj.FieldMap,'all')==0 || isempty(obj.FieldMap))
                     fm_est= zeros(size(fids,1),1);
                 else
                     fm_est=-1*obj.FieldMap;
@@ -483,7 +487,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
                     'mask',obj.mask,'parfor',obj.flags.parfor,obj.flags.IdealSetttings{:});
-                obj.Metcon=obj.SolverObj'*squeeze(mean(obj.img,6));
+                obj.Metcon=obj.SolverObj'*squeeze(sum(obj.img,6)./sqrt(obj.img,6)); % preserves SNR scanling
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]); %squared sum of residual
                 obj.SolverObj.experimental=[];
@@ -492,7 +496,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
 
-                Np=round(length(obj.DMIPara.PhaseCycles)/2);
+                Np=round((length(obj.DMIPara.PhaseCycles)-1)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
@@ -528,7 +532,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.sing_val=S;
                 obj.Experimental.Metcon_modes_svd=Metcon_comb;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
-                obj.Experimental.residue=sum(res_all.^2,[4 5 6]);
+                obj.Experimental.residue=sum((res_all).^2,[4 5 6]);
+                obj.Experimental.residue_norm=sum(abs(res_all),[4 5 6])./sqrt(2*prod(size(res_all,4:6)));
+                obj.Experimental.Rsq=1-sum(abs(res_all).^2,[4 5 6])./sum(abs(Fn-mean(Fn,[4 5 6])).^2,[4 5 6]);
+                obj.Experimental.Rsq_adj=1-(1-obj.Experimental.Rsq)*((prod(size(Fn,4:6))-1)./(prod(size(Fn,4:6))+length(obj.metabolites)-1));
                 obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
@@ -645,17 +652,17 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %average echo and phase cycling dimension and write nifti
             if(nargin==1 || isempty(niiFileName))
                 fPath=pwd;
-                fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                fn=sprintf('M%05d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             elseif(isfolder(niiFileName))
                 fPath=niiFileName;
-                fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                fn=sprintf('M%05d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             else
                 [fPath,~]=fileparts(niiFileName);
             end
             if(nargin<2)
-            Select={'image','snr','mm'};
+            Select={'image','snr','mM'};
             end
             if(any(strcmpi(Select,'image')))
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
@@ -663,13 +670,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,niiFileName,description,-1*[0 0 0]*1.5);
             end
             if(~isempty(obj.Metcon)&&any(strcmpi(Select,'snr')))
-                fn=sprintf('Metcon_SNR_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
+                fn=sprintf('Metcon_SNR_m%05d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
                 vol_PRS=flip(obj.getNormalized,2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,1*[1 2 4]*8.3);
             end
-            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mm')))
-                fn=sprintf('Metcon_mm_m%d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
+            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mM')))
+                fn=sprintf('Metcon_mM_m%05d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
                 vol_PRS=flip(obj.getmM,2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,0*[1 2 4]*8.3);
@@ -769,8 +776,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 %more analytical
                 Ai=pinv(  obj.SolverObj.getA() );
                 scale_fac=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
-                 scale_fac=diag(abs(Ai*Ai'))*sqrt(size(Ai,2))*sqrt(2);
-                Metcon_norm=((obj.Metcon)./reshape(scale_fac,1,1,1,[]));
+                Metcon_norm=(abs(obj.Metcon)./reshape(scale_fac,1,1,1,[]));
 % 
 %             elseif(any(strcmp(obj.flags.Solver,{'AMARES'})))
 %                 %ideally metabolite Peak amplitude is the SNR?
@@ -811,7 +817,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
                 [Msig_all]=MetSignalModel(obj.metabolites,TE,pi,TR,0,FA_rad,'GRE-peters',DC);
             else
-                [Msig_all]=MetSignalModel(obj.metabolites,TE,pi,TR,0,FA_rad,'bSSFP',DC);
+                [Msig_all]=MetSignalModel(obj.metabolites,TE(1),obj.DMIPara.PhaseCycles,TR,0,FA_rad,'bSSFP',DC);
             end
 
             Sig_theory=mean(abs(squeeze(Msig_all)),[2 3 4]);
@@ -819,8 +825,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             % 111 M H20 *0.0115% 2H *80% water in brain= 10.12 mM
             % 1.33 Glx label loss in TCA cycle De Feyter et al 2018
             Average_deuterons=[1;2;1.33;2];
-            scale_fac=10.12*Sig_theory./Average_deuterons(length(obj.metabolites)); % mM
-            metcon_w=abs(obj.Metcon)./smooth3(obj.Metcon(:,:,:,1));
+            scale_fac=10.12*Sig_theory.*Average_deuterons(1:length(obj.metabolites)); % mM
+            metcon_w=abs(obj.getNormalized);
+            metcon_w=metcon_w./smooth3(metcon_w(:,:,:,1));
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
 %           as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])            
             % all higher values are probably noise
@@ -848,6 +855,12 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             MeasStartTime=duration(string(obj.DMIPara.SeriesDateTime_start,'hh:mm:ss'),'InputFormat','hh:mm:ss');
             timeElapsed=(MeasStartTime-obj.DMIPara.IntakeTime)+seconds(obj.DMIPara.acq_duration_s*0.5);
             MinuteElapsed=round(minutes(timeElapsed));
+        end
+        function setRefereneceVoltage(obj,RefVoltage)
+        % as we cannot go beyond 447 V as reference voltage, we correct the
+        % flip angles retrospectively with the actual reference voltage 
+        % (550 V is default for pulseCorrectionFactor calculation)
+        obj.DMIPara.pulseCorrectionFactor=obj.DMIPara.RefVoltage/RefVoltage;
         end
     function ppm=Hz2ppm(freq)
         imagingFrequency=obj.twix.hdr.Dicom.lFrequency*1e-6; %MHz

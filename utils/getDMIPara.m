@@ -27,11 +27,10 @@ if(~para.isCSI)
         if(isempty(Shift));Shift=0;end
         para.PC_deg = (Range/(2*NRep):Range/NRep:Range-Range/(2*NRep))+Shift;
         %Range<360 correction
-        para.PC_deg  =para.PC_deg +(360-Range)/2;
-        %discretisation error(not accurate) for odd phasecycles
-%         error=Range/(2*NRep) -floor(Range/(2*NRep))-0.5;
-%         para.PC_deg =para.PC_deg +error.*(1:NRep);
-        warning('only works for new data after 20.Sep.24');
+        if(Range<360)
+            para.PC_deg  =para.PC_deg +(360-Range)/2;
+        end
+
     catch %for fisp
         para.PC_deg =ones(twix.image.NRep,1)*180;
     end
@@ -64,6 +63,13 @@ if(~para.isCSI)
     para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*2.5e-3);
 
     para.seq_details=printSeqeunceDetails(twix);
+
+    %discretisation error(not accurate) for undivisible phasecycle range
+    if(para.SeriesDateTime_start<datetime('20-Sep-2024'))
+        error=Range/(2*NRep) -floor(Range/(2*NRep))-0.5;
+        para.PC_deg =para.PC_deg +error.*(1:NRep);
+        warning('applied Phase cycle correction for data before 20.Sep.24');
+    end
 
     % take rmos flag into account
     para.rmos_flag=twix.image.NCol ~= size(twix.image(:,:,1),1);

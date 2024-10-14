@@ -124,7 +124,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                     if (obj.twix.image.NRep<4 && strcmp(obj.flags.Solver,'IDEAL-modes'))
                         obj.flags.Solver='IDEAL';
-                        warning('Not enough phase cycles for IDEAL-modes: Using IDEAL')
+                        warning('Not enough phase cycles for IDEAL-modes: Using IDEAL mode')
                     end
             end
         end
@@ -342,7 +342,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
                 tic;
                 if(isempty(obj.FieldMap)),obj.FieldMap=zeros(size(obj.mask));end
-                B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
+                B0=obj.FieldMap(obj.mask)./((2*pi)/(6.536 /42.567));%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
                 im1=reshape(obj.img(:,:,:,:,EchoSel,PCSel),[],length(EchoSel)*length(PCSel));
                 im1=im1(obj.mask(:),:);
                 %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
@@ -358,20 +358,28 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 end
                 fprintf('done.....\n');
 
-                %                 pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
-                for i=1:size(im1,1)
-                    %low mem mode!
-                    %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
-                    %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
+                if(obj.flags.parfor)
+                    parfor i=1:size(im1,1)
+                        A= reshape(Msig_all(:,:,:,1,i,1),length(met_struct),length(PCSel)*length(EchoSel)).';
+                        b=[ im1(i,:)];
+                        metabol_con(i,:)=A\b(:);
+                        resi(i,:)=b(:) -A*metabol_con(i,:).';
+                        Ai=pinv(A);
+                        sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                    end
+                else
+                    for i=1:size(im1,1)
+                        %low mem mode!
+                        %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
+                        %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
 
-                    A= reshape(Msig_all(:,:,:,1,i,1),length(met_struct),length(PCSel)*length(EchoSel)).';
-                    b=[ im1(i,:)];
-                    metabol_con(i,:)=A\b(:);
-                    resi(i,:)=b(:) -A*metabol_con(i,:).';
-                    condnm(i)=cond(A);
-                    %                     pb.progress();
-                    Ai=pinv(A);
-                   sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                        A= reshape(Msig_all(:,:,:,1,i,1),length(met_struct),length(PCSel)*length(EchoSel)).';
+                        b=[ im1(i,:)];
+                        metabol_con(i,:)=A\b(:);
+                        resi(i,:)=b(:) -A*metabol_con(i,:).';
+                        Ai=pinv(A);
+                        sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                    end
                 end
 
 
@@ -384,12 +392,13 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
 
                 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
-                im_me=squeeze(sum(obj.img,6)); % sum phase cycles to get FISP contrast
+                im_me=squeeze(sum(obj.img,6))./sqrt(size(obj.img,6)); % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]);
+                obj.Experimental.residue=sum(abs(obj.SolverObj.experimental.residue),[4 5 6])./sqrt(2*prod(size(obj.SolverObj.experimental.residue,4:6)));
                 obj.SolverObj.experimental=[];
 
 
@@ -399,7 +408,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
 
-                Np=round(length(obj.DMIPara.PhaseCycles)/2);
+                Np=floor((length(obj.DMIPara.PhaseCycles)-1)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
@@ -409,7 +418,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 %estimate fieldmap from F0
                 im_me=Fn(:,:,:,:,Np+1); % F0
                 obj.Metcon=obj.SolverObj'*im_me;
-                fm_ideal=obj.SolverObj.experimental.fm_est*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
+                fm_ideal=0*smooth3(obj.SolverObj.experimental.fm_est)*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
 
 
                 %estimate metabolites concentration from all modes
@@ -436,6 +445,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.Experimental.Metcon_modes_svd=Metcon_comb;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(res_all.^2,[4 5 6]);
+                obj.Experimental.Rsq=1-sum(abs(res_all).^2,[4 5 6])./sum(abs(Fn-mean(Fn,[4 5 6])).^2,[4 5 6]);
                 obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'IDEAL-modes2'))
                 %we try to fit all modes togther
@@ -551,11 +561,11 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             % eg: mcobj.WriteImages('',{'image','snr','mm'})
             if(nargin==1 || isempty(niiFileName))
                 fPath=pwd;
-                fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                fn=sprintf('M%05d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             elseif(isfolder(niiFileName))
                 fPath=niiFileName;
-                fn=sprintf('M%d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                fn=sprintf('M%5d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             else
                 [fPath,~]=fileparts(niiFileName);
@@ -569,13 +579,13 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             MyNIFTIWrite_bSSFP2(vol_PRS,obj.twix,niiFileName,description);
             end
             if(~isempty(obj.Metcon)&&any(strcmpi(Select,'snr')))
-                fn2=sprintf('Metcon_SNR_m%d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
+                fn2=sprintf('Metcon_SNR_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
                 vol_PRS=single(abs(flip(obj.getNormalized,2))); %9.4T specific read flip
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn2),description);
             end
             if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mm')))
-                fn3=sprintf('Metcon_mm_m%d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
+                fn3=sprintf('Metcon_mM_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
                 vol_PRS=flip(obj.getmM,2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s',obj.metabolites.name);
                 MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn3),description);
@@ -700,15 +710,15 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             %reference: peters et al DOI: 10.1002/mrm.28906 , equation 6
             
             TR=obj.DMIPara.TR;
-            TE=obj.DMIPara.TE(1);
+            TE=obj.DMIPara.TE;
             DC=obj.DMIPara.DutyCycle;
             %Actual reference voltage is higher than set refvoltage (500-550 V) 
             FA_rad=obj.DMIPara.FlipAngle*(obj.DMIPara.pulseCorrectionFactor);
 
             if(~contains(obj.twix.hdr.Config.SequenceFileName,'trufi'))
-                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'GRE-peters',DC);
+                [Msig_all]=MetSignalModel(obj.metabolites,TE(1),0,TR,0,FA_rad,'GRE-peters',DC);
             else
-                [Msig_all]=MetSignalModel(obj.metabolites,TE,0,TR,0,FA_rad,'bSSFP',DC);
+                [Msig_all]=MetSignalModel(obj.metabolites,TE,obj.DMIPara.PhaseCycles,TR,0,FA_rad,'bSSFP',DC);
             end
 
             Sig_theory=mean(abs(squeeze(Msig_all)),[2 3 4]);
@@ -716,8 +726,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             % 111 M H20 *0.0115% 2H *80% water in brain= 10.12 mM
             % 1.33 Glx label loss in TCA cycle De Feyter et al 2018
             Average_deuterons=[1;2;1.33;2];
-            scale_fac=10.12*Sig_theory./Average_deuterons(length(obj.metabolites)); % mM
-            metcon_w=abs(obj.Metcon)./smooth3(obj.Metcon(:,:,:,1));
+            scale_fac=10.12*Sig_theory.*Average_deuterons(1:length(obj.metabolites)); % mM
+            metcon_w=abs(obj.Metcon)./smooth3(abs(obj.Metcon(:,:,:,1)));
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
 %             as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
             % all higher values are probably noise
