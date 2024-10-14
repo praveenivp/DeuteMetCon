@@ -33,6 +33,10 @@ for cMb=1:length(Metabolites)
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
+                        case 'FISP'
+                            T2star=Metabolites(cMb).T2star_s;
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
+                                FISP(FA(cFA),T1,T2,T2star,TE(cTE),TR(cTR),freqOffset,DutyCycle);
                         case 'bSSFP-peters'
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR));
@@ -41,7 +45,7 @@ for cMb=1:length(Metabolites)
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset,DutyCycle);
                         otherwise
-                            error('unknown mode: {''bSSFP'',''GRE'',''bSSFP-peters'',''GRE-peters''}')
+                            error('unknown mode: {''bSSFP'',''GRE'',''bSSFP-peters'',''GRE-peters'',''FISP''}')
 
                     end
                 end
@@ -85,15 +89,15 @@ D = (1-E1.*cos(flip)).*(1-E2.*cos(theta))-(E1-cos(flip)).*(E2-cos(theta)).*E2;
 bSSFP = -(1i./D).*(1-E1).*sin(flip).*(1-E2.*exp(-1i*theta));
 
 
-%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
-DutyCycle=(TR-4e-3)/TR;
-dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
-dc_fac=dc_fac./(DutyCycle*TR); %normalization
-bSSFP=bSSFP*dc_fac;
+% %dutycycle factor: integral of T2 exponential from TE to TR*DutyCycleDutyCycle
+% DutyCycle=(TR-4e-3)/TR;
+% dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
+% dc_fac=dc_fac./(DutyCycle*TR) %normalization
+% bSSFP=bSSFP*dc_fac;
 
 %% Read out signal at t=TE
 
-% bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
+ bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
 end
 
 
@@ -110,13 +114,13 @@ num=M0*exp(-(TR/2)/T2)*(1-E1).*sin(flip);
 bSSFP=num./(1- (E1-E2)*cos(flip)-E1*E2);
 
 %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
-DutyCycle=0.8;
-dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
-dc_fac=dc_fac./(DutyCycle*TR); %normalization
-bSSFP=bSSFP*dc_fac;
+% DutyCycle=0.8;
+% dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
+% dc_fac=dc_fac./(DutyCycle*TR); %normalization
+% bSSFP=bSSFP*dc_fac;
 
 %phase evolution: not relavant for SNR
-% bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
+bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
 end
 
 
@@ -141,16 +145,47 @@ E1    = exp(-TR./T1);
 Sflash=M0*sin(FA)*(1-E1);
 Sflash=Sflash./(1-cos(FA)*E1);
 
-%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
-DutyCycle=(TR-4e-3)/TR;
+% % %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
+% DutyCycle=(TR-6.6e-3)/TR;
 dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
 dc_fac=dc_fac./(DutyCycle*TR); %normalization
-
 Sflash=Sflash.*dc_fac;
+
 %phase evolution: not relavant for SNR
 Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
+
+function Sfisp=FISP(FA,T1,T2,T2star,TE,TR,freqOffset,DutyCycle)
+%A. Oppelt, R. Graumann, H. Barfuss, H. Fischer, W. Hertl and W. Schajor. FISP: A new fast MRI sequence. Electromedica, 3: 15, 1986.
+
+M0 = 1;
+E1 = exp(-TR./T1);
+E2 = exp(-TR./T2);
+% DOI: 10.1002/mrm.10410
+r=sqrt((1-E2.^2)./ ...
+    ((1-E1*cos(FA)).^2-(E2.^2).*(E1-cos(FA)).^2));
+
+Sfisp=M0*(sin(FA)/(1+cos(FA)))*(1-(E1-cos(FA)).*r);
+
+% DOI: 10.1016/0022-2364(89)90083-8
+% https://labs.dgsom.ucla.edu/file/134807/M229_Lecture2_PulseSeqGRE.pdf
+% p=1-E1*cos(flip)-(E2.^2).*(E1-cos(flip));
+% q=E2.*(1-E1)*(1+cos(flip));
+
+
+
+
+%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
+ dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
+ dc_fac=dc_fac./(DutyCycle*TR); %normalization
+ Sfisp=Sfisp*dc_fac;
+
+%phase evolution: not relavant for SNR
+Sfisp=Sfisp.*exp(-1i*2*pi*freqOffset*TE);
+
+end
+
 
 
 %%

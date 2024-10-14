@@ -1,9 +1,9 @@
 
-refVoltage=550; % upto 520
+refVoltage=480; % upto 520
 kFactor=0.83;
 RFfac=447/refVoltage; % Flip angle scale factor
 
-metabolites=getMetaboliteStruct('phantom');
+metabolites=getMetaboliteStruct('invivo3');
 pc_range=linspace(0,359,18)+180;
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
@@ -26,18 +26,22 @@ for cTR=1:size(sig_all_bssfp,1)
         %            nexttile(), plot(pc_range,abs(Msig_all(:)))
     end
 end
-% DC=0.79;
+DC=(TR_all_bssfp(:)-4e-3)./TR_all_bssfp(:);
 %calcualte signal efficiency
- sig_all_bssfp=sig_all_bssfp./sqrt(TR_all_bssfp(:));%*sqrt(DC);
+ sig_all_bssfp=sig_all_bssfp./sqrt(TR_all_bssfp(:)).*sqrt(DC);
 %% GRE signal efficiency
 sig_all_gre=zeros(length(TR_all_gre),length(FA_all),length(metabolites));
+sig_all_FISP=zeros(length(TR_all_gre),length(FA_all),length(metabolites));
 maxFA_gre=zeros([length(TR_all_gre) 3]);
 for cTR=1:size(sig_all_gre,1)
     [~,maxFA_gre(cTR,1)]=SimpleSARModel(1,800e-6,TR_all_gre(cTR),refVoltage,kFactor);
     [~,maxFA_gre(cTR,2)]=SimpleSARModel(1,1400e-6,TR_all_gre(cTR),refVoltage,kFactor);
     [~,maxFA_gre(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_gre(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_gre,3)
-        DC=(TR_all_gre(cTR)-7e-3)/TR_all_gre(cTR);
+        DC=(TR_all_gre(cTR)-7.56e-3)/TR_all_gre(cTR);
+        [Msig_all]=MetSignalModel   (metabolites(CM),TE,0,TR_all_gre(cTR),-1*metabolites(CM).freq_shift_Hz,deg2rad(FA_all),'FISP',0.8);
+        sig_all_FISP(cTR,:,CM)=mean(abs(Msig_all),3);
+
         [Msig_all]=MetSignalModel   (metabolites(CM),TE,0,TR_all_gre(cTR),-1*metabolites(CM).freq_shift_Hz,deg2rad(FA_all),'GRE-peters',DC);
         sig_all_gre(cTR,:,CM)=mean(abs(Msig_all),3);
 
@@ -45,6 +49,7 @@ for cTR=1:size(sig_all_gre,1)
 end
 %calcualte signal efficiency
  sig_all_gre=sig_all_gre./sqrt(TR_all_gre(:));
+  sig_all_FISP=sig_all_FISP./sqrt(TR_all_gre(:));
 
 
 fh=figure(3);
@@ -55,7 +60,7 @@ for i=1:length(metabolites)
 
     % plot GRE signal efficiency
     ax=nexttile(tt,i);
-    imagesc((TR_all_gre*1e3),FA_all,sig_all_gre(:,:,i)'),colorbar
+    imagesc((TR_all_gre*1e3),FA_all,sig_all_FISP(:,:,i)'),colorbar
     hold on
     plot(TR_all_gre*1e3,maxFA_gre,'LineWidth',2);
     mycolors = [1 0 0; 0 1 0; 0 0 1];
@@ -96,9 +101,24 @@ for i=1:length(metabolites)
 
 end
 legend('800 us','1400 us','2000 us','Location','southeast')
-sgtitle('signal efficiency [1/\surds]','Interpreter','tex')
+sgtitle('signal efficiency [1/\surds]','Interpreter','tex','fontsize',24)
 
 
+ax=nexttile(tt,1);
+annotation(gcf,'textbox',...
+    [ax.Position(1)-0.05,ax.Position(2)+ax.Position(3)/2+0.02,0,0],...
+    'String',{'FISP'},...
+    'Rotation',90,...
+    'FontWeight','bold',...
+    'FontSize',20);
+
+ax=nexttile(tt,5);
+annotation(gcf,'textbox',...
+    [ax.Position(1)-0.05,ax.Position(2)+ax.Position(3)/2,0,0],...
+    'String',{'bSSFP'},...
+    'Rotation',90,...
+    'FontWeight','bold',...
+    'FontSize',20);
 %% plot protocol
 TR_ssfp=19e-3; %s
 
@@ -107,15 +127,15 @@ FA_bSSFP=maxFA_bssfp(idxTR,2);
 [~,idxFA]=min(abs(FA_all-FA_bSSFP)); %use max flip angle
 sig_prot1=squeeze(abs(sig_all_bssfp(idxTR,idxFA,:)));
 
-%1.26 T2 star readout
+%FISP
 TR_gre=36e-3; %s
 FA_gre=41*RFfac; %deg
 [~,idxTR]=min(abs(TR_all_gre-TR_gre));
 [FA_gre,idxFA]=min(abs(FA_all-FA_gre)); %use max flip angle
-sig_prot2=squeeze(abs(sig_all_gre(idxTR,idxFA,:)));
+sig_prot2=squeeze(abs(sig_all_FISP(idxTR,idxFA,:)));
 
-TR_gre=74e-3; %s
-FA_gre=57*RFfac; %deg
+TR_gre=36e-3; %s
+FA_gre=41*RFfac; %deg
 [~,idxTR]=min(abs(TR_all_gre-TR_gre));
 [FA_gre,idxFA]=min(abs(FA_all-FA_gre)); %use max flip angle
 sig_prot3=squeeze(abs(sig_all_gre(idxTR,idxFA,:)));
@@ -124,17 +144,17 @@ sig_prot3=squeeze(abs(sig_all_gre(idxTR,idxFA,:)));
 metnames=reordercats(categorical({metabolites.name}),{metabolites.name});
 nexttile(tt,9,[1 2])
 barh(metnames,cat(2,sig_prot1,sig_prot2,sig_prot3))
-legend('bSSFP','GRE-TR36','GRE-TR74','Location','southeast')
+legend('bSSFP','FISP','FLASH','Location','southeast')
 grid minor
 title('Signal efficiencies for the investigated protocols')
 
 nexttile(tt,11,[1 2])
 barh(metnames,cat(2,sig_prot1./sig_prot2,sig_prot2./sig_prot3))
-legend('bSSFP/GRE-TR36','GRE-TR36/TR74','Location','southwest')
+legend('bSSFP/FISP','FISP/GRE','Location','southwest')
 grid minor
 title('ratio')
 
-tab=table(sig_prot1,sig_prot2,sig_prot3,sig_prot1./sig_prot2,'RowNames',{metabolites.name},'VariableNames',{'bssfp19ms','gre36ms','gre74ms','bSSFP/GRE-TR36'})
+tab=table(sig_prot1,sig_prot2,sig_prot3,sig_prot1./sig_prot2,sig_prot1./sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bSSFP','FISP','gre','bSSFP/FISP','bSSFP/GRE'})
 
 %some plot handles: needs second execition
 plotProtGre1= @ () plot(74,57*RFfac,'r*','MarkerSize',10);
