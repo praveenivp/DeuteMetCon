@@ -8,7 +8,7 @@ function metabolites=getMetaboliteStruct(DataSelect,freqOffset)
 
 if(~exist("freqOffset",'var')), freqOffset=0; end
 
-DataSelect=validatestring(DataSelect,{'phantom','invivo1','invivo2','Roig7T','Peters12T'});
+DataSelect=validatestring(DataSelect,{'phantom','invivo1','invivo2','invivo3','Roig7T','Peters12T'});
 
 B0=9.3879; %[T]
 gammaH2=6.536; % [MHz/T]
@@ -45,6 +45,16 @@ switch(DataSelect)
         freq_shift=[9.0229 -46.9185 -135.4832 -198.4703]; % Hz
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T2Star=[20.5969 14.2529 22.2796 25.2529]*1e-3; %s
+
+    case 'invivo3'
+        %/ptmp/pvalsala/deuterium/HOSJ-D6P2/proc/T1T2
+        met_name={'water','glucose','Glx','lactate/lipid'};
+        T1=[362.21 64.10  155.23 208.37]*1e-3;%s
+        T2=[41.65 55.59 109.13 98.31]*1e-3;%s
+        %CSI dataset: M997 TR36 % see plotT2star.m
+        freq_shift=[1.5423 -53.1530 -142.0912 -202.1538]; % Hz
+        freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
+        T2Star=[21.0052 13.9556 22.3202 31.8583]*1e-3; %s
 
     case 'Roig7T'
 %         DOI: 10.1002/mrm.29439

@@ -38,6 +38,15 @@ mask=imerode(mask,strel("sphere",5));
 % T2* [ms]  20.5969 14.2529 22.2796 25.2529
 % cs [Hz]  9.0229 -46.9185 -135.4832 -198.4703
 % cs [ppm]  4.7000 3.7883 2.3449 1.3184
+
+%% invivo 3
+CSIdataset='/ptmp/pvalsala/deuterium/HOSJ-D6P2/TWIX/allData#S94Tuebingen#F16603#M997#D230924#T093336#rpcsi_fid_Stan_res156_moreopti.dat';
+mcobj=MetCon_CSI(CSIdataset,CSI_setting{:});
+mask=mcobj.getMask(60);
+mask=imerode(mask,strel("sphere",5));
+mask=mcobj.Experimental.relativeNorm<0.7;
+mask=imdilate(mask,strel("sphere",1));
+
 %% phantom
 CSIdataset='/ptmp/pvalsala/deuterium/20240813_spectral/meas_MID00857_FID14528_rpcsi_fid_Stan_res15_6_optimal.dat';
 
@@ -63,7 +72,7 @@ T2Star1=reshape(T2Star,[],size(T2Star,4));
 T2Star1=T2Star1(mask(:),:);
 cs=reshape(mcobj.Experimental.chemicalshift,[],length(metabolites));
 cs=cs(mask(:),:);
- cs=cs*mcobj.DMIPara.ImagingFrequency_MHz;
+ cs=cs;%*mcobj.DMIPara.ImagingFrequency_MHz;
   freq_shift=median(cs);
   freq_shift_ppm=(freq_shift-freq_shift(1))./(mcobj.DMIPara.ImagingFrequency_MHz)+4.7;
 
