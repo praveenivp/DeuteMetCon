@@ -408,7 +408,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
 
-                Np=floor((length(obj.DMIPara.PhaseCycles)-1)/2);
+                Np=floor((length(obj.DMIPara.PhaseCycles))/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
@@ -418,7 +418,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 %estimate fieldmap from F0
                 im_me=Fn(:,:,:,:,Np+1); % F0
                 obj.Metcon=obj.SolverObj'*im_me;
-                fm_ideal=0*smooth3(obj.SolverObj.experimental.fm_est)*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
+                fm_ideal=smooth3(obj.SolverObj.experimental.fm_est)*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
 
 
                 %estimate metabolites concentration from all modes
@@ -433,7 +433,6 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 end
 
                 %SVD combine  metcon_all
-
                 [~,S,V]=svd(reshape(Metcon_modes,[],size(Fn,5)),'econ');
                 sz=size(Metcon_modes);
                 Metcon_comb=reshape(reshape(Metcon_modes,[],size(Fn,5))*V,sz(1:5));
