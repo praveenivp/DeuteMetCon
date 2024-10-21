@@ -487,7 +487,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
                     'mask',obj.mask,'parfor',obj.flags.parfor,obj.flags.IdealSetttings{:});
-                obj.Metcon=obj.SolverObj'*squeeze(sum(obj.img,6)./sqrt(obj.img,6)); % preserves SNR scanling
+                obj.Metcon=obj.SolverObj'*squeeze(sum(obj.img,6)./sqrt(size(obj.img,6))); % preserves SNR scanling
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]); %squared sum of residual
                 obj.SolverObj.experimental=[];
