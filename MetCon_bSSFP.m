@@ -85,13 +85,16 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'doZeroPad',[1,1,1],@(x) isvector(x));
                     %-1 for debug
                     addParameter(p,'doDenoising',0,@(x) isscalar(x));
+                    % posistive value for imgaulsfilt3 or negative value
+                    % for medfilt3
+                    addParameter(p,'doSmoothFM',1,@(x) isscalar(x));
+                    addParameter(p,'maxit',10,@(x) isscalar(x));
                     %                     addParameter(p,'doParFor',inf,@(x) isscalar(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
                     addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=1:obj.twix.image.NRep)) );
                     addParameter(p,'EchoSel',1:obj.twix.hdr.Phoenix.lContrasts, @(x) (isvector(x)&& all(x<=obj.twix.hdr.Phoenix.lContrasts)) );
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
-                    %                     addParameter(p,'doB0Corr','none',@(x) any(strcmp(x,{'none','MTI','MFI'})));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','IDEAL-modes','IDEAL-modes2','phaseonly'})));
                     parse(p,varargin{:});
@@ -180,6 +183,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
             obj.getMask(0);
 
+
+            obj.getFieldmap();
             fprintf(sprintf( 'reco  time = %6.1f s\n', toc));
             if(~isempty(obj.metabolites))
                 obj.performMetCon();
@@ -329,6 +334,19 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
         end
 
+        function getFieldmap(obj)
+            if(strcmpi(obj.FieldMap,'IDEAL') && ~any(strcmpi(obj.flags.Solver,{'IDEAL','IDEAL-modes'}) ))
+                 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+                im_me=squeeze(sum(obj.img,6))./sqrt(size(obj.img,6)); % sum phase cycles to get FISP contrast
+                IdealObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',[],'solver','IDEAL', ...
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
+                Metcon_temp=IdealObj'*im_me;
+                obj.FieldMap=IdealObj.experimental.fm_est*(-2*pi)/(6.536 /42.567);
+            elseif(strcmpi(obj.FieldMap,'IDEAL'))
+                obj.FieldMap=[];
+            end
+        end
+
         function performMetCon(obj)
             PCSel=obj.flags.PCSel;
             EchoSel=obj.flags.EchoSel;
@@ -394,7 +412,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6))./sqrt(size(obj.img,6)); % sum phase cycles to get FISP contrast
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
-                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*im_me;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]);
@@ -406,7 +424,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
 
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
-                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
 
                 Np=floor((length(obj.DMIPara.PhaseCycles))/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
@@ -450,7 +468,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 %we try to fit all modes togther
 
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
-                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
 
                 Np=round(length(obj.DMIPara.PhaseCycles)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal

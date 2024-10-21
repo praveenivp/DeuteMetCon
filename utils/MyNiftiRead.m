@@ -4,7 +4,7 @@ function [Vout_all,TransformFucntion]=MyNiftiRead(filename,orientation_desired)
 %
 % Inputs
 % filename - nifti filename/file pattern/
-% orientation_desired - 3 char orienation like 'RAS','LPS','ARI'
+% orientation_desired - 3 char orienation like 'RAS','LPS','ARI' or empty ''
 % R/L- right/left, A/P- anterior/posterior I/S-Inferioir/superior
 %
 % Author: praveen.ivp
@@ -15,9 +15,12 @@ function [Vout_all,TransformFucntion]=MyNiftiRead(filename,orientation_desired)
 %test dataset can be found at https://github.com/rordenlab/NIfTIspace.git
 if(~isstruct(filename))
     dirst_nii=dir(filename);
+    assert(~isempty(dirst_nii),'No Matching with provided pattern');
 else
     dirst_nii=filename;
 end
+
+
 
 Vout_all=cell(length(dirst_nii),1);
 TransformFucntion=cell(length(dirst_nii),1);
@@ -33,7 +36,11 @@ for fidx=1:length(dirst_nii)
 
 
     curr_orient=printOrientation(rotm);
-    fprintf('Converting %s to %s orientation \n',curr_orient,orientation_desired);
+    if(empty(orientation_desired)||~exist('orientation_desired','var'))
+        orientation_desired=curr_orient;
+    else
+        fprintf('Converting %s to %s orientation \n',curr_orient,orientation_desired);
+    end
     perm_vec=[zeros(1,3),4:ndims(Vin)];
     flip_vec=zeros(1,3);
     for i=1:3

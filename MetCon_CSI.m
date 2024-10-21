@@ -68,6 +68,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.performRecon();
             obj.getMask(0); % select all voxels
 
+            obj.getFieldmap();
+            print_str = sprintf( 'reco  time = %6.1f s\n', toc);
+            fprintf(print_str);
+            if(~isempty(obj.metabolites))
+                obj.performMetCon();
+            end
+            fprintf(sprintf( 'Metabolite mapping time = %6.1f s\n', toc));
+
         end
         function getflags(obj,varargin)
             switch nargin
@@ -90,8 +98,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
-                    addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','pinv','IDEAL','IDEAL-modes','AMARES','LorentzFit'})));
-                    addParameter(p,'IdealSetttings',{},@(x)iscell(x) && mod(length(x),2)==0 );
+                    addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','pinv','IDEAL','IDEAL-modes','AMARES','LorentzFit'})));                
+                      % posistive value for imgaulsfilt3 or negative value
+                    % for medfilt3
+                    addParameter(p,'doSmoothFM',1,@(x) isscalar(x));
+                    addParameter(p,'maxit',10,@(x) isscalar(x));
                     %                     addParameter(p,'maxit',10,@(x)isscalar(x));
                     %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
                     %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
@@ -191,13 +202,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             obj.performCoilCombination();
             obj.performPhaseCorr();
             obj.performSVDdenosing();
-            print_str = sprintf( 'reco  time = %6.1f s\n', toc);
-            fprintf(print_str);
-            obj.getMask(0);
-            if(~isempty(obj.metabolites))
-                obj.performMetCon();
-            end
-            fprintf(sprintf( 'Metabolite mapping time = %6.1f s\n', toc));
 
 
         end
@@ -379,6 +383,18 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
 
         end
+       function getFieldmap(obj)
+            if(strcmpi(obj.FieldMap,'IDEAL') && ~any(strcmpi(obj.flags.Solver,{'IDEAL','IDEAL-modes'})))
+                 %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
+                im_me=squeeze(sum(obj.img,6))./sqrt(size(obj.img,6)); % sum phase cycles to get FISP contrast
+                IdealObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',[],'solver','IDEAL', ...
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
+                Metcon_temp=IdealObj'*im_me;
+                obj.FieldMap=IdealObj.experimental.fm_est*(-2*pi)/(6.536 /42.567);
+            elseif(strcmpi(obj.FieldMap,'IDEAL'))
+                obj.FieldMap=[];
+            end
+        end
         function performMetCon(obj)
 
             freq=[obj.metabolites.freq_shift_Hz];
@@ -486,7 +502,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
-                    'mask',obj.mask,'parfor',obj.flags.parfor,obj.flags.IdealSetttings{:});
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
                 obj.Metcon=obj.SolverObj'*squeeze(sum(obj.img,6)./sqrt(size(obj.img,6))); % preserves SNR scanling
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]); %squared sum of residual
@@ -494,7 +510,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL-modes'))
                 obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver','IDEAL', ...
-                    'maxit',10,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
+                    'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
 
                 Np=round((length(obj.DMIPara.PhaseCycles)-1)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
@@ -560,21 +576,30 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 fprintf('Calculating bSSFP profile basis\n');
                 Msig_all=MetSignalModel(obj.metabolites,obj.DMIPara.TE,obj.DMIPara.PhaseCycles,obj.DMIPara.TR,B0,FA,'bSSFP');
                 fprintf('done.....\n');
+                if(obj.flags.parfor)
+                    parfor i=1:size(im1,1)
+                        A= reshape(Msig_all(:,:,:,1,i,1),length(obj.metabolites),length(PCSel)*length(EchoSel)).';
+                        b=[ im1(i,:)];
+                        metabol_con(i,:)=A\b(:);
+                        resi(i,:)=b(:) -A*metabol_con(i,:).';
+                        condnm(i)=cond(A);
+                        Ai=pinv(A);
+                        sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                    end
+                else
+                    for i=1:size(im1,1)
+                        %low mem mode!
+                        %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
+                        %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
 
-                %                 pb = parwaitbar(size(im1,1),'WaitMessage','Least squares with bSSFP model:estimating concentrations');
-                for i=1:size(im1,1)
-                    %low mem mode!
-                    %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
-                    %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
-
-                    A= reshape(Msig_all(:,:,:,1,i,1),length(obj.metabolites),length(PCSel)*length(EchoSel)).';
-                    b=[ im1(i,:)];
-                    metabol_con(i,:)=A\b(:);
-                    resi(i,:)=b(:) -A*metabol_con(i,:).';
-                    condnm(i)=cond(A);
-                    %                     pb.progress();
-                    Ai=pinv(A);
-                   sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                        A= reshape(Msig_all(:,:,:,1,i,1),length(obj.metabolites),length(PCSel)*length(EchoSel)).';
+                        b=[ im1(i,:)];
+                        metabol_con(i,:)=A\b(:);
+                        resi(i,:)=b(:) -A*metabol_con(i,:).';
+                        condnm(i)=cond(A);
+                        Ai=pinv(A);
+                        sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                    end
                 end
 
 

@@ -1,4 +1,4 @@
-function Msig_all=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type,DutyCycle)
+function [Msig_all,dc_fac]=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type,DutyCycle)
 % [Msig_all]=SignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type)
 % FA : flipangle in radians
 % T1,T2,TE,TR are in seconds
@@ -7,10 +7,11 @@ function Msig_all=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,Type,Duty
 % Species is a struct array with all relavent properties of your chemical compound
 % Species(1)=struct('T1_s',300e-3,'T2_s',200e-3,'freq_shift_Hz',0,'name','water');
 % TYPE: {'bSSFP','GRE','FISP'}
-% Dutycycle : 0-1 scalar
+% Dutycycle : 0-1 scalar or fucntion handle as function of TR
 if(~exist('DutyCycle','var'))
     DutyCycle=1;
 end
+dc_fac=zeros(length(TE),length(TR));
 
 % first vectorize along dfreq which can get quite slow with 3D field map
 Msig_all=zeros(length(Metabolites),length(TE),length(PhaseCyles),length(TR),length(dfreq),length(FA));
@@ -22,6 +23,13 @@ for cMb=1:length(Metabolites)
     for cTE=1:length(TE)
         for cPC=1:length(PhaseCyles)
             for cTR=1:length(TR)
+                %if Dutycycle is a fucntion handle
+                if(~isnumeric(DutyCycle))
+                    cDutyCycle=DutyCycle(cTR);  
+                else
+                    cDutyCycle=DutyCycle;
+                end
+                dc_fac(cTE,cTR)=cDutyCycle;
                 for cFA=1:length(FA)
 
                     switch(Type)
@@ -29,21 +37,31 @@ for cMb=1:length(Metabolites)
                             phaseOffset=Freq2Phase(freqOffset,TR(cTR));
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_profile_Ganter2(FA(cFA),T1,T2,TE(cTE),TR(cTR),PhaseCyles(cPC),phaseOffset);
+                            T2star=Metabolites(cMb).T2star_s;
+                            dcf=T2*(exp(-TE(cTE)/T2)-exp(-(TE(cTE)+TR(cTR)*DutyCycle)/T2));
+                            dc_fac(cTE,cTR)=dcf./(TR(cTR)); %normalization
+                        case 'bSSFP2'
+                            phaseOffset=Freq2Phase(freqOffset,TR(cTR));
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
+                                bSSFP_profile_Ganter3(FA(cFA),T1,T2,TE(cTE),TR(cTR),PhaseCyles(cPC),phaseOffset);
+                            T2star=Metabolites(cMb).T2star_s;
+                            dcf=T2*(exp(-TE(cTE)/T2)-exp(-(TE(cTE)+TR(cTR)*DutyCycle)/T2));
+                            dc_fac(cTE,cTR)=dcf./(TR(cTR)); %normalization
                         case 'GRE'
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
                         case 'FISP'
                             T2star=Metabolites(cMb).T2star_s;
-                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
-                                FISP(FA(cFA),T1,T2,T2star,TE(cTE),TR(cTR),freqOffset,DutyCycle);
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA),dc_fac(cTE,cTR)]=...
+                                FISP(FA(cFA),T1,T2,T2star,TE(cTE),TR(cTR),freqOffset,cDutyCycle);
                         case 'bSSFP-peters'
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR));
                         case 'GRE-peters'
                             T2star=Metabolites(cMb).T2star_s;
-                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
-                                GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset,DutyCycle);
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA),dc_fac(cTE,cTR)]=...
+                                GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset,cDutyCycle);
                         otherwise
                             error('unknown mode: {''bSSFP'',''GRE'',''bSSFP-peters'',''GRE-peters'',''FISP''}')
 
@@ -54,6 +72,9 @@ for cMb=1:length(Metabolites)
     end
 end
 
+%DC=0 returns NaNs
+
+Msig_all(isnan(Msig_all))=0;
 end
 
 
@@ -97,7 +118,42 @@ bSSFP = -(1i./D).*(1-E1).*sin(flip).*(1-E2.*exp(-1i*theta));
 
 %% Read out signal at t=TE
 
- bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
+bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(1i*off_resonance*((TE)/TR));
+end
+
+
+function bSSFP=bSSFP_profile_Ganter3(flip,T1,T2,TE, TR,phi,off_resonance)
+%function bSSFP=bSSFP_profile_Ganter(TR,TE,flip,phi,T1,T2)
+%
+%Calculation of the bSSFP profile (series of measurements with varying RF phase increment)
+%Following Ganter, MRM, 2006: 
+%Steady State of Gradient Echo Sequences with Radiofrequency Phase Cycling: Analytical Solution, Contrast Enhancement with Partial Spoiling
+%
+%INPUT
+%
+%repetition time in s (TR)
+%echo time in s (TE)
+%flip angle in rad (flip)
+%vector of RF phase increments in rad (phi)
+%off-resonance-related shift in rad (off_resonance)
+%spin-lattice relaxation 
+%spin-spin relaxation time in s (T2)
+%
+%OUTPUT
+%
+%complex bSSFP signal for the given range of RF phase increments phi (bSSFP)
+
+M0    = 1;
+E1    = exp(-TR./T1);
+E2    = exp(-TR./T2);
+
+C     = E2.*(E1-1).*(1+cos(flip));
+D     = (1-E1.*cos(flip))-(E1-cos(flip)).*E2.^2;
+bSSFP = (1-E1).*sin(flip).*(1-E2.*exp(-complex(0,1)*(-phi+off_resonance)))./(C.*cos(-phi+off_resonance)+D);
+
+%% Read out signal at t=TE
+
+bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(complex(0,-1)*(-1*off_resonance)*(TE/TR));
 end
 
 
@@ -136,7 +192,7 @@ Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
 
-function Sflash=GRESignal_peters(FA,T1,T2star,TE,TR,freqOffset,DutyCycle)
+function [Sflash,dc_fac]=GRESignal_peters(FA,T1,T2star,TE,TR,freqOffset,DutyCycle)
 %     sig=GREsignalmodel(flip,T1,T2star,TE,TR,freqOffset)
 
 M0    = 1;
@@ -148,15 +204,15 @@ Sflash=Sflash./(1-cos(FA)*E1);
 % % %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
 % DutyCycle=(TR-6.6e-3)/TR;
 dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
-dc_fac=dc_fac./(DutyCycle*TR); %normalization
-Sflash=Sflash.*dc_fac;
+dc_fac=dc_fac./(TR); %normalization
+%  Sflash=Sflash.*dc_fac;
 
 %phase evolution: not relavant for SNR
 Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
 
-function Sfisp=FISP(FA,T1,T2,T2star,TE,TR,freqOffset,DutyCycle)
+function [Sfisp,dc_fac]=FISP(FA,T1,T2,T2star,TE,TR,freqOffset,DutyCycle)
 %A. Oppelt, R. Graumann, H. Barfuss, H. Fischer, W. Hertl and W. Schajor. FISP: A new fast MRI sequence. Electromedica, 3: 15, 1986.
 
 M0 = 1;
@@ -173,13 +229,11 @@ Sfisp=M0*(sin(FA)/(1+cos(FA)))*(1-(E1-cos(FA)).*r);
 % p=1-E1*cos(flip)-(E2.^2).*(E1-cos(flip));
 % q=E2.*(1-E1)*(1+cos(flip));
 
-
-
-
 %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
- dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
- dc_fac=dc_fac./(DutyCycle*TR); %normalization
- Sfisp=Sfisp*dc_fac;
+%  dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
+  dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
+ dc_fac=dc_fac./(TR); %normalization
+%  Sfisp=Sfisp*dc_fac;
 
 %phase evolution: not relavant for SNR
 Sfisp=Sfisp.*exp(-1i*2*pi*freqOffset*TE);
