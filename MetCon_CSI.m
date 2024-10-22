@@ -828,7 +828,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 end
             end
         end
-        function [Metcon_mM,scale_fac]= getmM(obj)
+        function [Metcon_mM,scale_fac]= getmM(obj,norm_mat)
             % convert metabolite amplitudes into mM
             % assuming water concentration is 10 mM 
             %reference: peters et al DOI: 10.1002/mrm.28906 , equation 6
@@ -839,10 +839,20 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %Actual reference voltage is between 500 and 550 not 447 V
             FA_rad=obj.DMIPara.FlipAngle*obj.DMIPara.pulseCorrectionFactor;
 
-            if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
-                [Msig_all]=MetSignalModel(obj.metabolites,TE,pi,TR,0,FA_rad,'GRE-peters',DC);
+            if(exist('norm_mat','var'))
+            assert(isequal(size(norm_mat),[size(obj.Metcon,1),size(obj.Metcon,2),size(obj.Metcon,3)]),...
+                'Size of input norm_mat doesn''t match the obj.MetCon size');
+            assert(isreal(norm_mat),'input norm_mat should not be complex');
             else
-                [Msig_all]=MetSignalModel(obj.metabolites,TE(1),obj.DMIPara.PhaseCycles,TR,0,FA_rad,'bSSFP',DC);
+                norm_mat=1./smooth3(abs(obj.Metcon(:,:,:,1)));
+            end
+
+            if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
+                [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,pi,TR,0,FA_rad,'FISP',DC);
+                Msig_all=Msig_all.*dc_fac;
+            else
+                [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,obj.DMIPara.PhaseCycles,TR,0,FA_rad,'bSSFP',DC);
+                Msig_all=Msig_all.*dc_fac;
             end
 
             Sig_theory=mean(abs(squeeze(Msig_all)),[2 3 4]);
@@ -850,9 +860,8 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             % 111 M H20 *0.0115% 2H *80% water in brain= 10.12 mM
             % 1.33 Glx label loss in TCA cycle De Feyter et al 2018
             Average_deuterons=[1;2;1.33;2];
-            scale_fac=10.12*Sig_theory.*Average_deuterons(1:length(obj.metabolites)); % mM
-            metcon_w=abs(obj.getNormalized);
-            metcon_w=metcon_w./smooth3(metcon_w(:,:,:,1));
+            scale_fac=10.12*Sig_theory./Average_deuterons(1:length(obj.metabolites)); % mM
+            metcon_w=abs(obj.Metcon).*norm_mat;
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
 %           as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])            
             % all higher values are probably noise

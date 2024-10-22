@@ -11,7 +11,7 @@ function [Msig_all,dc_fac]=MetSignalModel(Metabolites,TE,PhaseCyles,TR,dfreq,FA,
 if(~exist('DutyCycle','var'))
     DutyCycle=1;
 end
-dc_fac=zeros(length(TE),length(TR));
+dc_fac=zeros(length(Metabolites),length(TR));
 
 % first vectorize along dfreq which can get quite slow with 3D field map
 Msig_all=zeros(length(Metabolites),length(TE),length(PhaseCyles),length(TR),length(dfreq),length(FA));
@@ -29,7 +29,7 @@ for cMb=1:length(Metabolites)
                 else
                     cDutyCycle=DutyCycle;
                 end
-                dc_fac(cTE,cTR)=cDutyCycle;
+                dc_fac(cMb,cTR)=cDutyCycle;
                 for cFA=1:length(FA)
 
                     switch(Type)
@@ -37,31 +37,40 @@ for cMb=1:length(Metabolites)
                             phaseOffset=Freq2Phase(freqOffset,TR(cTR));
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_profile_Ganter2(FA(cFA),T1,T2,TE(cTE),TR(cTR),PhaseCyles(cPC),phaseOffset);
-                            T2star=Metabolites(cMb).T2star_s;
-                            dcf=T2*(exp(-TE(cTE)/T2)-exp(-(TE(cTE)+TR(cTR)*DutyCycle)/T2));
-                            dc_fac(cTE,cTR)=dcf./(TR(cTR)); %normalization
+                            % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
                         case 'bSSFP2'
                             phaseOffset=Freq2Phase(freqOffset,TR(cTR));
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_profile_Ganter3(FA(cFA),T1,T2,TE(cTE),TR(cTR),PhaseCyles(cPC),phaseOffset);
-                            T2star=Metabolites(cMb).T2star_s;
-                            dcf=T2*(exp(-TE(cTE)/T2)-exp(-(TE(cTE)+TR(cTR)*DutyCycle)/T2));
-                            dc_fac(cTE,cTR)=dcf./(TR(cTR)); %normalization
+                            % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
                         case 'GRE'
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
                         case 'FISP'
                             T2star=Metabolites(cMb).T2star_s;
-                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA),dc_fac(cTE,cTR)]=...
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 FISP(FA(cFA),T1,T2,T2star,TE(cTE),TR(cTR),freqOffset,cDutyCycle);
+                            % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dc_fac(cMb,cTR)=dcf./(TR(cTR)); %normalization
                         case 'bSSFP-peters'
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR));
+                            % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
                         case 'GRE-peters'
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA),dc_fac(cTE,cTR)]=...
-                                GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset,cDutyCycle);
+                                GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
+                            % % %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
+                            dcf=T2star*(exp(-min(TE)/T2star)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2star));
+                            dc_fac(cMb,cTR)=dcf./(TR(cTR)); %normalization
                         otherwise
                             error('unknown mode: {''bSSFP'',''GRE'',''bSSFP-peters'',''GRE-peters'',''FISP''}')
 
@@ -192,7 +201,7 @@ Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
 
-function [Sflash,dc_fac]=GRESignal_peters(FA,T1,T2star,TE,TR,freqOffset,DutyCycle)
+function [Sflash]=GRESignal_peters(FA,T1,T2star,TE,TR,freqOffset)
 %     sig=GREsignalmodel(flip,T1,T2star,TE,TR,freqOffset)
 
 M0    = 1;
@@ -200,19 +209,15 @@ E1    = exp(-TR./T1);
 % https://mriquestions.com/spoiled-gre-parameters.html
 Sflash=M0*sin(FA)*(1-E1);
 Sflash=Sflash./(1-cos(FA)*E1);
+Sflash=Sflash.*exp(-TE/T2star);
 
-% % %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
-% DutyCycle=(TR-6.6e-3)/TR;
-dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
-dc_fac=dc_fac./(TR); %normalization
-%  Sflash=Sflash.*dc_fac;
 
 %phase evolution: not relavant for SNR
 Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
 
 end
 
-function [Sfisp,dc_fac]=FISP(FA,T1,T2,T2star,TE,TR,freqOffset,DutyCycle)
+function [Sfisp]=FISP(FA,T1,T2,T2star,TE,TR,freqOffset,DutyCycle)
 %A. Oppelt, R. Graumann, H. Barfuss, H. Fischer, W. Hertl and W. Schajor. FISP: A new fast MRI sequence. Electromedica, 3: 15, 1986.
 
 M0 = 1;
@@ -224,19 +229,13 @@ r=sqrt((1-E2.^2)./ ...
 
 Sfisp=M0*(sin(FA)/(1+cos(FA)))*(1-(E1-cos(FA)).*r);
 
-% DOI: 10.1016/0022-2364(89)90083-8
+% DOI: 10.1016/0022-2364(89)90083-8: infite series skipping
 % https://labs.dgsom.ucla.edu/file/134807/M229_Lecture2_PulseSeqGRE.pdf
 % p=1-E1*cos(flip)-(E2.^2).*(E1-cos(flip));
 % q=E2.*(1-E1)*(1+cos(flip));
 
-%dutycycle factor: integral of T2* exponential from TE to TR*DutyCycleDutyCycle
-%  dc_fac=T2star*(exp(-TE/T2star)-exp(-(TE+TR*DutyCycle)/T2star));
-  dc_fac=T2*(exp(-TE/T2)-exp(-(TE+TR*DutyCycle)/T2));
- dc_fac=dc_fac./(TR); %normalization
-%  Sfisp=Sfisp*dc_fac;
-
-%phase evolution: not relavant for SNR
-Sfisp=Sfisp.*exp(-1i*2*pi*freqOffset*TE);
+%phase evolution and T2 decay
+Sfisp=Sfisp.*exp(-1i*2*pi*freqOffset*TE).*exp(-TE./T2);
 
 end
 
