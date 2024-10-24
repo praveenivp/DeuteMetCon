@@ -1,9 +1,15 @@
 %% input files
-sn='/ptmp/pvalsala/deuterium/20240813_spectral';
-pn='/ptmp/pvalsala/deuterium/20240813_spectral/proc/SNR';
-dirst_csi=dir(fullfile(sn,"*rpcsi*.dat"));
+MeasPath='/ptmp/pvalsala/deuterium/20241021_phantomtest';
+sn=fullfile(MeasPath,'TWIX');
 
+dirst_csi=dir(fullfile(sn,"*rpcsi_fid*.dat"));
+dirst_csi=dirst_csi(2);
+dirst_csi_ssfp=dir(fullfile(sn,"*rpcsi_ssfp*.dat"));
+% dirst_csi_ssfp(2:3);
 dirst_me=dir(fullfile(sn,"*pvrh_trufi_5E_*.dat"));
+dirst_me=dirst_me(2);
+
+pn=fullfile(MeasPath,sprintf('proc/csi_GRE_%s',datetime('today','Format','yyyyMMMdd')));
 
 
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
@@ -14,19 +20,18 @@ addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 metabolites=getMetaboliteStruct('phantom');
 
 %% process noise anf get fieldmap
-fn_noise=dir(fullfile(sn,"*Noise*.dat"));
+fn_noise=dir(fullfile(sn,"*oise*.dat"));
 twix_noise=mapVBVD(fullfile(sn,fn_noise(1).name),'rmos');
 [D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix_noise);
 
-fn_fm=(fullfile(sn,dirst_me(1).name));
 ME_setting={'NoiseDecorr',D_image,'mask',[],'metabolites',metabolites,...
-            'doPhaseCorr',false,'doZeropad',[1 1 1]*0.5,'parfor',true};
-mcobj_ideal=MetCon_bSSFP(fn_fm,'Solver','IDEAL',ME_setting{:},'mask',80);
-fm_meas_Hz=mcobj_ideal.Experimental.fm_est*(-2*pi)/(6.536 /42.567);
-%% final setttings
+            'doPhaseCorr',false,'doZeropad',[1 1 1]*0.5,'parfor',true,'fm','IDEAL','Solver','pinv'};
+
 CSI_setting={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
-    'doCoilCombine','adapt1','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','AMARES'};
-ME_setting=[ME_setting,{'fm',fm_meas_Hz,'Solver','pinv'}];
+    'doCoilCombine','adapt1','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','IDEAL','fm',[]};
+
+CSI_setting_ssfp={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
+    'doCoilCombine','adapt1','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','pinv','fm','IDEAL'};
 
 
 %% process all CSI
@@ -35,7 +40,12 @@ for cf=1:length(dirst_csi)
        fn=fullfile(sn,dirst_csi(cf).name);
     mcobj_csi{cf}=MetCon_CSI(fn,CSI_setting{:});
 end
-%% process all ME data
+mcobj_csi_ssfp=cell(length(dirst_csi_ssfp),1);
+for cf=1:length(dirst_csi_ssfp)
+       fn=fullfile(sn,dirst_csi_ssfp(cf).name);
+    mcobj_csi_ssfp{cf}=MetCon_CSI(fn,CSI_setting_ssfp{:});
+end
+% process all ME data
 mcobj_me=cell(length(dirst_me),1);
 for cf=1:length(dirst_me)
        fn=fullfile(sn,dirst_me(cf).name);
@@ -43,50 +53,51 @@ for cf=1:length(dirst_me)
 end
 %  mcobj_me{1}.PlotResults
 %% reslicing and registration
-%   cellfun(@(x) x.WriteImages,mcobj_csi,'UniformOutput',false)
-%   cellfun(@(x) x.WriteImages,mcobj_me,'UniformOutput',false)
-dirst_nii=dir(fullfile(pwd,"Metcon*.nii"));
+mcobj_all=[mcobj_csi,mcobj_csi_ssfp,mcobj_me];
+cellfun(@(x) x.WriteImages(),mcobj_all,'UniformOutput',false)
+dirst_nii=dir(fullfile(pwd,"Metcon_SNR*.nii"));
 resliced_vol=myspm_reslice(dirst_nii(1).name,dirst_nii,'linear','r');
 [realigned_vol]=realign_vol(resliced_vol);
 
 im_sf=3;
 realigned_vol3=NDimscale(realigned_vol,im_sf);
-vox_vol=[cellfun(@(x)prod(x.DMIPara.resolution_PSF(1:3)*1e2),mcobj_me(1:2),'UniformOutput',true);...
-cellfun(@(x)prod(x.DMIPara.resolution_PSF(1:3)*1e2),mcobj_csi(1:5),'UniformOutput',true)];
-
-AllDescription=cellfun(@(obj) getDescription(obj),[mcobj_me(1:2);mcobj_csi(1:5)],'UniformOutput',false);
+vox_vol=cellfun(@(x)prod(x.DMIPara.resolution_PSF(1:3)*1e2),mcobj_all,'UniformOutput',true);
+%%
+AllDescription=cellfun(@(obj) getDescription(obj),mcobj_all,'UniformOutput',false);
 %mask 
-% imMask=CreateMask(squeeze(realigned_vol3(:,slcSel,:,1,1)));
+% figure
+% imMask=CreateMask(squeeze(realigned_vol3(:,:,slcSel,1,1)));
 
- save('processced_data.mat','dirst*','CSI_setting','ME_setting','mcobj_me','mcobj_csi','slcSel','tubes','realigned_vol3','vox_vol','imMask','AllDescription','-v7.3')
+%  save('processced_data.mat','dirst*','CSI_setting','ME_setting','mcobj_me','mcobj_csi','slcSel','tubes','realigned_vol3','vox_vol','imMask','AllDescription','-v7.3')
 
 %% get ROIs
+slcSel=28*im_sf;
 getRotm= @(theta)[cosd(theta) sind(theta); -sind(theta) cosd(theta)];
-tubes={[49,63],[105,33]}; %diagonally opposite 9 thtube and 
+tubes={[45,114],[111,42]}; %diagonally opposite 9 thtube and 
 center=0.5*(tubes{1}+tubes{2});
 figure,
-imagesc(squeeze(realigned_vol3(:,slcSel,:,1,1))),hold on, axis image
+imagesc(squeeze(realigned_vol3(:,:,slcSel,1,1))),hold on, axis image
 for i=1:9
 mask=zeros(size(realigned_vol3,1),size(realigned_vol3,3),'logical');
 
 ROIs{i}=round(getRotm(36*(i-1))*(tubes{1}-center)'+center');
 mask(ROIs{i}(1),ROIs{i}(2))=true;
-mask=imdilate(mask,strel('sphere',round(1.3*im_sf)));
+mask=imdilate(mask,strel('sphere',round(1.5*im_sf)));
 contour(mask,1,'color','red','linewidth',2)
 end
 
 %% plotting
-figure(34),clf
-tt=tiledlayout(4,2);
+figure(35),clf
+tt=tiledlayout(4,2,'TileSpacing','compact','Padding','compact');
 
 
 
-slcSel=32*im_sf;
+PlotSel=1:length(mcobj_all);    
 stat_mean=zeros(size(realigned_vol,4),size(realigned_vol,5));
 for ii=1:size(realigned_vol,4)
     nexttile()
     realigned_vol4=realigned_vol3./reshape(vox_vol./vox_vol(1),1,1,1,1,[]);
-im_plot=reshape(realigned_vol4(:,slcSel,:,ii,:),size(realigned_vol4,1),[]);
+im_plot=reshape(realigned_vol4(:,:,slcSel,ii,:),size(realigned_vol4,1),[]);
 
 %black sorounding
 mask=reshape(repmat(imMask(:,:),[1 1 1 size(realigned_vol4,5) ]),size(realigned_vol4,1),[]);
@@ -109,25 +120,51 @@ cMask(ROIs{picked(ii)}(1),ROIs{picked(ii)}(2))=true;
 
 
 cMask=imdilate(cMask,strel('sphere',round(2*im_sf)));
-cMet=reshape(realigned_vol4(:,slcSel,:,ii,:),numel(cMask),[]);
+cMet=reshape(realigned_vol4(:,:,slcSel,ii,:),numel(cMask),[]);
 cMet=cMet(cMask,:);
-stat_mean(ii,:)=mean(cMet,1);
+% stat_mean(ii,:)=mean(cMet,1);
+  stat_mean(ii,:)=median(cMet,1);
+ stat_std(ii,:)=std(cMet,[],1);
 
-cMask=repmat(cMask,[1 size(realigned_vol3,5)]);
+cMask=repmat(cMask,[1 size(realigned_vol4,5)]);
   contour(cMask,1,'color','red','linewidth',0.1)
 
 yticks([]),xticks(round((0.5:1:(0.5+size(realigned_vol3,5)))*size(realigned_vol3,3)))
-xticklabels([1:7])
+ xticklabels([1:3])
 
 end
 nexttile(5,[2 2])
-bar(stat_mean')
+hb=bar(stat_mean');
+%
+hold on;
+for k = 1:size(stat_mean,1)
+    % get x positions per group
+    xpos = hb(k).XData + hb(k).XOffset;
+    % draw errorbar
+    errorbar(xpos, stat_mean(k,:), stat_std(k,:), 'LineStyle', 'none', ... 
+        'Color', 'k', 'LineWidth', 1);
+end
+ylabel('SNR')
 legend({metabolites.name})
-grid on
-xticklabels(AllDescription)
+grid minor
+xticklabels(AllDescription(PlotSel))
+fontsize(gcf,'scale',1.5);
+    set(gcf,'Color','w','Position',[397 64 1154 943])
 
+%% plot signal levels
+p1=squeeze(mcobj_me {1}.img(1,24,32,27,1,:))';
+p2=squeeze(mcobj_csi_ssfp{1}.img(1,25,10,26,1,:))';
 
+vol_fac=(vox_vol(3)/vox_vol(2));
+dc_fac=sqrt(mcobj_me{1}.DMIPara.DutyCycle./mcobj_csi_ssfp{1}.DMIPara.DutyCycle);
+acq_fac=sqrt((10/(5*18))/(10/(64*4)));
 
+me_amp_fac= (1/vol_fac).*dc_fac.*acq_fac;
+
+figure(9),clf,hold on
+plot(mcobj_me{1}.DMIPara.PC_deg,abs(p1(:)),'-*')
+plot(mcobj_csi_ssfp{1}.DMIPara.PC_deg,me_amp_fac.*abs(p2(:)),'-*')
+legend('ME','CSI')
 %%
 
 
@@ -167,11 +204,11 @@ function DesStr=getDescription(mcobj)
     seqType=[seqType,'bSSFP'];
     isbSSFP=true;
   else
-    seqType=[seqType,'GRE'];
+    seqType=[seqType,'FISP'];
     isbSSFP=false;
   end
 
-DesStr=sprintf('%s|%s|%s|TR %.0fms',seqType,mcobj.flags.doCoilCombine,mcobj.flags.Solver,mcobj.DMIPara.TR*1e3);
+DesStr=sprintf('%s|TR %.0fms',seqType,mcobj.DMIPara.TR*1e3);
 
 if(isbSSFP)
     DesStr=[DesStr,sprintf('|%d PC',length(mcobj.DMIPara.PC_deg))];
