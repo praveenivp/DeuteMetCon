@@ -36,7 +36,7 @@ for fidx=1:length(dirst_nii)
 
 
     curr_orient=printOrientation(rotm);
-    if(empty(orientation_desired)||~exist('orientation_desired','var'))
+    if(isempty(orientation_desired)||~exist('orientation_desired','var'))
         orientation_desired=curr_orient;
     else
         fprintf('Converting %s to %s orientation \n',curr_orient,orientation_desired);

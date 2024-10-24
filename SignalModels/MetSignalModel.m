@@ -38,38 +38,34 @@ for cMb=1:length(Metabolites)
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_profile_Ganter2(FA(cFA),T1,T2,TE(cTE),TR(cTR),PhaseCyles(cPC),phaseOffset);
                             % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
-                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
                             dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
                         case 'bSSFP2'
                             phaseOffset=Freq2Phase(freqOffset,TR(cTR));
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_profile_Ganter3(FA(cFA),T1,T2,TE(cTE),TR(cTR),PhaseCyles(cPC),phaseOffset);
                             % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
-                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
                             dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
-                        case 'GRE'
-                            T2star=Metabolites(cMb).T2star_s;
-                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
-                                GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
-                        case 'FISP'
+                        case {'FISP','SSFP-FID'}
                             T2star=Metabolites(cMb).T2star_s;
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 FISP(FA(cFA),T1,T2,T2star,TE(cTE),TR(cTR),freqOffset,cDutyCycle);
                             % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
-                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
                             dc_fac(cMb,cTR)=dcf./(TR(cTR)); %normalization
                         case 'bSSFP-peters'
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR));
                             % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from 0 to TR*DC                         
-                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2));
+                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
                             dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
-                        case 'GRE-peters'
+                        case {'GRE','FLASH','GRE-peters'}
                             T2star=Metabolites(cMb).T2star_s;
-                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA),dc_fac(cTE,cTR)]=...
-                                GRESignal_peters(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
+                            [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
+                                GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);
                             % % %dutycycle factor: integral of T2* exponential from TE to TR*DutyCycle
-                            dcf=T2star*(exp(-min(TE)/T2star)-exp(-(min(TE)+TR(cTR)*DutyCycle)/T2star));
+                            dcf=T2star*(exp(-min(TE)/T2star)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2star));
                             dc_fac(cMb,cTR)=dcf./(TR(cTR)); %normalization
                         otherwise
                             error('unknown mode: {''bSSFP'',''GRE'',''bSSFP-peters'',''GRE-peters'',''FISP''}')
@@ -189,19 +185,7 @@ bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
 end
 
 
-function Sflash=GRESignal(FA,T1,T2star,TE,TR,freqOffset)
-%     sig=GREsignalmodel(flip,T1,T2star,TE,TR,freqOffset)
-
-M0    = 1;
-E1    = exp(-TR./T1);
-% https://mriquestions.com/spoiled-gre-parameters.html
-Sflash=M0*sin(FA)*(1-E1)*exp(-TE/T2star);
-Sflash=Sflash./(1-cos(FA)*E1);
-Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
-
-end
-
-function [Sflash]=GRESignal_peters(FA,T1,T2star,TE,TR,freqOffset)
+function [Sflash]=GRESignal(FA,T1,T2star,TE,TR,freqOffset)
 %     sig=GREsignalmodel(flip,T1,T2star,TE,TR,freqOffset)
 
 M0    = 1;

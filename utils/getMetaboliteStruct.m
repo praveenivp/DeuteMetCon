@@ -22,6 +22,7 @@ switch(DataSelect)
         T2=[272.75,52.09,114.31,245.17]*1e-3; %s
         %CSI dataset='20240813_spectral/meas_MID00857_FID14528_rpcsi_fid_Stan_res15_6_optimal.dat'; see plotT2star.m
         freq_shift=[-3.4080 -63.5005 -150.2146 -205.1276]; % Hz
+        freq_shift=[+0.5697 -70.2368 -154.065 -213.966]; % Hz
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T2Star=[77.9295   18.8752   14.0095   15.9714]*1e-3; % s
     case 'invivo1'

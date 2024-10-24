@@ -384,13 +384,24 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         end
        function getFieldmap(obj)
-            if(strcmpi(obj.FieldMap,'IDEAL') && ~any(strcmpi(obj.flags.Solver,{'IDEAL','IDEAL-modes'})))
+           if(strcmpi(obj.FieldMap,'IDEAL') && ~any(strcmpi(obj.flags.Solver,{'IDEAL','IDEAL-modes'}) ))
                  %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6))./sqrt(size(obj.img,6)); % sum phase cycles to get FISP contrast
                 IdealObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',[],'solver','IDEAL', ...
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
                 Metcon_temp=IdealObj'*im_me;
                 obj.FieldMap=IdealObj.experimental.fm_est*(-2*pi)/(6.536 /42.567);
+            elseif(isfile(obj.FieldMap))
+                %field map should be 1H fielmap in rad/s
+                assert(exist('spm','file'),'Need spm for registering the field map\n');
+                if(isunix)
+                    im_space=obj.WriteImages('/tmp/im.nii',{'image'});
+                else
+                     im_space=obj.WriteImages(fullfile(getenv('temp'),'im.nii'),{'image'});
+                end
+                obj.Experimental.fm_file=obj.FieldMap;
+                obj.FieldMap=myspm_reslice(im_space,obj.Experimental.fm_file, 'linear','r');    
+
             elseif(strcmpi(obj.FieldMap,'IDEAL'))
                 obj.FieldMap=[];
             end
@@ -576,9 +587,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 fprintf('Calculating bSSFP profile basis\n');
                 Msig_all=MetSignalModel(obj.metabolites,obj.DMIPara.TE,obj.DMIPara.PhaseCycles,obj.DMIPara.TR,B0,FA,'bSSFP');
                 fprintf('done.....\n');
+
+                nMet=length(obj.metabolites);
                 if(obj.flags.parfor)
                     parfor i=1:size(im1,1)
-                        A= reshape(Msig_all(:,:,:,1,i,1),length(obj.metabolites),length(PCSel)*length(EchoSel)).';
+                        A= reshape(Msig_all(:,:,:,1,i,1),nMet,length(PCSel)*length(EchoSel)).';
                         b=[ im1(i,:)];
                         metabol_con(i,:)=A\b(:);
                         resi(i,:)=b(:) -A*metabol_con(i,:).';
@@ -592,7 +605,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                         %                   [Msig_all]=bSSFP_sim_analytical(met_struct,TE,PC,TR,B0(i),FA);
                         %                   A= reshape(Msig_all,length(met_struct),length(PCSel)*length(EchoSel)).';
 
-                        A= reshape(Msig_all(:,:,:,1,i,1),length(obj.metabolites),length(PCSel)*length(EchoSel)).';
+                        A= reshape(Msig_all(:,:,:,1,i,1),nMet,length(PCSel)*length(EchoSel)).';
                         b=[ im1(i,:)];
                         metabol_con(i,:)=A\b(:);
                         resi(i,:)=b(:) -A*metabol_con(i,:).';
@@ -673,7 +686,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             title(sprintf('Fit results of the voxel at (%d,%d,%d)',pxl_idx))
         end
 
-        function niiFileName=WriteImages(obj,niiFileName,Select)
+        function niiFileName=WriteImages(obj,niiFileName,Select,norm_mat)
             %average echo and phase cycling dimension and write nifti
             if(nargin==1 || isempty(niiFileName))
                 fPath=pwd;
@@ -686,9 +699,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             else
                 [fPath,~]=fileparts(niiFileName);
             end
-            if(nargin<2)
-            Select={'image','snr','mM'};
-            end
+            if(~exist("Select",'var')),Select={'image','SNR','mM'};end            
+            if(~exist("norm_mat",'var')),norm_mat=[];end
+
             if(any(strcmpi(Select,'image')))
             vol_PRS=squeeze(sos(flip(obj.img,3),[5 6])); % 9.4T specific
             description='averaged image across echo and phase cycle';
@@ -702,7 +715,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
             if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mM')))
                 fn=sprintf('Metcon_mM_m%05d_%s_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver,obj.flags.doPhaseCorr);
-                vol_PRS=flip(obj.getmM,2); %9.4T specific
+                vol_PRS=flip(obj.getmM(norm_mat),2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_CSI(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn),description,0*[1 2 4]*8.3);
             end
@@ -839,12 +852,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %Actual reference voltage is between 500 and 550 not 447 V
             FA_rad=obj.DMIPara.FlipAngle*obj.DMIPara.pulseCorrectionFactor;
 
-            if(exist('norm_mat','var'))
+            if(exist('norm_mat','var')&&~isempty(norm_mat))
             assert(isequal(size(norm_mat),[size(obj.Metcon,1),size(obj.Metcon,2),size(obj.Metcon,3)]),...
                 'Size of input norm_mat doesn''t match the obj.MetCon size');
             assert(isreal(norm_mat),'input norm_mat should not be complex');
             else
-                norm_mat=1./smooth3(abs(obj.Metcon(:,:,:,1)));
+                mc=obj.getNormalized;
+                norm_mat=1./smooth3(abs(mc(:,:,:,1)));
             end
 
             if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
@@ -861,7 +875,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             % 1.33 Glx label loss in TCA cycle De Feyter et al 2018
             Average_deuterons=[1;2;1.33;2];
             scale_fac=10.12*Sig_theory./Average_deuterons(1:length(obj.metabolites)); % mM
-            metcon_w=abs(obj.Metcon).*norm_mat;
+            metcon_w=abs(obj.getNormalized).*norm_mat;
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
 %           as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])            
             % all higher values are probably noise

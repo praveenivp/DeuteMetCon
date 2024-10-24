@@ -86,7 +86,7 @@ FOV_e3=linspace(-FOV(3)/2,FOV(3)/2-FOV(3)/size(PSF_E3,1),size(PSF_E3,1));
 %%%%%%%%%%%%%%%%%%%%%%% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if(~exist('plotOff','var')), plotOff=true; end
 if(plotOff)
-    figure(14),clf
+    figure()%(14),hold on
     subplot(2,4,1),
     plot(kaxis_e1,W(:,kCenter(2),kCenter(3)))
     xlabel('normalized kspace'),title('Acquisition weighting: E1')

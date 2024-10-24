@@ -342,6 +342,17 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
                 Metcon_temp=IdealObj'*im_me;
                 obj.FieldMap=IdealObj.experimental.fm_est*(-2*pi)/(6.536 /42.567);
+            elseif(isfile(obj.FieldMap))
+                %field map should be 1H fielmap in rad/s
+                assert(exist('spm','file'),'Need spm for registering the field map\n');
+                if(isunix)
+                    im_space=obj.WriteImages('/tmp/im.nii',{'image'});
+                else
+                     im_space=obj.WriteImages(fullfile(getenv('temp'),'im.nii'),{'image'});
+                end
+                obj.Experimental.fm_file=obj.FieldMap;
+                obj.FieldMap=myspm_reslice(im_space,obj.Experimental.fm_file, 'linear','r');    
+
             elseif(strcmpi(obj.FieldMap,'IDEAL'))
                 obj.FieldMap=[];
             end
@@ -571,7 +582,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
 
         end
      
-        function niiFileName=WriteImages(obj,niiFileName,Select)
+        function niiFileName=WriteImages(obj,niiFileName,Select,norm_mat)
 
             % write nifti files of avaearged ME-images, Metabolite
             % amplitudes in SNR units and metabolite concentrations in mM
@@ -587,23 +598,23 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             else
                 [fPath,~]=fileparts(niiFileName);
             end
-            if(nargin<2)
-                Select={'image','snr','mm'};
-            end
+            if(~exist("Select",'var')),Select={'image','SNR','mM'};end            
+            if(~exist("norm_mat",'var')),norm_mat=[];end
+
             if(any(strcmpi(Select,'image')))
             vol_PRS=single(squeeze(sos(flip(obj.img,3),[5 6]))); % 9.4T specific read flip
             description='averaged image across echo and phase cycle';
             MyNIFTIWrite_bSSFP2(vol_PRS,obj.twix,niiFileName,description);
             end
-            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'snr')))
+            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'SNR')))
                 fn2=sprintf('Metcon_SNR_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
                 vol_PRS=single(abs(flip(obj.getNormalized,2))); %9.4T specific read flip
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
                 MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn2),description);
             end
-            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mm')))
+            if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mM')))
                 fn3=sprintf('Metcon_mM_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
-                vol_PRS=flip(obj.getmM,2); %9.4T specific
+                vol_PRS=flip(obj.getmM(norm_mat),2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s',obj.metabolites.name);
                 MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn3),description);
             end
@@ -734,12 +745,13 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             %Actual reference voltage is higher than set refvoltage (500-550 V) 
             FA_rad=obj.DMIPara.FlipAngle*(obj.DMIPara.pulseCorrectionFactor);
 
-            if(exist('norm_mat','var'))
+            if(exist('norm_mat','var')&&~isempty(norm_mat))
             assert(isequal(size(norm_mat),[size(obj.Metcon,1),size(obj.Metcon,2),size(obj.Metcon,3)]),...
                 'Size of input norm_mat doesn''t match the obj.MetCon size');
             assert(isreal(norm_mat),'input norm_mat should not be complex');
             else
-                norm_mat=1./smooth3(abs(obj.Metcon(:,:,:,1)));
+                mc=obj.getNormalized;
+                norm_mat=1./smooth3(abs(mc(:,:,:,1)));
             end
             
 
@@ -757,7 +769,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             % 1.33 Glx label loss in TCA cycle De Feyter et al 2018
             Average_deuterons=[1;2;1.33;2];
             scale_fac=10.12*Sig_theory./Average_deuterons(1:length(obj.metabolites)); % mM
-            metcon_w=abs(obj.Metcon).*norm_mat;
+            metcon_w=abs(obj.getNormalized).*norm_mat;
             Metcon_mM=metcon_w.*permute(scale_fac(:),[2 3 4 1]);
 %             as(Metcon_mM,'select',':,:,25,3','windowing',[1.5 3])
             % all higher values are probably noise
