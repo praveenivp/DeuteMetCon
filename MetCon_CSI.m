@@ -91,7 +91,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     addParameter(p,'NormNoiseData',false,@(x) islogical(x));
 
                     addParameter(p,'CoilSel',1:obj.twix.image.NCha, @(x) isvector(x));
-                    addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=1:obj.twix.image.NRep)) );
+                    addParameter(p,'PCSel',1:obj.twix.image.NRep, @(x) (isvector(x)&& all(x<=obj.twix.image.NRep)) );
                     addParameter(p,'EchoSel',1:obj.twix.hdr.MeasYaps.sSpecPara.lVectorSize, @(x) (isvector(x)&& all(x<=obj.twix.hdr.MeasYaps.sSpecPara.lVectorSize)) );
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     addParameter(p,'doPhaseCorr','none',@(x) any(strcmp(x,{'none','Manual','Burg'})));
@@ -207,7 +207,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
         end
 
         function getSig(obj)
-            obj.sig = obj.twix.image(obj.flags.EchoSel,obj.flags.CoilSel,:,:,:,:,:,:,:,:,:,:,:,:,:);
+            obj.sig = obj.twix.image(:,obj.flags.CoilSel,:,:,:,:,:,:,:,:,:,:,:,:,:);
             % scale factor for SNR units reco : step 1
             obj.sig=obj.sig./(sqrt(sum(abs(obj.sig(:))>0)));
 
@@ -411,8 +411,17 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             freq=[obj.metabolites.freq_shift_Hz];
             
             nMet=length(freq);
+
+            EchoSel=obj.flags.EchoSel;
+            PCSel=obj.flags.PCSel;
+            PC=obj.DMIPara.PhaseCycles(PCSel);
+            TE=obj.DMIPara.TE(EchoSel);
+            ImSliced=obj.img(:,:,:,:,EchoSel,PCSel);
+
+            %don't use EchoSel for 'AMARES' and 'Lorentzfit'
+
             if(strcmpi(obj.flags.Solver,'AMARES'))
-                fids=MetCon_CSI.mat2col(permute(mean(obj.img,6),[2 3 4 5 1]),obj.mask);
+                fids=MetCon_CSI.mat2col(permute(mean(ImSliced,6),[2 3 4 5 1]),obj.mask);
                 fprintf('Performing AMARES fitting on %d voxels\n', size(fids,1));
 
                 if(sum(obj.FieldMap,'all')==0 || isempty(obj.FieldMap))
@@ -512,27 +521,27 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.gamma=MetCon_CSI.col2mat(gamma,obj.mask);
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL'))
-                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver',obj.flags.Solver, ...
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
-                obj.Metcon=obj.SolverObj'*squeeze(sum(obj.img,6)./sqrt(size(obj.img,6))); % preserves SNR scanling
+                obj.Metcon=obj.SolverObj'*squeeze(sum(ImSliced,6)./sqrt(size(ImSliced,6))); % preserves SNR scaling
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(obj.SolverObj.experimental.residue.^2,[4 5]); %squared sum of residual
                 obj.SolverObj.experimental=[];
 
             elseif(strcmpi(obj.flags.Solver,'IDEAL-modes'))
-                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver','IDEAL', ...
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
 
-                Np=round((length(obj.DMIPara.PhaseCycles)-1)/2);
+                Np=round((length(PC)-1)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
-                Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
+                Fn=calc_Fn2(squeeze(im_s    ),PC,Np);
                 %sqrt(Np*2+1) scaling for SNR units
                 Fn=Fn.*sqrt(Np*2+1);
 
                 %estimate fieldmap from F0
-                im_me=Fn(:,:,:,:,Np+1); % F0
-                obj.Metcon=obj.SolverObj'*im_me;
+                im_Fn=Fn(:,:,:,:,Np+1); % F0
+                obj.Metcon=obj.SolverObj'*im_Fn;
                 fm_ideal=obj.SolverObj.experimental.fm_est*(-2*pi)/(6.536 /42.567); % scaled to 1H field map in rad/s
 
 
@@ -565,18 +574,16 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.Rsq_adj=1-(1-obj.Experimental.Rsq)*((prod(size(Fn,4:6))-1)./(prod(size(Fn,4:6))+length(obj.metabolites)-1));
                 obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'phaseonly'))
-                obj.SolverObj=IDEAL(obj.metabolites,obj.DMIPara.TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
-                obj.Metcon=obj.SolverObj'*squeeze(mean(obj.img,6));
+                obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver',obj.flags.Solver,'maxit',10,'mask',obj.mask,'parfor',obj.flags.parfor);
+                obj.Metcon=obj.SolverObj'*squeeze(sum(ImSliced,6)./sqrt(size(ImSliced,6))); % preserves SNR scaling
                 obj.Experimental.residue=sum((obj.SolverObj.experimental.residue).^2,[4 5]); %Squared norm of residual
                 obj.SolverObj.experimental=[];
             elseif((strcmpi(obj.flags.Solver,'pinv')))
-                EchoSel=1:size(obj.img,5);
-                PCSel=1:size(obj.img,6);
                 FA=obj.DMIPara.FlipAngle*obj.DMIPara.pulseCorrectionFactor; %rad
                 tic;
                 if(isempty(obj.FieldMap)),obj.FieldMap=zeros(size(obj.mask));end
                 B0=obj.FieldMap(obj.mask)./(2*pi)*(6.536 /42.567);%+1e6*(Spectroscopy_para.PVM_FrqWork(1)- ExpPara.PVM_FrqWork(1)); %Hz
-                im1=reshape(obj.img(:,:,:,:,EchoSel,PCSel),[],length(EchoSel)*length(PCSel));
+                im1=reshape(ImSliced,[],length(EchoSel)*length(PCSel));
                 im1=im1(obj.mask(:),:);
                 %         [Msig_all]=bSSFP_sim_analytical(metabolites,TE(EchoSel),PC(PhSel),TR,zeros(size(B0)),FA);
 
@@ -585,7 +592,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 condnm=zeros(size(im1,1),1);
                 sclfac=zeros(size(im1,1),length(obj.metabolites));
                 fprintf('Calculating bSSFP profile basis\n');
-                Msig_all=MetSignalModel(obj.metabolites,obj.DMIPara.TE,obj.DMIPara.PhaseCycles,obj.DMIPara.TR,B0,FA,'bSSFP');
+                Msig_all=MetSignalModel(obj.metabolites,TE,PC,obj.DMIPara.TR,B0,FA,'bSSFP');
                 fprintf('done.....\n');
 
                 nMet=length(obj.metabolites);
