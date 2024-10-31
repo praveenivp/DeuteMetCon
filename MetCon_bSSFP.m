@@ -437,7 +437,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
 
-                Np=floor((length(obj.DMIPara.PhaseCycles))/2);
+                Np=floor((length(obj.DMIPara.PhaseCycles)-1)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);

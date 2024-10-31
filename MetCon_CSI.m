@@ -384,6 +384,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
         end
        function getFieldmap(obj)
+           if(isnumeric(obj.FieldMap)||isempty(obj.FieldMap))
+            return;
+           end
            if(strcmpi(obj.FieldMap,'IDEAL') && ~any(strcmpi(obj.flags.Solver,{'IDEAL','IDEAL-modes'}) ))
                  %                 fm_meas_Hz=obj.FieldMap./(2*pi)*(6.536 /42.567); % 2H field map in Hz
                 im_me=squeeze(sum(obj.img,6))./sqrt(size(obj.img,6)); % sum phase cycles to get FISP contrast
@@ -532,10 +535,10 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
 
-                Np=round((length(PC)-1)/2);
+                Np=floor((length(PC)-1)/2);
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
-                Fn=calc_Fn2(squeeze(im_s    ),PC,Np);
+                Fn=calc_Fn2(squeeze(obj.img),PC,Np);
                 %sqrt(Np*2+1) scaling for SNR units
                 Fn=Fn.*sqrt(Np*2+1);
 
@@ -592,7 +595,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 condnm=zeros(size(im1,1),1);
                 sclfac=zeros(size(im1,1),length(obj.metabolites));
                 fprintf('Calculating bSSFP profile basis\n');
-                Msig_all=MetSignalModel(obj.metabolites,TE,PC,obj.DMIPara.TR,B0,FA,'bSSFP');
+%               Msig_all=MetSignalModel(obj.metabolites,TE,PC,obj.DMIPara.TR,B0,FA,'bSSFP');
+                if(contains(obj.twix.hdr.Config.SequenceFileName,'fid'))
+                    [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,pi,obj.DMIPara.TR,B0,FA,'FISP',obj.DMIPara.DutyCycle);
+                    Msig_all=Msig_all.*dc_fac;
+                else
+                    [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,obj.DMIPara.PhaseCycles,obj.DMIPara.TR,B0,FA,'bSSFP',obj.DMIPara.DutyCycle);
+                    Msig_all=Msig_all.*dc_fac;
+                end
                 fprintf('done.....\n');
 
                 nMet=length(obj.metabolites);

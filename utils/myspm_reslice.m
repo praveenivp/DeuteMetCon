@@ -67,7 +67,8 @@ end
 sz_all=cellfun(@(x1)size(x1), resliced_vol,'UniformOutput',false);
 if(length(sz_all)<2||isequal(sz_all{:}))
    resliced_vol=cat(ndims(resliced_vol{1})+1, resliced_vol{:});
+   resliced_vol(isnan(resliced_vol))=0;
 end
 
-resliced_vol(isnan(resliced_vol))=0;
+
 end
