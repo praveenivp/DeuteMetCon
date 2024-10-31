@@ -56,7 +56,7 @@ for cMb=1:length(Metabolites)
                             dc_fac(cMb,cTR)=dcf./(TR(cTR)); %normalization
                         case 'bSSFP-peters'
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
-                                bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR));
+                                bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR),freqOffset);
                             % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from TE to TR*DC                         
                             dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
                             dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
@@ -161,7 +161,7 @@ bSSFP = M0*bSSFP.*exp(-TE./T2).*exp(complex(0,-1)*(-1*off_resonance)*(TE/TR));
 end
 
 
-function bSSFP=bSSFP_peters(flip,T1,T2,TE, TR)
+function bSSFP=bSSFP_peters(flip,T1,T2,TE, TR,freqOffset)
 % Equation 2 from  DOI: 10.1002/mrm.28906
 
 M0 = 1;
@@ -180,7 +180,7 @@ bSSFP=num./(1- (E1-E2)*cos(flip)-E1*E2);
 % bSSFP=bSSFP*dc_fac;
 
 %phase evolution: not relavant for SNR
-bSSFP=bSSFP.*exp(-1i*2*pi*freqOffset*TE);
+bSSFP=bSSFP.*exp(1i*2*pi*freqOffset*TE);
 end
 
 
@@ -196,7 +196,7 @@ Sflash=Sflash.*exp(-TE/T2star);
 
 
 %phase evolution: not relavant for SNR
-Sflash=Sflash.*exp(-1i*2*pi*freqOffset*TE);
+Sflash=Sflash.*exp(1i*2*pi*freqOffset*TE);
 
 end
 
@@ -218,7 +218,7 @@ Sfisp=M0*(sin(FA)/(1+cos(FA)))*(1-(E1-cos(FA)).*r);
 % q=E2.*(1-E1)*(1+cos(flip));
 
 %phase evolution and T2 decay
-Sfisp=Sfisp.*exp(-1i*2*pi*freqOffset*TE).*exp(-TE./T2);
+Sfisp=Sfisp.*exp(1i*2*pi*freqOffset*TE).*exp(-TE./T2);
 
 end
 
