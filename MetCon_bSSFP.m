@@ -97,6 +97,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     addParameter(p,'is3D',(obj.twix.image.NPar>1),@(x)islogical(x));
                     %                   addParameter(p,'precision','single',@(x) any(strcmp(x,{'single','double'})));
                     addParameter(p,'Solver','pinv',@(x) any(strcmp(x,{'pinv','IDEAL','IDEAL-modes','IDEAL-modes2','phaseonly'})));
+                   addParameter(p, 'PxlShiftPerformed',true,@(x)islogical(x));
                     parse(p,varargin{:});
 
                     obj.flags=p.Results;
@@ -188,6 +189,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             fprintf(sprintf( 'reco  time = %6.1f s\n', toc));
             if(~isempty(obj.metabolites))
                 obj.performMetCon();
+                obj.performPxlShiftCorrection();
             end
             fprintf(sprintf( 'Metabolite mapping time = %6.1f s\n', toc));
 
@@ -352,7 +354,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 end
                 obj.Experimental.fm_file=obj.FieldMap;
                 obj.FieldMap=myspm_reslice(im_space,obj.Experimental.fm_file, 'linear','r');    
-
+                obj.FieldMap=obj.FieldMap(:,:,:,1);
             elseif(strcmpi(obj.FieldMap,'IDEAL'))
                 obj.FieldMap=[];
             end
@@ -515,7 +517,34 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.SolverObj.experimental=[];
 
             end
+            obj.flags.PxlShiftPerformed=false;
 
+        end
+
+        function pxlShift=performPxlShiftCorrection(obj)
+            % correct the pixel shift along read direction due to
+            % off-resonance
+            if(~isempty(obj.Metcon) && ~obj.flags.PxlShiftPerformed )
+            
+            dx=obj.DMIPara.resolution(1); %m
+            Nx=obj.DMIPara.MatrixSize(1);
+            dt=obj.DMIPara.dwell; %s
+            gammaH2=obj.DMIPara.gammaH2*1e6; %Hz/T
+
+            Gread=1/(dt*gammaH2*Nx*dx); %T/m
+            freq=[obj.metabolites.freq_shift_Hz]; % Hz
+            pxlShift=freq./(Gread*gammaH2); %m
+            Metcon_temp=permute(obj.Metcon,[2 1 3 4 5]); % first dim read
+            for cMet=1:length(obj.metabolites)
+               readAxis=linspace(0,dx*(Nx-1),size(Metcon_temp,1));
+               Metcon_temp(:,:,:,cMet)=interp1(readAxis,Metcon_temp(:,:,:,cMet),readAxis(:)+pxlShift(cMet),'linear',0);
+            
+            end
+            obj.Metcon=ipermute(Metcon_temp,[2 1 3 4 5]);
+            fprintf('Performed pixel shift along read: (%.1f,%.1f,%.1f ,%.1f) mm\n',pxlShift*1e3);
+            obj.flags.PxlShiftPerformed=true;
+            end
+            
         end
 
         function plotFit(obj,voxel_idx)
