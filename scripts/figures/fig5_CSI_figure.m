@@ -1,19 +1,20 @@
 %% process and write images
 %% input files
-MeasPath='/ptmp/pvalsala/deuterium/HOSJ-D6P2';
+MeasPath='/ptmp/pvalsala/deuterium/H4DK-64GH';
 sn=fullfile(MeasPath,'TWIX');
 
 dirst_csi=dir(fullfile(sn,"*rpcsi*.dat"));
+dirst_csi=dirst_csi([1 3]);
 % dirst_csi=dirst_csi([1 3 4]);
-pn=fullfile(MeasPath,sprintf('csi_GRE_%s',datetime('today','Format','yyyyMMMdd')));
+pn=fullfile(MeasPath,sprintf('proc/csi_GRE_%s',datetime('today','Format','yyyyMMMdd')));
 mkdir(pn)
-dirst_csi=dirst_csi([1 3 2 4 ]);
+
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
 
-metabolites=getMetaboliteStruct('invivo1');
+metabolites=getMetaboliteStruct('invivo3');
 
 
 % fn_fm='/ptmp/pvalsala/deuterium/DA77-F3UY/dep/fm_MeasUID692.nii';
@@ -22,41 +23,41 @@ metabolites=getMetaboliteStruct('invivo1');
 
 %% final setttings
 CSI_setting={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
-    'doCoilCombine','adapt1','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','IDEAL','fm',[]};
+    'doCoilCombine','adapt1','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','IDEAL','fm','IDEAL'};
 
 
 mcobj_csi=cell(length(dirst_csi),1);
-for cf=2%1:length(dirst_csi)
+for cf=1:length(dirst_csi)
        fn=fullfile(sn,dirst_csi(cf).name);
     mcobj_csi{cf}=MetCon_CSI(fn,CSI_setting{:});
 end
 
 %%
 cd(pn)
-intake_time=cellfun(@(x) x.getMinutesAfterIntake('08:05'),mcobj_csi,'UniformOutput',true);
+intake_time=cellfun(@(x) x.getMinutesAfterIntake('08:36'),mcobj_csi,'UniformOutput',true);
 cellfun(@(x) x.WriteImages,mcobj_csi,'UniformOutput',false);
 %% reslice images to anatomy
 dirst_nii=dir('Metcon_*.nii');
-reslice_all_sag=myspm_reslice('anat_sag.nii',dirst_nii, 'linear','rs');
-reslice_all_tra=myspm_reslice('anat_tra.nii',dirst_nii, 'linear','rt');
+reslice_all_sag=myspm_reslice('../*anat_*sag*.nii',dirst_nii, 'linear','rs');
+reslice_all_tra=myspm_reslice('../*anat_*tra*.nii',dirst_nii, 'linear','rt');
 
 
 %%
 
 
-ylabel_str=strsplit(sprintf('%.0f min\n',intake_time(:)),'\n');
+ylabel_str=strsplit(sprintf('%.0f min\n',intake_time(1:2)),'\n');
 %%
-anat_nii=double(MyNiftiRead("anat_sag.nii",'IPR'));
-[met_snr]=MyNiftiRead('rsMetcon_SNR*IDEAL*.nii','IPR');
-[met_mm]=MyNiftiRead('rsMetcon_mm*IDEAL*.nii','IPR');
+anat_nii=double(MyNiftiRead("../*anat*_sag*.nii",'IPR'));
+[met_snr]=MyNiftiRead('rsMetcon_SNR*.nii','IPR');
+[met_mm]=MyNiftiRead('rsMetcon_mM*.nii','IPR');
 met_mm(:,:,:,1,:)=met_snr(:,:,:,1,:);
 % close all
-figure(11),clf
+figure(19),clf
 tt=tiledlayout(2,6,'TileSpacing','tight','Padding','compact');
 transform=@(x) ndflip(permute(x(1:end,1:end,:,:,:),[1:5]),[]);
 % title_str={'Glx','Glc','D20'};
 title_str={'Water [SNR]','Glc [mM]','Glx [mM]'};
-cax_met={[0 40],[0 3],[0 3]}
+cax_met={[0 80],[0 4],[0 4]}
 
 cb_all={};cax_all={};cnt=1;
 slct=16;
@@ -72,9 +73,9 @@ end
 %
 
 
-anat_nii=double(MyNiftiRead("anat_tra.nii",'PRS'));
-[met_snr]=MyNiftiRead('rtMetcon_SNR*IDEAL*.nii','PRS');
-[met_mm]=MyNiftiRead('rtMetcon_mm*IDEAL*.nii','PRS');
+anat_nii=double(MyNiftiRead("../*anat*_tra*.nii",'PRS'));
+[met_snr]=MyNiftiRead('rtMetcon_SNR*.nii','PRS');
+[met_mm]=MyNiftiRead('rtMetcon_mM*.nii','PRS');
  met_mm(:,:,:,1,:)=met_snr(:,:,:,1,:);
 % transform=@(x) ndflip(permute(x(30:end-20,1:end,:,:,:),[1 2 3 4 5]),[]);
 % title_str={'Glx','Glc','D20'};
