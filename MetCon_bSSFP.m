@@ -443,8 +443,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
-                %sqrt(Np*2+1) scaling for SNR units
-                Fn=Fn.*sqrt(Np*2+1);
+                %sqrt(length(obj.DMIPara.PhaseCycles)) scaling for SNR units
+                Fn=Fn.*sqrt(length(obj.DMIPara.PhaseCycles));
 
                 %estimate fieldmap from F0
                 im_me=Fn(:,:,:,:,Np+1); % F0
@@ -478,7 +478,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 obj.Experimental.Rsq=1-sum(abs(res_all).^2,[4 5 6])./sum(abs(Fn-mean(Fn,[4 5 6])).^2,[4 5 6]);
                 obj.SolverObj.experimental=[];
             elseif(strcmpi(obj.flags.Solver,'IDEAL-modes2'))
-                %we try to fit all modes togther
+                %we try to fit all modes together
 
                 obj.SolverObj=IDEAL(obj.metabolites,TE,'fm',obj.FieldMap,'solver','IDEAL', ...
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',1,'parfor',obj.flags.parfor);
@@ -487,6 +487,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 if(Np>10), Np=10; end % higher order doesn't hold that much signal
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),obj.DMIPara.PhaseCycles,Np);
+                Fn=Fn.*sqrt(length(obj.DMIPara.PhaseCycles)); %SNR scaling
 
                 %estimate fieldmap from F0
                 im_me=Fn(:,:,:,:,Np+1); % F0
@@ -780,7 +781,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             assert(isreal(norm_mat),'input norm_mat should not be complex');
             else
                 mc=obj.getNormalized;
-                norm_mat=1./smooth3(abs(mc(:,:,:,1)));
+                norm_mat=1./imgaussfilt3(abs(mc(:,:,:,1)),2);
             end
             
 

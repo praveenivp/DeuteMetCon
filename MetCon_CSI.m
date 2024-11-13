@@ -540,7 +540,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 %calculate SSFP configuration modes
                 Fn=calc_Fn2(squeeze(obj.img),PC,Np);
                 %sqrt(Np*2+1) scaling for SNR units
-                Fn=Fn.*sqrt(Np*2+1);
+                Fn=Fn.*sqrt(length(PC));
 
                 %estimate fieldmap from F0
                 im_Fn=Fn(:,:,:,:,Np+1); % F0
