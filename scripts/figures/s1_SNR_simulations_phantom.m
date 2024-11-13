@@ -2,15 +2,15 @@
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
-refVoltage=500; % upto 480-520
+refVoltage=480; % upto 480-520
 kFactor=0.83;
 RFfac=447/refVoltage; % Flip angle scale factor
 
-metabolites=getMetaboliteStruct('invivo3');
-nMet=3;
+metabolites=getMetaboliteStruct('phantom');
+nMet=4;
 metabolites=metabolites(1:nMet);
 
-pc_range=linspace(0,360-360/4,4)+180;
+pc_range=linspace(0,360-360/4,18)+180;
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
 FA_all=linspace(10,90,60);
@@ -96,9 +96,9 @@ plotProtbssfp= @ () plot(19,50*RFfac,'r*','MarkerSize',10);
 
 
 fh=figure(3);
-set(fh,'OuterPosition', [72 42 1e3 1e3]),clf
+set(fh,'OuterPosition',[72 42 1414 1057]),clf
 
-tt=tiledlayout(4,nMet*2,"TileSpacing","compact",'Padding','compact');
+tt=tiledlayout(4,nMet*2,"TileSpacing","tight",'Padding','tight');
 
 for i=1:nMet
     % plot GRE signal efficiency
@@ -116,7 +116,7 @@ for i=1:nMet
     ax.XAxis.Direction="normal";
     ax.YAxis.Direction="normal";
     axis square
-    set(gca,'clim',round(get(gca,'clim').*[0 1],1),'FontSize',10)
+    set(gca,'clim',round(get(gca,'clim').*[0 0.9],1),'FontSize',10)
     xlabel('TR [ms]'),ylabel('FA [deg]')
      if(exist("plotProtTR36",'var')),hold on,plotProtTR36(), end %plotProtGre2()
     % legend('800 us','1400 us','2000 us','Location','northwest')
@@ -136,7 +136,7 @@ for i=1:nMet
     ax.XAxis.Direction="normal";
     ax.YAxis.Direction="normal";
     axis square
-   set(gca,'clim',round(get(gca,'clim').*[0 1],1),'FontSize',10)
+   set(gca,'clim',round(get(gca,'clim').*[0 0.9],1),'FontSize',10)
     xlabel('TR [ms]'),ylabel('FA [deg]')
     if(exist("plotProtTR36",'var')),hold on,plotProtTR36(), end %plotProtGre2()
     % legend('800 us','1400 us','2000 us','Location','northwest')
@@ -163,7 +163,7 @@ for i=1:nMet
 
 
 end
-legend('700 us','1400 us','2000 us','Location','southeast')
+legend('500 us','1400 us','2000 us','Location','northeast')
 sgtitle('signal efficiency [1/\surds]','Interpreter','tex','fontsize',24)
 
 ax=nexttile(tt,1);
@@ -213,20 +213,21 @@ sig_prot3=squeeze(abs(sig_all_gre(idxTR,idxFA,1:nMet    )));
 
 
 metnames=reordercats(categorical({metabolites.name}),{metabolites.name});
-nexttile(tt,[1 3])
+nexttile(tt,[1 4])
 barh(metnames,cat(2,sig_prot1,sig_prot2,sig_prot3))
 legend('bSSFP','FISP','FLASH','Location','southeast')
 grid minor
 set(gca,'FontSize',10)
+xlim(get(gca,'xlim')+[0 0.5])
 title('Signal efficiencies for the investigated protocols')
 
-nexttile(tt,[1 3])
+nexttile(tt,[1 4])
 barh(metnames,cat(2,sig_prot1./sig_prot2,sig_prot2./sig_prot3))
 legend('bSSFP/FISP','FISP/FLASH','Location','southeast')
 grid minor
 title('ratio')
 set(gcf,'color','w')
-xlim(get(gca,'xlim')+[1 0.01])
+xlim(get(gca,'xlim')+[1 0.2])
 set(gca,'FontSize',10)
 
 tab=table(sig_prot1,sig_prot2,sig_prot3,sig_prot1./sig_prot2,sig_prot1./sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bSSFP','FISP','gre','bSSFP/FISP','bSSFP/GRE'})

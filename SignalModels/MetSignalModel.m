@@ -26,7 +26,7 @@ for cMb=1:length(Metabolites)
             for cTR=1:length(TR)
                 %if Dutycycle is a fucntion handle
                 if(~isnumeric(DutyCycle))
-                    cDutyCycle=DutyCycle(cTR);  
+                    cDutyCycle=DutyCycle(TR(cTR));  
                 else
                     cDutyCycle=DutyCycle;
                 end
