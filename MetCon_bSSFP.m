@@ -464,14 +464,20 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 end
 
                 %SVD combine  metcon_all
-                [~,S,V]=svd(reshape(Metcon_modes,[],size(Fn,5)),'econ');
                 sz=size(Metcon_modes);
-                Metcon_comb=reshape(reshape(Metcon_modes,[],size(Fn,5))*V,sz(1:5));
-                %pick the first
+                Metcon_comb=zeros(size(Metcon_modes));
+                obj.Experimental.sing_val=cell(length(obj.metabolites),1);
+                obj.Experimental.sing_vec=cell(length(obj.metabolites),1);
+                for cMet=1:length(obj.metabolites)
+                    [~,S,V]=svd(reshape(Metcon_modes(:,:,:,cMet,:),[],size(Fn,5)),'econ');
+                    Metcon_comb(:,:,:,cMet,:)=reshape(reshape(Metcon_modes(:,:,:,cMet,:),[],size(Fn,5))*V,[sz(1:3),1,sz(5)]);
+                    obj.Experimental.sing_val{cMet}=diag(S);
+                    obj.Experimental.sing_vec{cMet}=V(:,1);
+                end
+                %pick the first component
                 obj.Metcon=Metcon_comb(:,:,:,:,1);
-
-                obj.Experimental.Metcon_modes=Metcon_modes;
-                obj.Experimental.sing_val=S;
+                
+                obj.Experimental.Metcon_modes=Metcon_modes;             
                 obj.Experimental.Metcon_modes_svd=Metcon_comb;
                 obj.Experimental.fm_est=obj.SolverObj.experimental.fm_est;
                 obj.Experimental.residue=sum(res_all.^2,[4 5 6]);
