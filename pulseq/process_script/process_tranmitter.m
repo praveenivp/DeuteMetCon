@@ -18,8 +18,8 @@ st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-dirst=dir(fullfile(sn,'allData#S94Tuebingen#F5081#M423#D220124#T103144#pulseq_transmitter.dat'));
-st.filename=dirst(end).name %load last file
+dirst=dir(fullfile(sn,'meas_MID01429_FID00182_pulseq_Transmitter.dat'));
+st.filename=fullfile(dirst(end).folder,dirst(end).name) %load last file
 twix=mapVBVD(st.filename);
 if(iscell(twix)),twix=twix{end}; end
 data=twix.image{''};
@@ -48,3 +48,4 @@ title(sprintf('current/optimal RefVolatge %.1f V/%.1f V',st.RefVoltage,optimal_r
  fontsize(gcf,'scale',1.3)
 
  set(gcf,"Position",[323 325 1516 782])
+ savefig('transmitter')

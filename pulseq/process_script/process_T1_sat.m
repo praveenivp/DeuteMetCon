@@ -3,7 +3,7 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-seq.read('T1_nonsel_2H.seq')
+seq.read('T1_nonsel_FOCI_2H_10min.seq')
 
 st.dwell_s=seq.getDefinition('dwell');
 st.TR_array=seq.getDefinition('TR_array');
