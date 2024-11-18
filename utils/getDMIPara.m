@@ -8,7 +8,54 @@ if(iscell(twix))
     twix=twix{1};
 end
 
+para.gammaH1=42.577478461; % [MHz/T]
+para.gammaH2=6.536 ; % [MHz/T]
 
+para.TR=twix.hdr.Phoenix.alTR{1}*1e-6; %s
+para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
+para.ImagingFrequency_MHz=twix.hdr.Dicom.lFrequency*1e-6; %MHz
+
+    
+% get timings probably only work for VE12U
+para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s
+tok=regexp(twix.hdr.Phoenix.tReferenceImage0,'.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d+$','tokens');
+tok=cellfun(@(x)(str2double(x)),tok,'UniformOutput',false);
+para.StudyDateTime= datetime(tok{1});
+para.SeriesDateTime_start=datetime(tok{1}(1:3)) +seconds(twix.image.timestamp(1)*2.5e-3);
+para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*2.5e-3);
+
+
+%get age and Gender
+switch(twix.hdr.Config.PatientSex)
+    case 1
+        gender='F';
+    case 2
+        gender='M';
+    otherwise
+        gender='U';
+end
+para.PatientAge=year( para.StudyDateTime)-year(datetime(num2str(twix.hdr.Config.PatientBirthDay),'InputFormat','yyyyMMdd'));
+para.Patient=[gender,num2str(para.PatientAge)];
+
+para.SeqDetails=printSeqeunceDetails(twix);
+
+
+
+%resolution
+sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
+kp=twix.hdr.Phoenix.sKSpace;
+try %if slice oversampling!
+    FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution sa.dThickness + sa.dThickness*kp.dSliceOversamplingForDialog]*1e-3; %m
+catch
+    FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution  sa.dThickness]*1e-3; %m
+end
+para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
+para.resolution=FOV./para.MatrixSize; %m
+try
+    para.resolution_PSF=getPSF_CSI(twix,false)*1e-3; %m
+catch
+    para.resolution_PSF=[0,0,0,0];
+end
 
 
 % try to keep all times in s and all angular stuff in rad
@@ -19,7 +66,7 @@ if(~para.isCSI)
     EchoSel=1:twix.hdr.Phoenix.lContrasts;
     % para.PCSel=1:twix.image.NRep;
     para.TE=[twix.hdr.Phoenix.alTE{EchoSel}]*1e-6; %s
-    para.TR=twix.hdr.Phoenix.alTR{1}*1e-6; %s
+    
     try
         Range=twix.hdr.Phoenix.sWipMemBlock.alFree{5};
         NRep=twix.image.NRep;
@@ -38,8 +85,6 @@ if(~para.isCSI)
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
-    para.ImagingFrequency_MHz=twix.hdr.Dicom.lFrequency*1e-6; %MHz
-    para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
     try
         para.pulseVoltage=twix.hdr.Phoenix.sTXSPEC.aRFPULSE{1}.flAmplitude;
         %only work for rect pulse
@@ -51,18 +96,7 @@ if(~para.isCSI)
 
     end
     para.pulseCorrectionFactor=para.RefVoltage/550;
-    para.FlipAngle=para.FlipAngle;
-    para.FrequencySystem=twix.hdr.Dicom.lFrequency;
-
-    % get timings probably only work for VE12U
-    para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s
-    tok=regexp(twix.hdr.Phoenix.tReferenceImage0,'.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d+$','tokens');
-    tok=cellfun(@(x)(str2double(x)),tok,'UniformOutput',false);
-    para.StudyDateTime= datetime(tok{1});
-    para.SeriesDateTime_start=datetime(tok{1}(1:3)) +seconds(twix.image.timestamp(1)*2.5e-3);
-    para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*2.5e-3);
-
-    para.seq_details=printSeqeunceDetails(twix);
+    
 
     %discretisation error(not accurate) for undivisible phasecycle range
     if(para.SeriesDateTime_start<datetime('20-Sep-2024'))
@@ -79,27 +113,12 @@ if(~para.isCSI)
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
     end
 
-    %resolution
-    sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
-    kp=twix.hdr.Phoenix.sKSpace;
-
-    try %if slice oversampling!
-        FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution sa.dThickness + sa.dThickness*kp.dSliceOversamplingForDialog]*1e-3; %m
-    catch
-        FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution  sa.dThickness]*1e-3; %m
-    end
-      
-    para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
-    para.resolution=FOV./para.MatrixSize; %m
-    para.resolution_PSF=getPSF_CSI(twix,false)*1e-3; %m  
     %ADC duty cycle
      para.DutyCycle= (para.MatrixSize(1)*para.dwell*length(para.TE))./para.TR;
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
-else
+else %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% CSI %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-
-    para.ImagingFrequency_MHz=twix.hdr.Dicom.lFrequency*1e-6; %MHz
     para.AcqDelay_s=twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
     % treat all time axis as echo dimension
     EchoSel=1:twix.hdr.Phoenix.sSpecPara.lVectorSize;
@@ -112,13 +131,9 @@ else
         para.dwell=twix.hdr.Phoenix.sRXSPEC.alDwellTime{1}*1e-9; %s
         para.VectorSize   = twix.image.NCol;
     end
-
-
     
     para.Bandwidth    = 1/para.dwell;
     para.FreqAxis=linspace(-0.5*para.Bandwidth ,0.5*para.Bandwidth, para.VectorSize);
-
-    
 
     % para.PCSel=1:twix.image.NRep;
     para.TE=linspace(0,para.dwell*EchoSel(end-1),EchoSel(end)); %s
@@ -140,8 +155,6 @@ else
     para.PhaseCycles=deg2rad(para.PC_deg);
 
     %transmitter
-    para.FlipAngle=deg2rad(twix.hdr.Dicom.adFlipAngleDegree); %rad
-
     %only work for rect pulse
     para.RefVoltage=twix.hdr.Spice.TransmitterReferenceAmplitude;
     para.pulseCorrectionFactor=para.RefVoltage/550;
@@ -157,36 +170,10 @@ else
     %adc duty cycle
     para.DutyCycle=(para.VectorSize*para.dwell)./para.TR;
 
-    % get timings probably only work for VE12U
-    para.acq_duration_s=(twix.image.timestamp(end)-twix.image.timestamp(1))*2.5e-3; %s
-    tok=regexp(twix.hdr.Phoenix.tReferenceImage0,'.(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})\d+$','tokens');
-    tok=cellfun(@(x)(str2double(x)),tok,'UniformOutput',false);
-    para.StudyDateTime= datetime(tok{1});
-    para.SeriesDateTime_start=datetime(tok{1}(1:3)) +seconds(twix.image.timestamp(1)*2.5e-3);
-    para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*2.5e-3);
 
-    para.SeqDetails=printSeqeunceDetails(twix);
-
-        %resolution
-    sa=twix.hdr.Phoenix.sSliceArray.asSlice{1};
-    kp=twix.hdr.Phoenix.sKSpace;
-
-    try %if slice oversampling!
-        FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution sa.dThickness + sa.dThickness*kp.dSliceOversamplingForDialog]*1e-3; %m
-    catch
-        FOV=[sa.dReadoutFOV sa.dPhaseFOV*kp.dPhaseResolution  sa.dThickness]*1e-3; %m
-    end
-
-    para.MatrixSize=[kp.lBaseResolution  kp.lPhaseEncodingLines kp.lPartitions ];
-    para.resolution=FOV./para.MatrixSize; %m
-    para.resolution_PSF=getPSF_CSI(twix,false)*1e-3; %m
     para.ShortDescription=sprintf('M%d|TR %.0f ms| %.0f deg | %.2f mm | %d rep | %d echoes',twix.hdr.Config.MeasUID,para.TR*1e3,rad2deg(para.FlipAngle),para.resolution(1)*1e3,length(para.PhaseCycles),length(para.TE));
 
   
 end
-
-
-para.gammaH1=42.577478461; % [MHz/T]
-para.gammaH2=6.536 ; % [MHz/T]
 
 end

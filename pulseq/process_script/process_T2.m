@@ -1,11 +1,11 @@
 %% load sequence file
 clearvars,clc
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-03';
-metabolites=getMetaboliteStruct('invivo3');
-metabolites(2).freq_shift_Hz=-57; %sub-01-03
-metabolites(3).freq_shift_Hz=-150; %sub-01-03
-% metabolites(3).freq_shift_Hz=-145; %sub-04
-metabolites(4).freq_shift_Hz=-217; %sub-01-03
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+metabolites=getMetaboliteStruct('phantom');
+% metabolites(2).freq_shift_Hz=-57; %sub-01-03
+% metabolites(3).freq_shift_Hz=-150; %sub-01-03
+% % metabolites(3).freq_shift_Hz=-145; %sub-04
+% metabolites(4).freq_shift_Hz=-217; %sub-01-03
 flip=false;
 
 % addpath(genpath('/ptmp/pvalsala/MATLAB'))

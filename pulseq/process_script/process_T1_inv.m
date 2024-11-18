@@ -1,13 +1,16 @@
 %% load sequence file
 clearvars
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-04';
-metabolites=getMetaboliteStruct('invivo3');
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/Phantom_20241021';
+metabolites=getMetaboliteStruct('phantom');
+%   metabolites(3).freq_shift_Hz=-145; %sub-04
+%    metabolites(2).freq_shift_Hz=-55; %sub-03
+
 %last working invivo3 freq:  1.5423  -53.1530 -142.0912 -202.1538
-flip =false; % invert spectrum?
-% addpath(genpath('/ptmp/pvalsala/MATLAB'))
+flip =0; % invert spectrum? S1 1,0
+addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
-
+addpath(genpath('/ptmp/pvalsala/Packages/OXSA'));
 
 %%
 
@@ -19,20 +22,21 @@ seq=mr.Sequence(system);              % Create a new sequence object
 % seq.read(fullfile(sn,'../EXPDATA/pulseq/T1_nonsel_FOCI_2H_10min.seq'))
 seq.read(fullfile(MeasPath,'../pulseq','T1_nonsel_FOCI_2H_10min.seq'))
 
-st.dwell_s=seq.getDefinition('dwell');
+
 st.TI_array=seq.getDefinition('TI_array');
 st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
+rmos_flag={};
 % dirst=dir(fullfile(sn,'*pulseq_T1_invFOCI_10mins*.dat'));
 dirst=dir(fullfile(MeasPath,'*_T1_*.dat'));
 st.filename=dirst(end).name; %load last file
-twix=mapVBVD(fullfile(MeasPath,st.filename));
+twix=mapVBVD(fullfile(MeasPath,st.filename),rmos_flag{:});
 
 % read noise data and calc Noise decorrelation
 dirst_noise=dir(fullfile(MeasPath,'*oise*.dat'));
- twix_noise=mapVBVD(fullfile(dirst_noise(1).folder,dirst_noise(1).name));
+ twix_noise=mapVBVD(fullfile(dirst_noise(1).folder,dirst_noise(1).name),rmos_flag{:});
  if(iscell(twix_noise)), twix_noise=twix_noise{end}; end
  [D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
 
@@ -44,8 +48,8 @@ Spectrum=squeeze(mean(fftshift(fft(data,[],1),1),[2 3]));
 st.Cfreq=twix.hdr.Dicom.lFrequency; %Hz
 st.hdr=twix.hdr;
 st.RefVoltage= twix.hdr.Spice.TransmitterReferenceAmplitude;
-st.VectorSize=512;
-
+st.VectorSize=twix.image.NCol/(1+~isempty(rmos_flag));
+st.dwell_s=seq.getDefinition('dwell')*(1+~isempty(rmos_flag));
 
 faxis=linspace(-0.5/st.dwell_s,0.5/st.dwell_s,length(Spectrum));
 
@@ -106,12 +110,11 @@ end
 [minRelNorm,idx]=min(relNorm);
 st.AcqDelay_s=acq_delay_arr(idx);
 expParams.beginTime=acq_delay_arr(idx);
-
-clear fitResults fitStatus CRBResults
+%%
+ clear fitResults fitStatus CRBResults
 for i=1:size(data_Combined,2)
 [fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
 amp_all(i,:)=[fitResults{i}.amplitude];
-% pause(1)
 end
 
 %  figure, plot(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'))
@@ -120,20 +123,23 @@ end
 med_lw=median(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'),1);
 std_lw=std(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'),[],1);
 
+med_cs=median(cell2mat(cellfun(@(x) x.chemShift,fitResults,'UniformOutput',false)'),1);
+std_cs=std(cell2mat(cellfun(@(x) x.chemShift,fitResults,'UniformOutput',false)'),[],1);
+
 for cMet=1:length(metabolites)
-  pk.bounds(cMet).linewidth=[-1,1]*std_lw(cMet)+med_lw(cMet); 
+  pk.bounds(cMet).linewidth=med_lw(cMet)+[-0.1,0.1]*std_lw(cMet); 
+  pk.bounds(cMet).chemShift=med_cs(cMet)+[-0.1,0.1]*std_cs(cMet); 
 end
 clear fitResults fitStatus CRBResults
+
+%%
+
 for i=1:size(data_Combined,2)
 [fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
 amp_all(i,:)=[fitResults{i}.amplitude];
 % pause(1)
 end
-
-
-
-
-
+%%
 
 % plot overview
 figure(12),clf
@@ -178,7 +184,7 @@ xlim([-250 100]),xlabel('frequency [Hz]'),%
 legend(lines_h)
    set(gca,'ColorOrder',jet(size(Spectrum,2)));
 peakName={metabolites.name};
-title('Global T1 : inversion recovery')
+title(['Globalinversion recovery T1: ',MeasPath(regexp(MeasPath,'[^/]*$'):end)])
 grid on
 
 
@@ -238,7 +244,7 @@ savefig(fullfile(MeasPath,'T1_final_amares.fig'))
 fprintf('\n%% %s',MeasPath)
 fprintf('\nT1=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s',cellfun(@(x)x.b ,fitresult_all))
 CI=cellfun(@(x)confint(x),(fitresult_all),'UniformOutput',false);
-fprintf('\nT1_CI=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s diff(CI95)/2',cellfun(@(x) diff(x(:,2))/2,CI))
+fprintf('\nT1_CI=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s diff(CI95)/2\n',cellfun(@(x) diff(x(:,2))/2,CI))
 T2star_ms=median(1e3./(pi*cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)')),1);
 fprintf('\nT2_star_s=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s median \n',T2star_ms)
 fprintf('Acq_delay=%.4f; %%us\n',st.AcqDelay_s*1e6)

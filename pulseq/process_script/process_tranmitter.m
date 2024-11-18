@@ -1,5 +1,5 @@
 %% setup variables
-sn='/ptmp/pvalsala/deuterium/EAZW-GUMK/TWIX/';
+sn='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-04';
 
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
@@ -10,7 +10,7 @@ system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
                  'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
-seq.read(fullfile(sn,'../EXPDATA/pulseq/trans_adjust_2H_1min.seq'))
+seq.read(fullfile(sn,'../pulseq/trans_adjust_2H_1min.seq'))
 
 st.dwell_s=seq.getDefinition('dwell');
 st.fa_array=seq.getDefinition('fa_array');
@@ -18,7 +18,7 @@ st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-dirst=dir(fullfile(sn,'meas_MID01429_FID00182_pulseq_Transmitter.dat'));
+dirst=dir(fullfile(sn,'*ransmitter*.dat'));
 st.filename=fullfile(dirst(end).folder,dirst(end).name) %load last file
 twix=mapVBVD(st.filename);
 if(iscell(twix)),twix=twix{end}; end
