@@ -1,10 +1,10 @@
 %%
 
-pulseDur=[800e-6,1400e-6]; %[s]
+pulseDur=[500e-6,1400e-6,2000e-6]; %[s]
 sys_freq_offset=0; %[Hz]
-met_st=getMetaboliteStruct('phantom');
+met_st=getMetaboliteStruct('invivo');
 
-figure(4),clf
+figure(37),clf
 for ii=1:length(pulseDur)
 dt=1000e-9; %[s]
 
@@ -17,7 +17,7 @@ rf_fft=fftshift(fft(rf,2^20));
 faxis=linspace(-0.5/dt,0.5/dt,length(rf_fft));
 
 rf_fft=rf_fft./max(abs(rf_fft));
-plot(faxis,abs(rf_fft))
+plot(faxis,abs(rf_fft),'LineWidth',1.5)
 hold on
 scale_fac=interp1(faxis,abs(rf_fft),[met_st.freq_shift_Hz]+sys_freq_offset)
 end
@@ -37,10 +37,12 @@ for i=1:length(met_st)
 end
 
 xlim([-1 1]*300)
-plot(faxis,abs(sig_sim));
-xlabel('frequency [Hz]'),ylabel('amp [a.u]')
+plot(faxis,abs(sig_sim),'LineWidth',1.5);
+xlabel('frequency [Hz]'),ylabel('normalized amplitude [a.u]')
 title (sprintf('pulse profile'))
 grid on
-legend('0.8 ms' ,'1.4 ms','2H sample spectrum')
+legend('0.5 ms' ,'1.4 ms','2 ms','2H spectrum','Location','southeast')
+fontsize(gcf,'scale',1.5)
+set(gcf,'color','w')
 % scalefactor of flip angle?
 

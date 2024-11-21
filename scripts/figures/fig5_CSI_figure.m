@@ -27,7 +27,7 @@ CSI_setting={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
 
 
 mcobj_csi=cell(length(dirst_csi),1);
-for cf=1:length(dirst_csi)
+for cf=1%2:length(dirst_csi)
        fn=fullfile(sn,dirst_csi(cf).name);
     mcobj_csi{cf}=MetCon_CSI(fn,CSI_setting{:});
 end

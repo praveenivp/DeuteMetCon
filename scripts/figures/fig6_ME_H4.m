@@ -14,12 +14,12 @@ dirst_me=dirst_me([1 3 4]);
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
-metabolites=getMetaboliteStruct('invivo3');
+metabolites=getMetaboliteStruct('invivo');
 
 
 %% 
-dirst_fm=dir(fullfile(sn,'*piv_gre_B0mapping*'));
- fmobj=B0map(fullfile(sn,dirst_fm(1).name),'UnwrapMode','SpatialUnwrap','doRegularization',false);
+% dirst_fm=dir(fullfile(sn,'*piv_gre_B0mapping*'));
+%  fmobj=B0map(fullfile(sn,dirst_fm(1).name),'UnwrapMode','SpatialUnwrap','doRegularization',false);
 % fmobj.exportNIFTI()
 %% process noise anf get fieldmap
 fn_noise=dir(fullfile(sn,"*rh_trufi*noise*.dat"));
@@ -67,7 +67,7 @@ ylabel_str_csi=strsplit(sprintf('%.0f min\n',intake_time_csi(:)),'\n');
 [intake_time_all,intake_order]=sort([intake_time_csi;intake_time_me]);
 
 norm_mat_csi=abs(mcobj_csi{1}.getNormalized());
-norm_mat_csi=imgaussfilt3(norm_mat_csi(:,:,:,1),1);
+norm_mat_csi=imgaussfilt3(norm_mat_csi(:,:,:,1),2);
 cellfun(@(x) x.WriteImages([],{'snr','mM'}, 1./norm_mat_csi),mcobj_csi,'UniformOutput',false);
 norm_mat_me=abs(mcobj_me{1}.getNormalized());
  norm_mat_me=imgaussfilt3(norm_mat_me(:,:,:,1),2);
@@ -96,7 +96,7 @@ anat_nii_tra=double(MyNiftiRead("../*anat*_tra*.nii",'PRS'));
 [met_mm_me_tra]=MyNiftiRead('rtMetcon_mM*.nii','PRS');
   met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
 %%
-slct=13;
+slct=15;
 slcs=18;
 % crop_val  sag             tra : [idx1:end-idx2,idx3:end-idx4] 
 crop_val={[20 40 45 25],[20 40 45 50]};
@@ -126,7 +126,7 @@ cb_all={};cax_all={};cnt=1;
 for i=1:3
     nexttile(tt,[2 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_csi,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.35]);
 if(i==1),yticks(midlabel(size(im_anat,1),3)),yticklabels(intake_time_csi),else,yticks([]),end
 title(title_str{i})
  cb_all{cnt}=colorbar;
@@ -134,14 +134,14 @@ cnt=cnt+1;
 
 end
 
-cax_met{1}=[0 40]
+cax_met{1}=[0 50]
 [imComposed_me]=ComposeImage({met_mm_me_sag(:,:,:,:,[2 3 5]),met_mm_me_tra(:,:,:,:,[2 3 5])}, ...
     {slcs,slct},crop_val,[0,0,0]);
 imComposed_me(:,:,:,1,:)=imComposed_me(:,:,:,1,:)*SNR_scl;
 for i=1:3
     nexttile(tt,[3 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_me,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.35]);
 if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_me),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
@@ -297,7 +297,7 @@ function makeColorbar(cb_handle,cax)
 cb_handle.Visible='off';
 ax2 = axes('Position',cb_handle.Position);
 
-imagesc(linspace(0,1,100)'),colormap(ax2,'jet')
+imagesc(linspace(0,1,100)'),colormap(ax2,'turbo')
 set(ax2,'YAxisLocation','right','FontSize',10,'FontWeight','bold','YDir','normal')
 yticks(linspace(0,100,4))
 yticklabels(round(linspace(0,1,4)*cax(2),1))

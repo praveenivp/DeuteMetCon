@@ -47,8 +47,8 @@ for cf=1:length(dirst_fisp)
 end
 
 
-%%
-%  cd(pn)
+%% write and reslice images
+  cd(pn)
 intake_time_ssfp=cellfun(@(x) x.getMinutesAfterIntake('08:13'),mcobj_csi_ssfp,'UniformOutput',true);
 ylabel_str_ssfp=strsplit(sprintf('%.0f min\n',intake_time_ssfp(:)),'\n');
 
@@ -57,10 +57,10 @@ ylabel_str_fisp=strsplit(sprintf('%.0f min\n',intake_time_fisp(:)),'\n');
 [intake_time_all,intake_order]=sort([intake_time_fisp;intake_time_ssfp]);
 
 norm_mat_fisp=abs(mcobj_fisp{1}.getNormalized());
-norm_mat_fisp=imgaussfilt3(norm_mat_fisp(:,:,:,1),1);
+norm_mat_fisp=imgaussfilt3(norm_mat_fisp(:,:,:,1),2);
 cellfun(@(x) x.WriteImages([],{'snr','mM'}, 1./norm_mat_fisp),mcobj_fisp,'UniformOutput',false);
 norm_mat_ssfp=abs(mcobj_csi_ssfp{1}.getNormalized());
- norm_mat_ssfp=imgaussfilt3(norm_mat_ssfp(:,:,:,1),1);
+ norm_mat_ssfp=imgaussfilt3(norm_mat_ssfp(:,:,:,1),2);
   cellfun(@(x) x.WriteImages([],{'snr','mM'},1./norm_mat_ssfp),mcobj_csi_ssfp,'UniformOutput',false);
 %   cellfun(@(x) x.WriteImages([],{'snr','mM'}),mcobj_me,'UniformOutput',false);
 SNR_scl=prod(mcobj_fisp{1}.DMIPara.resolution_PSF(1:3))./prod(mcobj_csi_ssfp{1}.DMIPara.resolution_PSF(1:3));
@@ -84,8 +84,8 @@ anat_nii_tra=double(MyNiftiRead("../*anat*_tra*.nii",'PRS'));
 [met_mm_me_tra]=MyNiftiRead('rtMetcon_mM*.nii','PRS');
   met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
 %%
-slct=14;
-slcs=18;
+slct=15;
+slcs=19;
 % crop_val  sag             tra : [idx1:end-idx2,idx3:end-idx4] 
 crop_val={[35 35 45 35],[35 35 35 55]};
 
@@ -110,7 +110,7 @@ mask_me=imComposed_csi(:,:,1,1,1)>8;
 mask_me=imerode(mask_me,strel('sphere',10));
 mask_me=imdilate(mask_me,strel('sphere',14));
 
-cax_met={[0 70],[0 3],[0 3]}
+cax_met={[0 70],[0 3],[0 2]}
 figure(45),clf
     set(gcf,"Position",[50 50 1080 1080])
 tt=tiledlayout(7,3,'TileSpacing','compact','Padding','compact');
@@ -119,7 +119,7 @@ cb_all={};cax_all={};cnt=1;
 for i=1:3
     nexttile(tt,[2 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_csi,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.6]);
 if(i==1),yticks(midlabel(size(im_anat,1),3)),yticklabels(intake_time_fisp),else,yticks([]),end
 title(title_str{i})
  cb_all{cnt}=colorbar;
@@ -134,7 +134,7 @@ imComposed_ssfp(:,:,:,1,:)=imComposed_ssfp(:,:,:,1,:)*SNR_scl;
 for i=1:3
     nexttile(tt,[3 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_ssfp,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.6]);
 if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_ssfp),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
@@ -289,7 +289,7 @@ function makeColorbar(cb_handle,cax)
 cb_handle.Visible='off';
 ax2 = axes('Position',cb_handle.Position);
 
-imagesc(linspace(0,1,100)'),colormap(ax2,'jet')
+imagesc(linspace(0,1,100)'),colormap(ax2,'turbo')
 set(ax2,'YAxisLocation','right','FontSize',10,'FontWeight','bold','YDir','normal')
 yticks(linspace(0,100,4))
 yticklabels(round(linspace(0,1,4)*cax(2),1))

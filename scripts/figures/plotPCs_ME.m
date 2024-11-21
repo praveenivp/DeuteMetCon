@@ -10,7 +10,7 @@ dirst_me=dirst_me([1 3 4]);
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
-metabolites=getMetaboliteStruct('invivo3');
+metabolites=getMetaboliteStruct('invivo');
 
 
 %% 
@@ -41,41 +41,49 @@ end
 %%
  mcobj_me_pinv=MetCon_bSSFP(fn,ME_setting{:},'fm','IDEAL','Solver','pinv');
   mcobj_me_modes=MetCon_bSSFP(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
+    mcobj_me_IDEAL=MetCon_bSSFP(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL');
 %%
  fn=fullfile(sn,dirst_me(end).name);   
 mcobj_us=cell(length(mcobj_me{3}.DMIPara.PhaseCycles),1);
+im_all=mean(cell2mat(cellfun(@(x)x.img,mcobj_me,'UniformOutput',false)),1);
+ mcobj_temp=copy(mcobj_me{end});
+ mcobj_temp.flags.Solver='pinv';
+% mcobj_temp.img=im_all;
+ mcobj_temp.FieldMap='IDEAL';
+% mcobj_temp.getFieldmap();
+% mcobj_temp.performMetCon();
 for cPC=1:length(mcobj_us)      
-    mcobj_us{cPC}=copy(mcobj_me{end});
+mcobj_us{cPC}=copy(mcobj_temp);
 mcobj_us{cPC}.flags.PCSel=cPC;
+mcobj_us{cPC}.getFieldmap();
 mcobj_us{cPC}.performMetCon();
 mcobj_us{cPC}.performPxlShiftCorrection();
 end
-
-
-
 
 %%
 
 
 All_PC=cellfun(@(mcobj) mcobj.getNormalized(),mcobj_us,'UniformOutput',false);
 All_PC=cat(5, All_PC{:});
-% All_PC=cat(5,mcobj_me{3}.getNormalized(),2*All_PC);
+All_PC=cat(5,mcobj_me_pinv.getNormalized(),mcobj_me_modes.getNormalized(),mcobj_me_IDEAL.getNormalized(),sqrt(18)*All_PC);
 %%
 % sum(All_PC,5)./(sqrt(size(All_PC,5)))
-figure(4),clf
+figure(5),clf
 tt=tiledlayout(4,1,'TileSpacing','compact','Padding','compact');
 
 % imPlot=ndflip(squeeze(permute(All_PC(:,20,:,:,:),[3 2 1 5 4])),[1 ]);
-imPlot=ndflip(squeeze(permute(All_PC(:,:,32,:,:),[1 2 3 5 4])),[ ]);
+% imPlot=ndflip(squeeze(permute(All_PC(10:end-7,20:end-20,15,:,:),[1 2 3 5 4])),[ ]); % sag
+imPlot=ndflip(squeeze(permute(All_PC(10:end-7,36,:,:,:),[1 2 3 5 4])),[ ]); % sag
 for i=1:4
     nexttile(tt)
 imagesc(createImMontage(imPlot(:,:,:,i),size(imPlot,3)))
 colorbar,axis image
-title(mcobj_csi_ssfp.metabolites(i).name)
-xticks((0.5:size(imPlot,3)+0.5)*size(imPlot,2)),xticklabels({'all PC','180 deg','270 deg','360 deg','90 deg'})
+title(mcobj_me_modes.metabolites(i).name)
+xticks((0.5:size(imPlot,3)+0.5)*size(imPlot,2)),
+xticklabels([{'Linear','IDEAL-modes','IDEAL'},strsplit(num2str(mcobj_me_modes.DMIPara.PC_deg),' ')])
 yticks([])
 colormap('jet')
 end
 fontsize(gcf,"scale",1.5)
 
-set(gcf,'Color','w','InvertHardcopy','off','Position',[157 52 1200 1200])
+set(gcf,'Color','w','InvertHardcopy','off');%,'Position',[157 52 1200 1200])

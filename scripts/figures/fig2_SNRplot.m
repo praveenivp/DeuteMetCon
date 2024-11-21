@@ -17,7 +17,7 @@ addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
 
-metabolites=getMetaboliteStruct('phantom');
+metabolites=getMetaboliteStruct('phantom',0);
 
 %% process noise anf get fieldmap
 fn_noise=dir(fullfile(sn,"*oise*.dat"));
@@ -60,6 +60,8 @@ cellfun(@(x) x.WriteImages(),mcobj_all,'UniformOutput',false)
 dirst_nii=dir(fullfile(pwd,"Metcon_SNR*.nii"));
 resliced_vol=myspm_reslice(dirst_nii(1).name,dirst_nii,'nearest','r');
 [realigned_vol]=realign_vol(resliced_vol);
+data_label={'CSI-FISP','CSI-bSSFP','ME-bSSFP'};
+
 
 im_sf=3;
 realigned_vol3=NDimscale(realigned_vol,im_sf);
@@ -67,8 +69,9 @@ vox_vol=cellfun(@(x)prod(x.DMIPara.resolution_PSF(1:3)*1e2),mcobj_all,'UniformOu
 %%
 AllDescription=cellfun(@(obj) getDescription(obj),mcobj_all,'UniformOutput',false);
 %mask 
-%  figure
-% imMask=CreateMask(squeeze(realigned_vol3(:,:,slcSel,1,1)));
+slcSel=28*im_sf;
+  figure
+imMask=CreateMask(squeeze(realigned_vol3(:,:,slcSel,1,1)));
 
 %  save('processced_data.mat','dirst*','CSI_setting','ME_setting','mcobj_me','mcobj_csi','slcSel','tubes','realigned_vol3','vox_vol','imMask','AllDescription','-v7.3')
 
@@ -107,7 +110,7 @@ im_plot=reshape(realigned_vol4(:,:,slcSel,ii,:),size(realigned_vol4,1),[]);
 mask=reshape(repmat(imMask(:,:),[1 1 1 size(realigned_vol4,5) ]),size(realigned_vol4,1),[]);
 im_plot(~mask)=nan;
 
-imagesc(im_plot,'AlphaData',mask),colormap("jet"),colorbar,axis image,hold on
+imagesc(im_plot,'AlphaData',mask),colormap("turbo"),colorbar,axis image,hold on
 title(metabolites(ii).name)
 set(gca,'color','black')
 
@@ -133,8 +136,7 @@ cMask=repmat(cMask,[1 size(realigned_vol4,5)]);
   contour(cMask,1,'color','red','linewidth',0.1)
 
 yticks([]),xticks(round((0.5:1:(0.5+size(realigned_vol3,5)))*size(realigned_vol3,3)))
- xticklabels([1:3])
-
+ xticklabels(data_label)
 end
 nexttile(5,[2 2])
 hb=bar(stat_mean');
@@ -150,8 +152,11 @@ end
 ylabel('SNR')
 legend({metabolites.name})
 grid minor
-xticklabels(AllDescription(PlotSel))
+ set(gca,'ylim',get(gca,'ylim')+[0 10])
+% xticklabels(AllDescription(PlotSel))
+ xticklabels(data_label)
 fontsize(gcf,'scale',1.5);
+
     set(gcf,'Color','w','Position',[397 64 1154 943])
 
 %% plot signal levels

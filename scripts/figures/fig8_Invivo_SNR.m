@@ -65,41 +65,39 @@ mask_s2=mcobj_me{end}.getMask(90);
 type_label_s2=[1     3     2     3     1     2     3];
 save('data_S2_modes.mat','vox_vol_s2','resliced_s2','mask_s2','intake_time_s2','type_label_s2')
 
-%% 
-
-
-% load('/ptmp/pvalsala/deuterium/paper/sub1_HOSJ/data_S1.mat')
-% load('/ptmp/pvalsala/deuterium/paper/sub2_H4/data_S2.mat')
-
+%%  load and plot results
 
 load('/ptmp/pvalsala/deuterium/paper/sub1_HOSJ_modes/data_S1_modes.mat')
 load('/ptmp/pvalsala/deuterium/paper/sub2_H4_modes/data_S2_modes.mat')
 
 
 mask_s1=imerode(mask_s1,strel('sphere',2));
-% mask_s2=mcobj_me{end}.getMask(93);
-mask_s2=imerode(mask_s2,strel('sphere',1));
+%  mask_s2=mcobj_me{1}.getMask(80);
+ mask_s2=resliced_s2_av(:,:,:,1,1)>12;
+ mask_s2=imdilate(mask_s2,strel('sphere',1));
 slcSel_s1=36;
-slcSel_s2=32;
+slcSel_s2=34;
 
-% mask_s2(:,1:slcSel_s2-1,:)=false;
+ resliced_s1_av= AverageByType(resliced_s1,type_label_s1);
+  resliced_s2_av= AverageByType(resliced_s2,type_label_s2);
+ % mask_s2(:,1:slcSel_s2-1,:)=false;
 % mask_s2(:,slcSel_s2+1:end,:)=false;
 % 
 % mask_s1(:,1:slcSel_s1-1,:)=false;
 % mask_s1(:,slcSel_s1+1:end,:)=false;
 
 
-imPlot=(cat(6,resliced_s1(9:40,slcSel_s1,:,:,[4 6 7]),resliced_s2(9:40,slcSel_s2,:,:,[5,6,7])));
+imPlot=(cat(6,resliced_s1_av(9:42,slcSel_s1,:,:,:),resliced_s2_av(9:42,slcSel_s2,:,:,:)));
 % dim1xdim2x seqType x subject x metabolite
 imPlot=permute(imPlot ,[1 3 5 6 4 2]);
 %scale with voxel volume (type x subjects )
 vox_scal=ones(1,1,3,2);
 vox_scal(1,1,:,1)=vox_vol_s1([4,6,7])./vox_vol_s1(4);
-vox_scal(1,1,:,2)=vox_vol_s2([5,6,7])./vox_vol_s2(5);
+vox_scal(1,1,:,2)=vox_scal(1,1,:,1);
 imPlot=imPlot./vox_scal;
 
 
-mask_all=squeeze(cat(4,mask_s1(9:40,slcSel_s1,:),mask_s2(9:40,slcSel_s2,:)));
+mask_all=squeeze(cat(4,mask_s1(9:42,slcSel_s1,:),mask_s2(9:42,slcSel_s2,:)));
 mask_all=permute(repmat(mask_all,[1 1 1 3 4]),[1 2 4 3 5]);
 
 imPlot=reshape(imPlot,size(imPlot,1),size(imPlot,2),[],size(imPlot,5));
@@ -114,13 +112,15 @@ tt=tiledlayout(3,12,"TileSpacing","compact","Padding","compact");
 data_label={'CSI-FISP','CSI-bSSFP','ME-bSSFP'};
 
 
-clim_all={[0 75],[0 30],[0 30],[0 15]};
+clim_all={[0 75],[0 35],[0 25],[0 15]};
 
 for cMet=1:4
 nexttile([1 3])
 imagesc(createImMontage(imPlot(:,:,:,cMet),3))
 hold on
-contour(createImMontage(mask_all(:,:,:,cMet),3),'LineWidth',0.5,'EdgeColor','r','EdgeAlpha',0.1)
+if(cMet<2)
+contour(createImMontage(mask_all(:,:,:,cMet),3),'LineWidth',0.5,'EdgeColor',[0.98 0.45 0.73],'EdgeAlpha',0.7)
+end
 xticks([size(imPlot,1)*0.5:size(imPlot,1):size(imPlot,1)*4])
 xticklabels(data_label)
 yticks([size(imPlot,2)*0.5:size(imPlot,2):size(imPlot,2)*4])
@@ -130,17 +130,8 @@ axis image
 fontsize(gca,"scale",1.2)
 colorbar
 clim(clim_all{cMet})
-colormap(gca,'parula')
+colormap(gca,'turbo')
 end
-
-
-
-
-
-
-
-
-
 
 
 
@@ -158,34 +149,48 @@ violin_format={'bw',1,'mc','rx','medc',[]};
 
 
 data_label_s1=data_label(type_label_s1);
-data_s1=reshape(resliced_s1,[],4,size(resliced_s1,5))./reshape(vox_vol_s1./vox_vol_s1(1),1,1,[]);
+data_s1=reshape(resliced_s1_av,[],4,size(resliced_s1_av,5))./reshape(vox_scal(:,:,:,1),1,1,[]);
 for cMet=1:3
 nexttile([1 4])
-violin2( squeeze(data_s1(mask_s1(:),cMet,:)),'facecolor',colors_label(type_label_s1,:),violin_format{:})
-xticklabels(sort(intake_time_s1))
+violin2( squeeze(data_s1(mask_s1(:),cMet,:)),'facecolor',colors_label,violin_format{:})
+ xticks(1:3),xticklabels(data_label)
 grid on,grid minor
 ylim(yax_all{cMet})
 title(metabolites(cMet).name)
 legend off
+
+%create percentage
+mv=mean( squeeze(data_s1(mask_s1(:),cMet,:)));
+P40=prctile( squeeze(data_s1(mask_s1(:),cMet,:)),99,1)*1.2;
+text(2.02,P40(2),sprintf('%+.0f%%',mv(2)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
+text(3.02,P40(3),sprintf('%+.0f%%',mv(3)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
+
 end
 
 
 
 data_label_s2=data_label(type_label_s2);
-data_s2=reshape(resliced_s2,[],4,size(resliced_s2,5))./reshape(vox_vol_s2./vox_vol_s2(1),1,1,[]);
+data_s2=reshape(resliced_s2_av,[],4,size(resliced_s2_av,5))./reshape(vox_scal(:,:,:,2),1,1,[]);
 for cMet=1:3
 nexttile([1 4])
-vh=violin2( squeeze(data_s2(mask_s2(:),cMet,:)),'facecolor',colors_label(type_label_s2,:),violin_format{:});
-xticklabels(sort(intake_time_s2))
+vh=violin2( squeeze(data_s2(mask_s2(:),cMet,:)),'facecolor',colors_label,violin_format{:});
+%  xticklabels(data_label)
 grid on,grid minor
 ylim(yax_all{cMet})
 legend off
+ xticks(1:3),xticklabels(data_label)
+
+ %create percentage
+mv=mean( squeeze(data_s2(mask_s2(:),cMet,:)));
+P40=prctile( squeeze(data_s2(mask_s2(:),cMet,:)),99,1)*1.2;
+text(2.02,P40(2),sprintf('%+.0f%%',mv(2)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
+text(3.02,P40(3),sprintf('%+.0f%%',mv(3)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
 end
 
-legend(gca,vh([1 3 2]),data_label,'Location','northwest')
+% legend(gca,vh([1 3 2]),data_label,'Location','northwest')
 
 fontsize(gcf,"scale",1.3)
-set(gcf,'color','w','Position',[198 56 1500 900])
+set(gcf,'color','w','Position',[168 158 1591 900])
 
 % [hleg,hico]=legend(data_label{1},'del',data_label{2},'del',data_label{3},'mean')
 % % Delete objects associated with del
@@ -196,3 +201,10 @@ set(gcf,'color','w','Position',[198 56 1500 900])
 % delete(hicol(ismember(get(hicol, 'Tag'),    {'del'})));
 
 % save('data_S2.mat','vox_vol_s2','resliced_s2','mask_s2','intake_time_s2','type_label_s2')
+
+
+%% 
+function Vol_av= AverageByType(Vol,type_idx)
+
+Vol_av=cat(5,mean(Vol(:,:,:,:,type_idx==1),5),mean(Vol(:,:,:,:,type_idx==2),5),mean(Vol(:,:,:,:,type_idx==3),5));
+end
