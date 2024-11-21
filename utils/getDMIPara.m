@@ -26,17 +26,22 @@ para.SeriesDateTime_end=datetime(tok{1}(1:3))+seconds(twix.image.timestamp(end)*
 
 
 %get age and Gender
+try
 switch(twix.hdr.Config.PatientSex)
     case 1
         gender='F';
     case 2
         gender='M';
     otherwise
-        gender='U';
+        gender='X';
 end
-para.PatientAge=year( para.StudyDateTime)-year(datetime(num2str(twix.hdr.Config.PatientBirthDay),'InputFormat','yyyyMMdd'));
-para.Patient=[gender,num2str(para.PatientAge)];
+ para.PatientAge=year( para.StudyDateTime)-year(datetime(num2str(twix.hdr.Config.PatientBirthDay),'InputFormat','yyyyMMdd'));
+ para.Patient=[gender,num2str(para.PatientAge)];
+catch
 
+    para.PatientAge=0;
+    para.Patient='X';
+end
 para.SeqDetails=printSeqeunceDetails(twix);
 
 

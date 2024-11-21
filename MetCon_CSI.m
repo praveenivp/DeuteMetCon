@@ -605,7 +605,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,pi,obj.DMIPara.TR,B0,FA,'FISP',obj.DMIPara.DutyCycle);
                     Msig_all=Msig_all.*dc_fac;
                 else
-                    [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,obj.DMIPara.PhaseCycles,obj.DMIPara.TR,B0,FA,'bSSFP',obj.DMIPara.DutyCycle);
+                    [Msig_all,dc_fac]=MetSignalModel(obj.metabolites,TE,PC,obj.DMIPara.TR,B0,FA,'bSSFP',obj.DMIPara.DutyCycle);
                     Msig_all=Msig_all.*dc_fac;
                 end
                 fprintf('done.....\n');

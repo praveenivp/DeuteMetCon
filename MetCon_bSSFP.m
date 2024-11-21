@@ -344,7 +344,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                     'maxit',obj.flags.maxit,'mask',obj.mask,'SmoothFM',obj.flags.doSmoothFM,'parfor',obj.flags.parfor);
                 Metcon_temp=IdealObj'*im_me;
                 obj.FieldMap=IdealObj.experimental.fm_est*(-2*pi)/(6.536 /42.567);
-            elseif(isfile(obj.FieldMap))
+            elseif(ischar(obj.FieldMap)&&isfile(obj.FieldMap))
                 %field map should be 1H fielmap in rad/s
                 assert(exist('spm','file'),'Need spm for registering the field map\n');
                 if(isunix)
@@ -353,8 +353,8 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                      im_space=obj.WriteImages(fullfile(getenv('temp'),'im.nii'),{'image'});
                 end
                 obj.Experimental.fm_file=obj.FieldMap;
-                obj.FieldMap=myspm_reslice(im_space,obj.Experimental.fm_file, 'linear','r');    
-                obj.FieldMap=obj.FieldMap(:,:,:,1);
+                obj.FieldMap=myspm_reslice(dir(im_space),dir(obj.Experimental.fm_file), 'linear','r');    
+                obj.FieldMap=obj.FieldMap{1};
             elseif(strcmpi(obj.FieldMap,'IDEAL'))
                 obj.FieldMap=[];
             end
@@ -397,6 +397,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                         resi(i,:)=b(:) -A*metabol_con(i,:).';
                         Ai=pinv(A);
                         sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                        condnm(i)=cond(A);
                     end
                 else
                     for i=1:size(im1,1)
@@ -410,6 +411,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                         resi(i,:)=b(:) -A*metabol_con(i,:).';
                         Ai=pinv(A);
                         sclfac(i,:)=(sum(abs(Ai).^2,2).^(1/2))/sqrt(2);
+                        condnm(i)=cond(A);
                     end
                 end
 
