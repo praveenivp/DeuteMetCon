@@ -1,16 +1,17 @@
 %% load sequence file
-clearvars,clc
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
-metabolites=getMetaboliteStruct('phantom');
-% metabolites(2).freq_shift_Hz=-57; %sub-01-03
-% metabolites(3).freq_shift_Hz=-150; %sub-01-03
-% % metabolites(3).freq_shift_Hz=-145; %sub-04
-% metabolites(4).freq_shift_Hz=-217; %sub-01-03
+clearvars,%clc
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-04';
+metabolites=getMetaboliteStruct('invivo');
+ metabolites(2).freq_shift_Hz=-57; %sub-01-03
+metabolites(3).freq_shift_Hz=-150; %sub-01-03
+  metabolites(3).freq_shift_Hz=-145; %sub-04
+  metabolites(4).freq_shift_Hz=-217; %sub-01-03
 flip=false;
 
 % addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
+addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 %%
 
 
@@ -93,7 +94,7 @@ st.AcqDelay_s=0;%(st.AcqDelay_s+filter_delay);
   end
  pk.bounds(1).linewidth=[3,25];
   pk.bounds(3).linewidth=[3,25];
-  pk.bounds(2).linewidth=[10 30]; 
+  pk.bounds(2).linewidth=[10 40]; 
   pk.bounds(4).linewidth=[10 30]; 
   %pick the best acq_delay
 clear relNorm;
@@ -170,7 +171,7 @@ xlim([-250 100]),xlabel('frequency [Hz]'),%ylim([-0.5 0.5])
  legend(all_lines)
    set(gca,'ColorOrder',jet(size(Spectrum,2)));
 peakName={metabolites.name };
-title('Global T2 : inversion recovery')
+title('Global T2 : spin-echo ')
 grid on
 
 %     xlim([-75.6206 -38.8002]),ylim([-0.0377 0.0571]) %glucose
@@ -181,8 +182,28 @@ for i=1:length(metabolites)
     nexttile(tt,plt_id(i));
 
 
-    lcolour='r'; typ='Lorentz';
+    lcolour='r'; typ='AMARES';
+    if(i==1 && contains(MeasPath,'sub'))
     % Set up fittype and options.
+    ft = fittype( 'f*(a*(exp(-x/b)) +d*(exp(-x/e))) +c +1e4*(a+d-1)', 'independent', 'x', 'dependent', 'y' );
+    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
+    opts.Display = 'Off';
+    opts.Robust = 'on';
+    opts.StartPoint = [1 0.1e3 0 0.1 500 1];
+    opts.Lower = [0.7 1 -Inf 0.10 450 -Inf];
+    opts.Upper = [0.9 50 Inf 0.3  600 Inf];
+
+        % Fit model to data.
+    [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
+
+    plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
+    hold on
+    plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour,'LineWidth',1.5),
+    lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
+    lege{2,1}=sprintf('%.2f*exp(-t/%.0f)+%.2f*exp(-t/%.0f)',fitresult.a,fitresult.b,fitresult.d,fitresult.e);
+
+
+    else
     ft = fittype( 'a*(exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
     opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
     opts.Display = 'Off';
@@ -190,14 +211,17 @@ for i=1:length(metabolites)
     opts.StartPoint = [1 0.1e3 0];
     opts.Lower = [-Inf 0 -Inf];
     opts.Upper = [Inf 2e3 Inf];
-    % Fit model to data.
+
+        % Fit model to data.
     [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
 
-    plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'.'])
+    plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
     hold on
-    plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour),
+    plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour,'LineWidth',1.5),
     lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
-    lege{2,1}=sprintf('%.1f*(1-2*exp(-x/%.2f))+%.1f',fitresult.a,fitresult.b,fitresult.c);
+    lege{2,1}=sprintf('%.2f*exp(-t/%.0f)',fitresult.a,fitresult.b);
+    end
+    
 
 
     xlabel('TE [ms]')
@@ -208,15 +232,15 @@ fitresult_all{i}=fitresult;
 end
 fontsize(gcf,"scale",1.3)
 
-set(gcf,'color','w')
+set(gcf,'color','w','Position',[249 195 1661 727])
 savefig(fullfile(MeasPath,'T2_final_amares.fig'))
 
-%% make table
+% make table
 fprintf('\n%% %s',MeasPath)
 fprintf('\nT2=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s',cellfun(@(x)x.b ,fitresult_all))
 CI=cellfun(@(x)confint(x),(fitresult_all),'UniformOutput',false);
 fprintf('\nT2_CI=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s diff(CI95)/2',cellfun(@(x) diff(x(:,2))/2,CI))
-
+fprintf('\n%%T2(%.2f%%) =%.4f and T2(%.2f%%) =%.4f',fitresult_all{1}.a*100,fitresult_all{1}.b,fitresult_all{1}.d*100,fitresult_all{1}.e)
 
 
 T2star_ms=median(1e3./(pi*cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)')),1);

@@ -46,23 +46,45 @@ mask=mcobj.getMask(60);
 mask=imerode(mask,strel("sphere",5));
 mask=mcobj.Experimental.relativeNorm<0.7;
 mask=imdilate(mask,strel("sphere",1));
+% T2Star=[21.0052 13.9556 22.3202 31.8583]*1e-3; %s
 
-%% phantom
-CSIdataset='/ptmp/pvalsala/deuterium/20240813_spectral/meas_MID00857_FID14528_rpcsi_fid_Stan_res15_6_optimal.dat';
-
-% cs [Hz]  -3.4080 -63.5005 -150.2146 -205.1276
-% cs [ppm]  4.7000 3.7206 2.3074 1.4125
-
+%% invivo 4
+CSIdataset='/ptmp/pvalsala/deuterium/H4DK-64GH/TWIX/allData#S94Tuebingen#F17843#M1178#D101024#T103246#rpcsi_fid_Stan_res156_moreopti.dat';
 mcobj=MetCon_CSI(CSIdataset,CSI_setting{:});
 mask=mcobj.getMask(60);
 mask=imerode(mask,strel("sphere",5));
+mask=mcobj.Experimental.relativeNorm<0.7;
+mask=imdilate(mask,strel("sphere",1));
 
+%% phantom
+metabolites=getMetaboliteStruct('phantom');
+CSI_setting={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
+    'doCoilCombine','wsvd','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','AMARES'};
+CSIdataset='/ptmp/pvalsala/deuterium/20240813_spectral/meas_MID00857_FID14528_rpcsi_fid_Stan_res15_6_optimal.dat';
+mcobj=MetCon_CSI(CSIdataset,CSI_setting{:});
 % as metabolites are highly localized, we use different masking
-mask4=(mcobj.Metcon)>5;
+FWHM_hz=mcobj.Experimental.linewidth;
+  T2Star=1./(pi*FWHM_hz);  %s
+  cs=reshape(mcobj.Experimental.chemicalshift,[],length(metabolites));
+
+mask4=(mcobj.getNormalized)>20;
+ as(T2Star.*mask4*1e3)
+mask4=reshape(mask4,[],4);
+T2Star1=reshape(T2Star,[],size(T2Star,4));
 [median(T2Star1(mask4(:,1),1)) median(T2Star1(mask4(:,2),2)) median(T2Star1(mask4(:,3),3)) median(T2Star1(mask4(:,4),4))]*1e3
-% T2* [ms]   77.9295   18.8752   14.0095   15.9714 % lot of variablility
+[std(T2Star1(mask4(:,1),1)) std(T2Star1(mask4(:,2),2)) std(T2Star1(mask4(:,3),3)) std(T2Star1(mask4(:,4),4))]*1e3
+
+ freq_shift=[median(cs(mask4(:,1),1)) median(cs(mask4(:,2),2)) median(cs(mask4(:,3),3)) median(cs(mask4(:,4),4))];
+  freq_shift_std=[std(cs(mask4(:,1),1)) std(cs(mask4(:,2),2)) std(cs(mask4(:,3),3)) std(cs(mask4(:,4),4))];
+  freq_shift_ppm=(freq_shift-freq_shift(1))./(mcobj.DMIPara.ImagingFrequency_MHz)+4.7;
+freq_shift_std=freq_shift_std./(mcobj.DMIPara.ImagingFrequency_MHz)
+% T2Star=[74.7374   22.0817   53.4715   75.7936]*1e-3; % s
+% T2Star_std=[38.9049    2.8619   14.3097   28.7368]*1e-3; % s
 % depening on the vial. Pure vials have double theses numbers except
-% water!0
+% water
+% cs [Hz]  -3.7858  -68.1933 -157.3928 -216.7620
+% cs [ppm]   4.7000    3.6503    2.1966    1.2290
+%cs[ppm] std 0.0700    0.0531    0.0654    0.0796
 
 %% plot and get statistics 
 FWHM_hz=mcobj.Experimental.linewidth;
@@ -78,6 +100,7 @@ cs=cs(mask(:),:);
 
 clc
   fprintf("T2* [ms]  %.4f %.4f %.4f %.4f\n",median(T2Star1*1e3)) 
+  fprintf("T2* std  [ms]  %.4f %.4f %.4f %.4f\n",std(T2Star1*1e3)) 
   fprintf("cs [Hz]  %.4f %.4f %.4f %.4f\n",freq_shift) 
   fprintf("cs [ppm]  %.4f %.4f %.4f %.4f\n",freq_shift_ppm) 
   
