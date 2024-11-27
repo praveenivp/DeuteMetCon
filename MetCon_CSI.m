@@ -290,7 +290,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
 
                     %% Combine coil data
-                    CSI_DataSize=size(obj.img);
+                    CSI_DataSize=[size(obj.img),1,1,1] ;
                     %we already have noise decorrelated data!
                     CSI_wsvdOption.noiseCov         =0.5*eye(CSI_DataSize(1));
                     CSI_Data=reshape(mean(obj.img,6),size(obj.img,1),[],size(obj.img,5));
@@ -706,6 +706,27 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             legend({'Data-abs','Data-real','Nlorentzian','AMRARES'})
             xlabel('Frequency [Hz]')
             title(sprintf('Fit results of the voxel at (%d,%d,%d)',pxl_idx))
+        end
+
+        function ShiftMetcon(obj,Shift_PRS_mm)
+            % crappy motion correction: only translation
+            Metcon_temp=obj.Metcon;
+            FOV_RPS=obj.DMIPara.MatrixSize.*obj.DMIPara.resolution(1:3)*1e3; %mm
+            imSize_PRS=size(obj.Metcon);
+            res_PRS=FOV_RPS([2 1 3])./imSize_PRS(1:3);
+            Phase_mm=linspace(0,FOV_RPS(2)-res_PRS(1),imSize_PRS(1));
+            Metcon_temp=interp1(Phase_mm,Metcon_temp,Phase_mm+Shift_PRS_mm(1),'linear','extrap');
+
+            Metcon_temp=permute(Metcon_temp,[2 1 3 4 5]); % first dim read
+            Read_mm=linspace(0,FOV_RPS(1)-res_PRS(2),imSize_PRS(2));
+            Metcon_temp=interp1(Read_mm,Metcon_temp,Read_mm+Shift_PRS_mm(2),'linear','extrap');
+            Metcon_temp=ipermute(Metcon_temp,[2 1 3 4 5]); % first dim read
+
+            Metcon_temp=permute(Metcon_temp,[3 1 2 4 5]); % first dim read
+            Slice_mm=linspace(0,FOV_RPS(3)-res_PRS(3),imSize_PRS(3));
+            Metcon_temp=interp1(Slice_mm,Metcon_temp,Slice_mm+Shift_PRS_mm(3),'linear','extrap');
+            Metcon_temp=ipermute(Metcon_temp,[3 1 2 4 5]); % first dim read
+            obj.Metcon=Metcon_temp;
         end
 
         function niiFileName=WriteImages(obj,niiFileName,Select,norm_mat)

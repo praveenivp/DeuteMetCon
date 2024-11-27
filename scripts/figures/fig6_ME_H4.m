@@ -41,6 +41,7 @@ for cf=1:length(dirst_me)
     mcobj_me{cf}=MetCon_bSSFP(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
 %     mcobj_me{cf-1}=MetCon_bSSFP(fn,ME_setting{:},'fm','M01169_piv_gre_B0mapping_5Echoes_fmap.nii','Solver','pinv');
 end
+mcobj_me{3}.ShiftMetcon([0,-10,0])% shift 7.5mm in read for up in IS direction
 
 %% Process CSI
 dirst_csi=dir(fullfile(sn,"*rpcsi*.dat"));
@@ -55,7 +56,7 @@ for cf=1:length(dirst_csi)
        fn=fullfile(sn,dirst_csi(cf).name);
     mcobj_csi{cf}=MetCon_CSI(fn,CSI_setting{:});
 end
-
+mcobj_csi{2}.ShiftMetcon([0,0,-10]) % shift in slice for up in IS direction
 
 %%
 cd(pn)
@@ -82,7 +83,7 @@ reslice_all_sag=myspm_reslice('../*anat*_sag*.nii',dirst_nii, 'nearest','rs');
 reslice_all_tra=myspm_reslice('../*anat*_tra*.nii',dirst_nii, 'nearest','rt');
 
 
-%% try imcompose
+% try imcompose
 anat_nii_sag=double(MyNiftiRead("../*anat*_sag*.nii",'IPR'));
 
 [met_snr_me_sag]=MyNiftiRead('rsMetcon_SNR*.nii','IPR');
@@ -97,7 +98,7 @@ anat_nii_tra=double(MyNiftiRead("../*anat*_tra*.nii",'PRS'));
   met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
 %%
 slct=15;
-slcs=18;
+slcs=20;
 % crop_val  sag             tra : [idx1:end-idx2,idx3:end-idx4] 
 crop_val={[20 40 45 25],[20 40 45 50]};
 [im_anat]=ComposeImage({anat_nii_sag,anat_nii_tra},{slcs,slct},crop_val);
@@ -113,12 +114,12 @@ title_str={'Water [SNR]','Glc [mM]','Glx [mM]'};
 % as(imComposed)
 
 %  mask_me=(im_anat./max(im_anat(:)))>0.05;
-mask_me=imComposed_csi(:,:,1,1,1)>8;
+mask_me=imComposed_csi(:,:,1,1,1)>9;
 mask_me=imerode(mask_me,strel('sphere',10));
-mask_me=imdilate(mask_me,strel('sphere',10));
+mask_me=imdilate(mask_me,strel('sphere',15));
 
 cax_met={[0 70],[0 3],[0 3]}
-figure(45),clf
+figure(47),clf
     set(gcf,"Position",[50 50 1080 1080])
 tt=tiledlayout(7,3,'TileSpacing','compact','Padding','compact');
 sgtitle('CSI-FISP vs ME-bSSFP','fontsize',24)
@@ -126,7 +127,7 @@ cb_all={};cax_all={};cnt=1;
 for i=1:3
     nexttile(tt,[2 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_csi,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.35]);
+  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.3]);
 if(i==1),yticks(midlabel(size(im_anat,1),3)),yticklabels(intake_time_csi),else,yticks([]),end
 title(title_str{i})
  cb_all{cnt}=colorbar;
@@ -141,7 +142,7 @@ imComposed_me(:,:,:,1,:)=imComposed_me(:,:,:,1,:)*SNR_scl;
 for i=1:3
     nexttile(tt,[3 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_me,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.35]);
+  'cax',cax_met{i},'Mask',mask_me,'alpha_overlay',0.6,'cax_im',[0 0.3]);
 if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_me),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
@@ -213,7 +214,7 @@ hold on,plot(find(type_label_s2==1),mean_val(type_label_s2==1),'Marker','x','Col
 hold on,plot(find(type_label_s2==3),mean_val(type_label_s2==3),'Marker','x','Color',colors_label(3,:),'LineWidth',1.5)
 
 
-legend(gca,vh([1 2]),data_label([1 3]),'Location','northwest')
+legend(gca,vh([1 2]),data_label([1 3]),'Location','west')
 
 
 %%
