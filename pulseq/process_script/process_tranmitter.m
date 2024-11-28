@@ -1,5 +1,5 @@
 %% setup variables
-sn='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-04';
+sn='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-05';
 
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));

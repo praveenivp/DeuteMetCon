@@ -1,11 +1,7 @@
 %% load sequence file
 clearvars,%clc
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-04';
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
 metabolites=getMetaboliteStruct('invivo');
- metabolites(2).freq_shift_Hz=-57; %sub-01-03
-metabolites(3).freq_shift_Hz=-150; %sub-01-03
-  metabolites(3).freq_shift_Hz=-145; %sub-04
-  metabolites(4).freq_shift_Hz=-217; %sub-01-03
 flip=false;
 
 % addpath(genpath('/ptmp/pvalsala/MATLAB'))
@@ -16,7 +12,7 @@ addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
 
 system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
-                 'adcDeadTime', 20e-6);
+    'adcDeadTime', 20e-6);
 
 seq=mr.Sequence(system);              % Create a new sequence object
 % seq.read(fullfile(sn,'../EXPDATA/pulseq/T1_nonsel_FOCI_2H_10min.seq'))
@@ -35,14 +31,14 @@ twix=mapVBVD(fullfile(MeasPath,st.filename));
 
 % read noise data and calc Noise decorrelation
 dirst_noise=dir(fullfile(MeasPath,'*oise*.dat'));
- twix_noise=mapVBVD(fullfile(dirst_noise(1).folder,dirst_noise(1).name));
- if(iscell(twix_noise)), twix_noise=twix_noise{end}; end
- [D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
+twix_noise=mapVBVD(fullfile(dirst_noise(1).folder,dirst_noise(1).name));
+if(iscell(twix_noise)), twix_noise=twix_noise{end}; end
+[D_noise,D_image]=CalcNoiseDecorrMat(twix_noise);
 
 if(iscell(twix)), twix=twix{end}; end
 data=twix.image{''};
-  data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
-  data=padarray(data,[2*size(data,1),0,0,0],0,'post');
+data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
+data=padarray(data,[2*size(data,1),0,0,0],0,'post');
 Spectrum=squeeze(mean(fftshift(fft(data,[],1),1),[2 3]));
 st.Cfreq=twix.hdr.Dicom.lFrequency; %Hz
 st.hdr=twix.hdr;
@@ -50,7 +46,7 @@ st.RefVoltage= twix.hdr.Spice.TransmitterReferenceAmplitude;
 st.VectorSize=512;
 
 
-   %% noise decorr and coil combination
+%% noise decorr and coil combination
 
 data=twix.image{''};
 data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
@@ -78,31 +74,31 @@ st.AcqDelay_s=0;%(st.AcqDelay_s+filter_delay);
 %    metabolites(2).freq_shift_Hz=-68;
 [expParams,pk]=getAMARES_structs_T1inv(twix,metabolites,st);
 
- spec1=specFft(padarray(data_Combined,[512*4 0],'post'));
+spec1=specFft(padarray(data_Combined,[512*4 0],'post'));
 % n=n+1;
 %  faxis=linspace(-0.5/st.dwell_s,(0.5/st.dwell_s)-(1/(st.dwell_s*size(spec1,1))),size(spec1,1));
 %   faxis=linspace(-0.5/st.dwell_s,(0.5/st.dwell_s)-1*(1/(st.dwell_s*size(spec1,1))),size(spec1,1));
-    faxis=calcFreqAxis(st.dwell_s,size(spec1,1));
+faxis=calcFreqAxis(st.dwell_s,size(spec1,1));
 
-    %fix zeroth order phase offset so that amplitude doesn't flip
-    
-  [phi0]=CalcZerothPhase(faxis,specFft(padarray(data_Combined,[512*4 0],'post')),300);
+%fix zeroth order phase offset so that amplitude doesn't flip
 
-  for cm=1:4
-  pk.bounds(cm).phase=50*[-1 +1]-rad2deg(median(phi0))  -180*flip;
-  pk.initialValues(cm).phase=-1*rad2deg(median(phi0)) -180*flip;
-  end
- pk.bounds(1).linewidth=[3,25];
-  pk.bounds(3).linewidth=[3,25];
-  pk.bounds(2).linewidth=[10 40]; 
-  pk.bounds(4).linewidth=[10 30]; 
-  %pick the best acq_delay
+[phi0]=CalcZerothPhase(faxis,specFft(padarray(data_Combined,[512*4 0],'post')),300);
+
+for cm=1:4
+    pk.bounds(cm).phase=50*[-1 +1]-rad2deg(median(phi0))  -180*flip;
+    pk.initialValues(cm).phase=-1*rad2deg(median(phi0)) -180*flip;
+end
+pk.bounds(1).linewidth=[3,25];
+pk.bounds(3).linewidth=[3,25];
+pk.bounds(2).linewidth=[10 40];
+pk.bounds(4).linewidth=[10 30];
+%pick the best acq_delay
 clear relNorm;
 acq_delay_arr=linspace(st.AcqDelay_s,1000e-6,50);
 for jj=1:length(acq_delay_arr)
     expParams.beginTime=acq_delay_arr(jj);
-[~, fitStatus,~,~] = AMARES.amaresFit(double(data_Combined(:,end)), expParams, pk,0,'quiet',true);
-relNorm(jj)=fitStatus.relativeNorm;
+    [~, fitStatus,~,~] = AMARES.amaresFit(double(data_Combined(:,end)), expParams, pk,0,'quiet',true);
+    relNorm(jj)=fitStatus.relativeNorm;
 end
 [minRelNorm,idx]=min(relNorm);
 st.AcqDelay_s=acq_delay_arr(idx);
@@ -110,25 +106,26 @@ expParams.beginTime=acq_delay_arr(idx);
 
 clear fitResults fitStatus CRBResults
 for i=1:size(data_Combined,2)
-[fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
-amp_all(i,:)=[fitResults{i}.amplitude];
-% pause(1)
+    [fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
+    amp_all(i,:)=[fitResults{i}.amplitude];
+    % pause(1)
 end
 
 %  figure, plot(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'))
 
 %repeat with restricted linewidth
-med_lw=median(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'),1);
-std_lw=std(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'),[],1);
+all_lw=cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)');
+med_lw=median(all_lw(1:5,:),1);
+std_lw=std(all_lw(1:5,:),[],1);
 
 for cMet=1:length(metabolites)
-  pk.bounds(cMet).linewidth=[-1,1]*std_lw(cMet)+med_lw(cMet); 
+    pk.bounds(cMet).linewidth=[-1,1]*0.1*std_lw(cMet)+med_lw(cMet);
 end
 clear fitResults fitStatus CRBResults
 for i=1:size(data_Combined,2)
-[fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
-amp_all(i,:)=[fitResults{i}.amplitude];
-% pause(1)
+    [fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
+    amp_all(i,:)=[fitResults{i}.amplitude];
+    % pause(1)
 end
 
 %
@@ -145,38 +142,38 @@ taxis=taxis+st.AcqDelay_s;
 cmap_lines=jet(15);
 clear all_lines;
 for crep=1:15
-%build n-peak Lorentzian model function
-% model = @(cf,a,g)a./(1 + ((faxis - cf)/(g/2)).^2) ; %  Lorentzian
-model_time = @(cf,a,t2)a.*exp(-taxis/t2).*exp(2i*pi*cf*taxis); %  Lorentzian
-spec_sim=zeros(size(faxis));
-amp=[1 0.5 0.50 0.5];
- fid=zeros(size(taxis));
-for i=1:length(metabolites)
-    T2star_s=1/(pi*fitResults{crep}.linewidth(i)); %s
-    freq_shift_Hz=fitResults{crep}.chemShift(i)*expParams.imagingFrequency; 
-     fid=fid+model_time(freq_shift_Hz,fitResults{crep}.amplitude(i),T2star_s);
-end
-phi0_=deg2rad(fitResults{crep}.phase(1));
-zero_order=exp(-1i*(phi0_));
-first_order_only=exp(-1i*(2*pi*faxis*st.AcqDelay_s));
+    %build n-peak Lorentzian model function
+    % model = @(cf,a,g)a./(1 + ((faxis - cf)/(g/2)).^2) ; %  Lorentzian
+    model_time = @(cf,a,t2)a.*exp(-taxis/t2).*exp(2i*pi*cf*taxis); %  Lorentzian
+    spec_sim=zeros(size(faxis));
+    amp=[1 0.5 0.50 0.5];
+    fid=zeros(size(taxis));
+    for i=1:length(metabolites)
+        T2star_s=1/(pi*fitResults{crep}.linewidth(i)); %s
+        freq_shift_Hz=fitResults{crep}.chemShift(i)*expParams.imagingFrequency;
+        fid=fid+model_time(freq_shift_Hz,fitResults{crep}.amplitude(i),T2star_s);
+    end
+    phi0_=deg2rad(fitResults{crep}.phase(1));
+    zero_order=exp(-1i*(phi0_));
+    first_order_only=exp(-1i*(2*pi*faxis*st.AcqDelay_s));
 
-hold on,
- all_lines(crep)=plot(faxis,real(specFft(fid(:)).*first_order_only),'LineWidth',1.2,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TE= %.1f ms',st.TE_array(crep)*1e3));
-plot(faxis,real(spec1(:,crep).*zero_order.*first_order_only),'.','LineWidth',1.2,'Color',cmap_lines(crep,:))
+    hold on,
+    all_lines(crep)=plot(faxis,real(specFft(fid(:)).*first_order_only),'LineWidth',1.2,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TE= %.1f ms',st.TE_array(crep)*1e3));
+    plot(faxis,real(spec1(:,crep).*zero_order.*first_order_only),'.','MarkerSize',7,'LineWidth',1.2,'Color',cmap_lines(crep,:))
 
 end
 
 
 xlim([-250 100]),xlabel('frequency [Hz]'),%ylim([-0.5 0.5])
- legend(all_lines)
-   set(gca,'ColorOrder',jet(size(Spectrum,2)));
+legend(all_lines,'location','northwest')
+set(gca,'ColorOrder',jet(size(Spectrum,2)));
 peakName={metabolites.name };
 title('Global T2 : spin-echo ')
 grid on
 
 %     xlim([-75.6206 -38.8002]),ylim([-0.0377 0.0571]) %glucose
 
-
+weights=1./cell2mat(cellfun(@(x)x.amplitude,CRBResults,'UniformOutput',false)');
 plt_id=[3 4, 7 8];
 for i=1:length(metabolites)
     nexttile(tt,plt_id(i));
@@ -184,51 +181,49 @@ for i=1:length(metabolites)
 
     lcolour='r'; typ='AMARES';
     if(i==1 && contains(MeasPath,'sub'))
-    % Set up fittype and options.
-    ft = fittype( 'f*(a*(exp(-x/b)) +d*(exp(-x/e))) +c +1e4*(a+d-1)', 'independent', 'x', 'dependent', 'y' );
-    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
-    opts.Display = 'Off';
-    opts.Robust = 'on';
-    opts.StartPoint = [1 0.1e3 0 0.1 500 1];
-    opts.Lower = [0.7 1 -Inf 0.10 450 -Inf];
-    opts.Upper = [0.9 50 Inf 0.3  600 Inf];
+        % Set up fittype and options.
+        ft = fittype( 'f*(a*(exp(-x/b)) +d*(exp(-x/e))) +c +1e5*(a+d-1)', 'independent', 'x', 'dependent', 'y' );
+        opts = fitoptions( 'Method', 'NonlinearLeastSquares','Weights',weights(:,i) );
+        opts.Display = 'Off';
+        opts.Robust = 'on';
+        opts.StartPoint = [1 0.1e3 0 0.1 500 1];
+        opts.Lower = [0.7 1 -Inf 0 200 -Inf];
+        opts.Upper = [1 50 Inf 0.25  900 Inf];
 
         % Fit model to data.
-    [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
+        [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
 
-    plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
-    hold on
-    plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour,'LineWidth',1.5),
-    lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
-    lege{2,1}=sprintf('%.2f*exp(-t/%.0f)+%.2f*exp(-t/%.0f)',fitresult.a,fitresult.b,fitresult.d,fitresult.e);
+        plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
+        hold on
+        plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour,'LineWidth',1.5),
+        lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
+        lege{2,1}=sprintf('%.2f*exp(-t/%.0f)+%.2f*exp(-t/%.0f)',fitresult.a,fitresult.b,fitresult.d,fitresult.e);
 
 
     else
-    ft = fittype( 'a*(exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
-    opts = fitoptions( 'Method', 'NonlinearLeastSquares' );
-    opts.Display = 'Off';
-    opts.Robust = 'on';
-    opts.StartPoint = [1 0.1e3 0];
-    opts.Lower = [-Inf 0 -Inf];
-    opts.Upper = [Inf 2e3 Inf];
+        ft = fittype( 'a*(exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
+        opts = fitoptions( 'Method', 'NonlinearLeastSquares','Weights',weights(:,i)  );
+        opts.Display = 'Off';
+        opts.Robust = 'on';
+        opts.StartPoint = [1 0.1e3 0];
+        opts.Lower = [-Inf 0 -Inf];
+        opts.Upper = [Inf 2e3 Inf];
 
         % Fit model to data.
-    [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
+        [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
 
-    plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
-    hold on
-    plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour,'LineWidth',1.5),
-    lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
-    lege{2,1}=sprintf('%.2f*exp(-t/%.0f)',fitresult.a,fitresult.b);
+        plot(st.TE_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
+        hold on
+        plot(st.TE_array*1e3,fitresult(st.TE_array*1e3),lcolour,'LineWidth',1.5),
+        lege{1,1}=sprintf('%s , T2= %.2f ms',typ,fitresult.b);
+        lege{2,1}=sprintf('%.2f*exp(-t/%.0f)',fitresult.a,fitresult.b);
     end
-    
-
 
     xlabel('TE [ms]')
     title(peakName{i})
-    legend(lege{:},'Location','northeast')
-       grid on
-fitresult_all{i}=fitresult;
+    legend(lege{:},'Location','best')
+    grid on
+    fitresult_all{i}=fitresult;
 end
 fontsize(gcf,"scale",1.3)
 
@@ -240,8 +235,9 @@ fprintf('\n%% %s',MeasPath)
 fprintf('\nT2=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s',cellfun(@(x)x.b ,fitresult_all))
 CI=cellfun(@(x)confint(x),(fitresult_all),'UniformOutput',false);
 fprintf('\nT2_CI=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s diff(CI95)/2',cellfun(@(x) diff(x(:,2))/2,CI))
-fprintf('\n%%T2(%.2f%%) =%.4f and T2(%.2f%%) =%.4f',fitresult_all{1}.a*100,fitresult_all{1}.b,fitresult_all{1}.d*100,fitresult_all{1}.e)
-
+if(isfield(fitresult_all{1},'d'))
+    fprintf('\n%%T2(%.2f%%) =%.4f and T2(%.2f%%) =%.4f',fitresult_all{1}.a*100,fitresult_all{1}.b,fitresult_all{1}.d*100,fitresult_all{1}.e)
+end
 
 T2star_ms=median(1e3./(pi*cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)')),1);
 fprintf('\nT2_star_s=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s median \n',T2star_ms)

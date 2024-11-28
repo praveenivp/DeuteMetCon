@@ -1,16 +1,14 @@
 %% load sequence file
 clearvars
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/Phantom_20241021';
-metabolites=getMetaboliteStruct('phantom');
-%   metabolites(3).freq_shift_Hz=-145; %sub-04
-%    metabolites(2).freq_shift_Hz=-55; %sub-03
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
 
-%last working invivo3 freq:  1.5423  -53.1530 -142.0912 -202.1538
-flip =0; % invert spectrum? S1 1,0
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'));
+
+metabolites=getMetaboliteStruct('invivo');
+flip =1; % invert spectrum? S1 1,0
 
 %%
 
@@ -120,11 +118,13 @@ end
 %  figure, plot(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'))
 
 %repeat with restricted linewidth
-med_lw=median(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'),1);
-std_lw=std(cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)'),[],1);
+lw_all=cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)');
+med_lw=median(lw_all(end-5:end,:),1);
+std_lw=std(lw_all(end-5:end,:),[],1);
 
-med_cs=median(cell2mat(cellfun(@(x) x.chemShift,fitResults,'UniformOutput',false)'),1);
-std_cs=std(cell2mat(cellfun(@(x) x.chemShift,fitResults,'UniformOutput',false)'),[],1);
+cs_all=cell2mat(cellfun(@(x) x.chemShift,fitResults,'UniformOutput',false)');
+med_cs=median(cs_all(end-5:end,:),1);
+std_cs=std(cs_all(end-5:end,:),[],1);
 
 for cMet=1:length(metabolites)
   pk.bounds(cMet).linewidth=med_lw(cMet)+[-0.1,0.1]*std_lw(cMet); 
@@ -174,14 +174,14 @@ first_order_only=exp(-1i*(2*pi*faxis*st.AcqDelay_s));
 
 hold on,
 lines_h(crep)=plot(faxis,real(specFft(fid(:)).*first_order_only),'LineWidth',1.2,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TI= %.1f ms',st.TI_array(crep)*1e3));
-plot(faxis,real(spec1(:,crep).*zero_order.*first_order_only),'.','LineWidth',1.2,'Color',cmap_lines(crep,:))
+plot(faxis,real(spec1(:,crep).*zero_order.*first_order_only),'.','MarkerSize',7,'LineWidth',1.2,'Color',cmap_lines(crep,:))
 
 end
 
 
 xlim([-250 100]),xlabel('frequency [Hz]'),%
 % ylim([-0.5 0.5])
-legend(lines_h)
+legend(lines_h,'Location','northwest')
    set(gca,'ColorOrder',jet(size(Spectrum,2)));
 peakName={metabolites.name};
 title(['Globalinversion recovery T1: ',MeasPath(regexp(MeasPath,'[^/]*$'):end)])
@@ -223,7 +223,7 @@ for i=1:length(metabolites)
     % Fit model to data.
     [fitresult, gof] = fit( st.TI_array*1e3,col(amp_all(:,i)) , ft, opts);
 
-    plot(st.TI_array*1e3,amp_all(:,i),[lcolour,'.'])
+    plot(st.TI_array*1e3,amp_all(:,i),[lcolour,'x'])
     hold on
     plot(st.TI_array*1e3,fitresult(st.TI_array*1e3),lcolour),
     lege{1,1}=sprintf('%s , T1= %.2f ms',typ,fitresult.b);
@@ -237,7 +237,7 @@ for i=1:length(metabolites)
 fitresult_all{i}=fitresult;
 end
 fontsize(gcf,"scale",1.3)
-set(gcf,'color','w')
+set(gcf,'color','w','Position',[104 301 1611 746])
 savefig(fullfile(MeasPath,'T1_final_amares.fig'))
 
 %% make table

@@ -4,7 +4,7 @@ addpath(genpath('/ptmp/pvalsala/MATLAB'))
 
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
-metabolites=getMetaboliteStruct('invivo1');
+metabolites=getMetaboliteStruct('invivo');
 CSI_setting={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
     'doCoilCombine','wsvd','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','AMARES'};
 
@@ -55,6 +55,18 @@ mask=mcobj.getMask(60);
 mask=imerode(mask,strel("sphere",5));
 mask=mcobj.Experimental.relativeNorm<0.7;
 mask=imdilate(mask,strel("sphere",1));
+
+%% invivo 5
+CSIdataset='/ptmp/pvalsala/deuterium/I3BL-CJ5O/TWIX/allData#S94Tuebingen#F3446#M114#D281124#T120217#rpcsi_fid_Stan_res156_moreopti.dat';
+mcobj=MetCon_CSI(CSIdataset,CSI_setting{:});
+mask=mcobj.getMask(60);
+mask=imerode(mask,strel("sphere",5));
+mask=mcobj.Experimental.relativeNorm<0.7;
+mask=imdilate(mask,strel("sphere",1));
+% T2* [ms]  19.4120 13.9282 22.3839 20.7921
+% T2* std  [ms]  9.6127 11.3821 48.6879 67.1582
+% cs [Hz]  3.7134 -51.1761 -139.8969 -203.9604
+% cs [ppm]  4.7000 3.8054 2.3595 1.3154
 
 %% phantom
 metabolites=getMetaboliteStruct('phantom');
