@@ -853,7 +853,12 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
             timeElapsed=(MeasStartTime-obj.DMIPara.IntakeTime)+seconds(obj.DMIPara.acq_duration_s*0.5);
             MinuteElapsed=round(minutes(timeElapsed));
         end
-
+        function setRefereneceVoltage(obj,RefVoltage)
+        % as we cannot go beyond 447 V as reference voltage, we correct the
+        % flip angles retrospectively with the actual reference voltage 
+        % (550 V is default for pulseCorrectionFactor calculation)
+        obj.DMIPara.pulseCorrectionFactor=obj.DMIPara.RefVoltage/RefVoltage;
+        end
 
 
     end
