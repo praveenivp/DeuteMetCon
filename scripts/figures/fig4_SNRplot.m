@@ -133,7 +133,7 @@ cMet=cMet(cMask,:);
  stat_std(ii,:)=std(cMet,[],1);
 
 cMask=repmat(cMask,[1 size(realigned_vol4,5)]);
-  contour(cMask,1,'color','red','linewidth',0.1)
+  contour(cMask,1,'color',[255, 105, 180]./255,'linewidth',0.5)
 
 yticks([]),xticks(round((0.5:1:(0.5+size(realigned_vol3,5)))*size(realigned_vol3,3)))
  xticklabels(data_label)
@@ -155,9 +155,9 @@ grid minor
  set(gca,'ylim',get(gca,'ylim')+[0 10])
 % xticklabels(AllDescription(PlotSel))
  xticklabels(data_label)
-fontsize(gcf,'scale',1.5);
+fontsize(gcf,'scale',1.9);
 
-    set(gcf,'Color','w','Position',[397 64 1154 943])
+    set(gcf,'Color','w','Position',[397 64 1154 943],'InvertHardcopy','off')
 
 %% plot signal levels
 p1=squeeze(mcobj_me {1}.img(1,24,32,27,1,:))';

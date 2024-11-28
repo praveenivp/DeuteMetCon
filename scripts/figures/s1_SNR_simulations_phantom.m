@@ -10,7 +10,7 @@ metabolites=getMetaboliteStruct('phantom',5);
 nMet=4;
 metabolites=metabolites(1:nMet);
 
-pc_range=linspace(0,360-360/18,18);
+pc_range=linspace(0,360-360/4,4);
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
 FA_all=linspace(10,90,60);
@@ -225,11 +225,11 @@ title('Signal efficiencies for the investigated protocols')
 
 nexttile(tt,[1 4])
 barh(metnames,cat(2,sig_prot1./sig_prot2,sig_prot2./sig_prot3))
-legend('bSSFP/FISP','FISP/FLASH','Location','southeast')
+legend('bSSFP/FISP','FISP/FLASH','Location','east')
 grid minor
 title('ratio')
 set(gcf,'color','w')
-xlim(get(gca,'xlim')+[1 -0.2])
+xlim(get(gca,'xlim')+[1 +0.])
 set(gca,'FontSize',12)
 
 tab=table(sig_prot1,sig_prot2,sig_prot3,sig_prot1./sig_prot2,sig_prot1./sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bSSFP','FISP','gre','bSSFP/FISP','bSSFP/GRE'})

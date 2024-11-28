@@ -90,7 +90,7 @@ end
 anat_vol=anat_vol./max(anat_vol,[],'all');
 
 % figure,
-h1=imagesc(anat_vol);colormap('gray'),caxis([0 0.5])
+h1=imagesc(anat_vol);colormap(gca,'gray'),caxis(st.cax_im)
 axis image
 hold on
 %  mask2=repmat(mask(:,:,slcSel),[2 1]);
@@ -120,7 +120,7 @@ if(isempty(st.Mask))
 end
 
 
- h2=image(gca,ind2rgb(uint16((2^8)*(met_vol./max(cax(2)))),jet),'AlphaData',double(mask2).*0.4);
+ h2=image(gca,ind2rgb(uint16((2^8)*(met_vol./max(cax(2)))),st.cmap),'AlphaData',double(mask2).*st.alpha_overlay);
 
 
  if(st.colorbar)
@@ -144,10 +144,11 @@ function st=Parseinput(im,varargin)
     p=inputParser;
     p.KeepUnmatched=1;
     addParameter(p,'cax',[],@(x) isvector(x)||isempty(x));
+    addParameter(p,'cax_im',[0 0.5],@(x) isvector(x)||isempty(x));
     addParameter(p,'SlcSel',floor(0.1*Nslc):ceil(0.9*Nslc),@(x) isvector(x));
     addParameter(p,'caxis_im',[0,2.5e-4],@(x) isvector(x));
-    addParameter(p,'alpha_blobs',0.95,@(x) isscalar(x));
-    addParameter(p,'cmap',hot(4096),@(x) ismatrix(x));
+    addParameter(p,'alpha_overlay',0.6,@(x) isscalar(x));
+    addParameter(p,'cmap',turbo(256),@(x) ismatrix(x));
     addParameter(p,'im_horz',1,@(x) isscalar(x));
     addParameter(p,'transform',@(x)x);
     addParameter(p,'title_im','',@(x) ischar(x))

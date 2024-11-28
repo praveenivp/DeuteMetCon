@@ -1,5 +1,5 @@
 %% echo spacing
-addpath(genpath('C:\Users\pvalsala\Documents\Packages2\pulseq\matlab'));
+addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 res=12.5e-3; %m
  GammaH2=6.536e6 ; %Hz/T
  Nx=32;
@@ -75,50 +75,45 @@ seq.addBlock(gxfly)
 seq.addBlock(gxPre)
 seq.plot
 %% plot conditioning/NSA
-%invivo: /ptmp/pvalsala/deuterium/EAZW-GUMK/proc
-met_name={'water','glucose','Glx','lactate'};
-freq_shift_WGX=[3.9 -58.7  -152 -210];
-T1=[432.88 69.65 147.6 190.64]*1e-3;%s
-T2=[287 65.88 124.5 180]*1e-3;%s
+metabolites=getMetaboliteStruct('invivo');
 
-clear metabolites;
-for i=1:length(freq_shift_WGX)
-    metabolites(i)=struct('T1_s',T1(i),'T2_s',T2(i),'freq_shift_Hz',freq_shift_WGX(i),'name',met_name{i});
-end
-
-figure, 
-deltaT_={(0.1:0.01:6)*1e-3,(0.01:0.01:0.5)*1e-3};
-N_=[5, 64*3];
-
-for i=1:2
-deltaT=deltaT_{i};
-N=N_(i)
-NSA=zeros(length(metabolites),length(deltaT));
+deltaT=(0.01:0.01:0.5)*1e-3;
+N=64;
+NSA_CSI=zeros(length(metabolites),length(deltaT));
 for cDT=1:length(deltaT)
     TE=2e-3+(0:N-1)*deltaT(cDT);
     IDEALobj_pinv=IDEAL(metabolites,TE,'solver','phaseonly','PhaseCorr',true);
     A=(IDEALobj_pinv.getA);
-    NSA(:,cDT)=abs(diag(inv(A'*A)));
+    NSA_CSI(:,cDT)=abs(diag(inv(A'*A)));
+end
+deltaTE=(0.1:0.01:6)*1e-3;
+NE=5;
+NSA_ME=zeros(length(metabolites),length(deltaTE));
+for cDT=1:length(deltaTE)
+    TE=2e-3+(0:NE-1)*deltaTE(cDT);
+    IDEALobj_pinv=IDEAL(metabolites,TE,'solver','phaseonly','PhaseCorr',true);
+    A=(IDEALobj_pinv.getA);
+    NSA_ME(:,cDT)=abs(diag(inv(A'*A)));
 end
 
-if(i==1)
-subplot(1,2,i),plot(deltaT*1e3,1./(N*NSA),'LineWidth',2)
+
+figure,
+tt=tiledlayout(1,2,"TileSpacing","compact",'Padding','compact');
+
+nexttile()
+plot(deltaTE*1e3,1./(NE*NSA_ME),'LineWidth',2)
 hold on
-line([4.4 4.4],[0 1],'linewidth',2),line([1 1]*3.7,[0 1],'linewidth',2)
-xlabel('echo spacing [ms]'),ylabel('NSA')
+line([1 1]*3.7,[0 1],'linewidth',2,'color','magenta')
+xlabel('echo spacing [ms]'),ylabel('Normalized NSA')
 title('multi-echo | N=5'),grid on
-else
-    subplot(1,2,i),plot(deltaT*1e3*N,1./(N*NSA),'LineWidth',2)
+legend([{metabolites.name},'ME-bSSFP'],'Location','northwest')
+
+nexttile()
+plot(deltaT*1e3*N,1./(N*NSA_CSI),'LineWidth',2)
 title('CSI '),grid on
-xlabel('readout length [ms]'),ylabel('NSA')
-legend({metabolites.name},'Location','southeast')
+xlabel('readout length [ms]'),ylabel('Normalized NSA')
 hold on
-line([1 1]*14.9,[0 1],'linewidth',2),line([1 1]*94.8,[0 1],'linewidth',2)
-end
-
-end
-
-
-
+line([1 1]*14.9,[0 1],'linewidth',2,'color','magenta' ),line([1 1]*28.44,[0 1],'linewidth',2,'color','cyan')
+legend([{metabolites.name},'CSI-bSSFP','CSI-FISP'],'Location','northwest')
 fontsize(gcf,'scale',1.5)
-set(gcf,'color','w')
+set(gcf,'color','w','Position', [335 381 1289 556])

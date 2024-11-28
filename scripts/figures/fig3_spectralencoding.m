@@ -69,22 +69,23 @@ cd(sn)
 % save('latest_fig3 data.mat',"allmet","cond*","Nechoes","dataset_label")
 
 %% cretate nice mask
-  figure
-mask=CreateMask(squeeze(im_plot(:,:,1,1,1)));
-%%
+
+
 
 disp_echo=2:Nechoes;
-figure(4),clf
 im_plot=permute(squeeze(mean(allmet(15:end-10,48-1:48+1,:,:,disp_echo,:),2)),[1 2 3 5 4]);
 
 %adjust SNR for missing echoes
 im_plot=im_plot./permute(sqrt(disp_echo),[1 3 4 5 2]);
-
 im_plot(:,:,:,2,1:2)=nan;
-
+   figure
+ mask=CreateMask(squeeze(im_plot(:,:,1,1,1)));
 im_plot=im_plot.*mask;
 im_plot(im_plot==0)=nan;
 
+
+%% Plot 
+figure(4),clf
 tt=tiledlayout(5,3*4,"Padding","compact",'TileSpacing','tight');
 imsize=size(im_plot,1:2);
 
@@ -126,7 +127,7 @@ for i=1:4
       if( i==1),ylabel('number of echoes'); else, yticklabels([]); end
       colormap turbo,axis image
 end
-fontsize(gcf,'scale',1.5)
+fontsize(gcf,'scale',2)
 set(gcf,'color','w','Position', [435 81 1307 947],'InvertHardcopy','off')
-savefig('fig3_PhaseCycling')
-print(gcf,'fig3_phaseCycling','-dpng','-r300')
+savefig('fig3_PhaseCycling1')
+print(gcf,'fig3_phaseCycling1','-dpng','-r300')
