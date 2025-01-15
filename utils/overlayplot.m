@@ -74,6 +74,11 @@ end
 %   met_vol(:,:,:,:,1)=[];
 % nTimePoints=nTimePoints-1;
 
+if(isempty(st.Mask))
+    st.Mask=anat_vol>0.01;
+end
+
+
 slcSel=st.SlcSel;
 anat_vol=repmat(anat_vol(:,:,slcSel),[1 1 1 nTimePoints]);
 mask2=repmat(st.Mask(:,:,slcSel),[1 1 1 nTimePoints]);

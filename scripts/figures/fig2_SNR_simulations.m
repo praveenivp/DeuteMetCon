@@ -10,7 +10,8 @@ metabolites=getMetaboliteStruct('invivo');
 nMet=3;
 metabolites=metabolites(1:nMet);
 
-pc_range=linspace(0,360-360/4,4)+180;
+ pc_range=linspace(0,360-360/4,4)+180;
+% pc_range=linspace(0,360-360/18,18)+180;
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
 FA_all=linspace(10,90,60);
@@ -26,7 +27,7 @@ B0=randn([1000,1])*2*6.5360*9.4; % 2ppm
 sig_all_bssfp=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
 dc_fac_ssfp=zeros(length(TR_all_bssfp),1,length(metabolites));
 maxFA_bssfp=zeros([length(TR_all_bssfp) 3]);
- DC=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-bSSFP
+  DC=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-bSSFP
 %  DC=@(TR_s) ((TR_s-5.5e-3)/TR_s).*double(TR_s>5.5e-3); % 5.5 ms non-encoing time ME-bSSFP
 % figure,tiledlayout("flow")
 for cTR=1:size(sig_all_bssfp,1)
@@ -96,7 +97,8 @@ fh=figure(3);
 set(fh,'OuterPosition', [72 42 1e3 1e3]),clf
 
 tt=tiledlayout(4,nMet*2,"TileSpacing","compact",'Padding','compact');
-
+all_clim={[0 1],[0,2],[0 2]};
+all_clim2={[0 0.7],[0,1.3],[0 1.3]};
 for i=1:nMet
     % plot GRE signal efficiency
     ax=nexttile(tt,2*(i-1)+1,[1 2]);
@@ -114,6 +116,7 @@ for i=1:nMet
     ax.YAxis.Direction="normal";
     axis square
     set(gca,'clim',round(get(gca,'clim').*[0 1],1),'FontSize',10)
+    clim(all_clim2{i})
     xlabel('TR [ms]'),ylabel('FA [deg]')
      if(exist("plotProtTR36",'var')),hold on,plotProtTR36(), end %plotProtGre2()
     % legend('800 us','1400 us','2000 us','Location','northwest')
@@ -134,6 +137,7 @@ for i=1:nMet
     ax.YAxis.Direction="normal";
     axis square
    set(gca,'clim',round(get(gca,'clim').*[0 1],1),'FontSize',10)
+   clim(all_clim2{i})
     xlabel('TR [ms]'),ylabel('FA [deg]')
     if(exist("plotProtTR36",'var')),hold on,plotProtTR36(), end %plotProtGre2()
     % legend('800 us','1400 us','2000 us','Location','northwest')
@@ -155,13 +159,14 @@ for i=1:nMet
     ax.YAxis.Direction="normal";
     axis square
     set(gca,'clim',round(get(gca,'clim').*[0 1],1),'FontSize',10)
+    clim(all_clim{i})
     xlabel('TR [ms]'),ylabel('FA [deg]')
     if(exist("plotProtbssfp",'var')),hold on,plotProtbssfp(),end
 
 
 end
 ax=nexttile(tt,2*(i-1)+1+2*nMet,[1 2]);
-legend('700 us','1400 us','2000 us','Location','southeast')
+legend('0.5 ms','1.4 ms','2 ms','Location','southeast')
 sgtitle('signal efficiency [1/\surds]','Interpreter','tex','fontsize',24)
 
 ax=nexttile(tt,1);

@@ -18,7 +18,7 @@ common_settings={'metabolites',metabolites,'doPhaseCorr',false,'doZeroPad',[1 1 
 twix_noise=mapVBVD(fn_noise,'rmos');
 [D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix_noise);
 
- mcobj_fm=MetCon_bSSFP(fn_18PC,'NoiseDecorr',D_image,'Solver','IDEAL',common_settings{:});
+ mcobj_fm=MetCon_ME(fn_18PC,'NoiseDecorr',D_image,'Solver','IDEAL',common_settings{:});
 %field map in rad/s in proton scale
 fm_ideal=imgaussfilt3(mcobj_fm.Experimental.fm_est*(-2*pi)/(6.536 /42.567),0.5);
 
@@ -34,8 +34,8 @@ common_settings_2=[common_settings,{'fm',fm_ideal,'NoiseDecorr',D_image','Solver
 %%
 DMIPara=getDMIPara(mapVBVD(fn_1PC)); 
 Nechoes=length(DMIPara.TE);
- mcobj_18PC=MetCon_bSSFP(fn_18PC,'EchoSel',1:Nechoes,common_settings_2{:});
- mcobj_1PC=MetCon_bSSFP(fn_1PC,'EchoSel',1:Nechoes,common_settings_2{:});
+ mcobj_18PC=MetCon_ME(fn_18PC,'EchoSel',1:Nechoes,common_settings_2{:});
+ mcobj_1PC=MetCon_ME(fn_1PC,'EchoSel',1:Nechoes,common_settings_2{:});
 
 
 % process all retrpective echo undersampling

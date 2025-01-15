@@ -49,7 +49,7 @@ end
 mcobj_me=cell(length(dirst_me),1);
 for cf=1:length(dirst_me)
        fn=fullfile(sn,dirst_me(cf).name);
-    mcobj_me{cf}=MetCon_bSSFP(fn,ME_setting{:});
+    mcobj_me{cf}=MetCon_ME(fn,ME_setting{:});
 end
 %  mcobj_me{1}.PlotResults
 %% reslicing and registration

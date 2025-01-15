@@ -25,7 +25,7 @@ twix_noise=mapVBVD(fullfile(sn,fn_noise(1).name),'rmos');
 fn_fm=(fullfile(sn,dirst_me(3).name));
 ME_setting={'NoiseDecorr',D_image,'mask',[],'metabolites',metabolites(1:3),...
             'doPhaseCorr',false,'doZeropad',[1 1 1]*0.5,'parfor',true};
-% mcobj_ideal=MetCon_bSSFP(fn_fm,'Solver','IDEAL',ME_setting{:},'mask',80);
+% mcobj_ideal=MetCon_ME(fn_fm,'Solver','IDEAL',ME_setting{:},'mask',80);
 % fm_meas_Hz=mcobj_ideal.Experimental.fm_est*(-2*pi)/(6.536 /42.567);
 %% process all ME- data
 
@@ -34,10 +34,10 @@ mcobj_me=cell(length(dirst_me),1);
 for cf=1:length(dirst_me)
 
        fn=fullfile(sn,dirst_me(cf).name);   
-%        mcobj_ideal=MetCon_bSSFP(fn,'Solver','IDEAL',ME_setting{:},'mask',80);
+%        mcobj_ideal=MetCon_ME(fn,'Solver','IDEAL',ME_setting{:},'mask',80);
 % fm_meas_Hz=mcobj_ideal.Experimental.fm_est*(-2*pi)/(6.536 /42.567);
 
-    mcobj_me{cf}=MetCon_bSSFP(fn,ME_setting{:},'fm','IDEAL','Solver','pinv');
+    mcobj_me{cf}=MetCon_ME(fn,ME_setting{:},'fm','IDEAL','Solver','pinv');
 end
 
 

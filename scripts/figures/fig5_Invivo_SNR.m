@@ -38,7 +38,7 @@ mcobj_me=cell(length(dirst_me),1);
 for cf=1:length(dirst_me)
 
        fn=fullfile(sn,dirst_me(cf).name);   
-    mcobj_me{cf}=MetCon_bSSFP(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
+    mcobj_me{cf}=MetCon_ME(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
 end
 
 
@@ -91,10 +91,10 @@ load('/ptmp/pvalsala/deuterium/paper/sub3_modes/data_S3_modes.mat')
   resliced_s2_av= AverageByType(resliced_s2,type_label_s2);
    resliced_s3_av= AverageByType(resliced_s3,type_label_s3);
 
-mask_s1=imerode(mask_s1,strel('sphere',2));
-%  mask_s2=mcobj_me{1}.getMask(80);
- mask_s2=resliced_s2_av(:,:,:,1,1)>12;
- mask_s2=imdilate(mask_s2,strel('sphere',1));
+% mask_s1=imerode(mask_s1,strel('sphere',2));
+% %  mask_s2=mcobj_me{1}.getMask(80);
+%  mask_s2=resliced_s2_av(:,:,:,1,1)>12;
+%  mask_s2=imdilate(mask_s2,strel('sphere',1));
 slcSel_s1=36;
 slcSel_s2=34;
 slcSel_s3=38;

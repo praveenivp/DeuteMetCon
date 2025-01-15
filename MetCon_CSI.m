@@ -1,32 +1,63 @@
 classdef MetCon_CSI<matlab.mixin.Copyable
+
+% MetCon_CSI
+% A class to process both GRE/bSSFP CSI data. The constructor accepts
+% raw/twix filename and other optional arguments as name value pairs as
+% listed below: 
+%
+% | name                        | description                                                | default   | possible options                                                 |
+% |-----------------------------|------------------------------------------------------------|-----------|------------------------------------------------------------------|
+% | 'metabolites'               | struct array with definition of metabolites                | []        | see getMetaboliteStruct.m function                               |
+% | 'fm'                        | 1H fieldmap in rad/s                                       | []        | 3D numeric matrix or 'IDEAL'                                     |
+% | 'csm'                       | coil maps                                                  | []        | 3D numeric matrix                                                |
+% | 'mask'                      | mask for spectral separation                               | []        | 3D logical matrix                                                |
+% | 'doDenosing'                | SVD denoising                                              | 0         | scalar No of components, -1 for debug                            |
+% | 'Solver'                    | spectral separation method                                 | 'IDEAL'   | {'phaseonly','pinv','IDEAL','IDEAL-modes','AMARES','LorentzFit'} |
+% |                             |                                                            |           | 'phaseonly'- linear method with only phase evolution             |
+% |                             |                                                            |           | 'pinv'- linear method with full signal model                     |
+% |                             |                                                            |           | 'IDEAL'- iterative IDEAL algorithm                               |
+% |                             |                                                            |           | 'IDEAL-modes'-IDEAL algorithm for phase cycled data              |
+% |                             |                                                            |           | 'AMARES'- AMARES spectral fitting                                |
+% |                             |                                                            |           | 'LorentzFit'- lorentzian spectral fitting                        |
+% | 'parfor'                    | flag to use parfor                                         | true      | boolean                                                          |
+% | 'doZeroPad'                 | zero pad factor                                            | [1 1 1 0] | positive scalar array [3 physical axis x 1 time]                 |
+% | 'doSmoothFM','maxit'        | IDEAL flags: fieldmap smooth factor and maximum iterations | 1,10      | scalar(+ve: gaussian, -ve: median),postive scalar                |
+% | 'doPhaseCorr'               | phase correction mode                                      | 'none'    | {'none','Manual','Burg'}                                         |
+% | 'CoilSel','PCSel','EchoSel' | arrays to picks some of coils, time points and phasecyles. | 1:max()   | positive integer array                                           |
+% |'doNoiseDecorr'              | flag to perform noise decorrelation                        | true      | boolean                                                          |
+% | 'doCoilCombine'             | coil combine mode                                          | 'adapt1'  | {'none','sos','adapt1','wsvd'}                                   |
+%
+% Example:
+% mcobj_csi=MetCon_CSI(CSI_filename,'metabolites',getMetaboliteStruct('invivo'),'doZeropad',[0.5 0.5 0.5 0],'Solver','IDEAL');
+%
+% author: praveen
+
     properties
-        time  %[s]
 
-        FieldMap %B0 spatial [rad/s]
-        mask
+        FieldMap %1H B0 spatial [rad/s]
+        mask % binary mask for metabolite estimation
 
-        twix
-        DMIPara
+        twix %mapVBVD object
+        DMIPara % parsed sequence parameters
         flags
 
-        filename
+        filename % of raw data file
 
-        metabolites
+        metabolites  % metabolite struct see getMetaboliteStruct.m
         sig % raw data
         img % reconstructed image [CHAxCOLxLINxPARxSLCxREP]
         coilSens %%[CHAxCOLxLINxPARxSLC]
         coilNormMat %%[COLxLINxPARxSLC]
 
 
-        SolverObj
-        Metcon
-        Experimental
+        SolverObj % IDEAL solver object
+        Metcon  % metbolite amplitudes
+        Experimental % experimental outputs like residue, other fit parameters , fieldmap ,etc
 
-        D % noise decoraltion matrix
+        D % noise decorrelation matrix
 
     end
     methods
-
         %constructor: get full path of dat file or no arguments
         function obj=MetCon_CSI(varargin)
             if(nargin==0)
@@ -49,8 +80,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 else
                     error('wrong input or file not found')
                 end
-
-
             end
 
             if(iscell(obj.twix)) %VE
@@ -99,14 +128,9 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     %-1 for debug
                     addParameter(p,'doDenosing',0,@(x) isscalar(x));
                     addParameter(p,'Solver','IDEAL',@(x) any(strcmp(x,{'phaseonly','pinv','IDEAL','IDEAL-modes','AMARES','LorentzFit'})));                
-                      % posistive value for imgaulsfilt3 or negative value
-                    % for medfilt3
+                      % posistive value for imgaulsfilt3 or negative value for medfilt3
                     addParameter(p,'doSmoothFM',1,@(x) isscalar(x));
                     addParameter(p,'maxit',10,@(x) isscalar(x));
-                    %                     addParameter(p,'maxit',10,@(x)isscalar(x));
-                    %                     addParameter(p,'tol',1e-6,@(x)isscalar(x));
-                    %                     addParameter(p,'reg','none',@(x) any(strcmp(x,{'none','Tikhonov'})));
-                    %                     addParameter(p,'reg_lambda',0,@(x)isscalar(x));
                     addParameter(p,'parfor',true,@(x) islogical(x));
                     addParameter(p,'doZeroPad',[1 1 1 0], @(x) isvector(x)); % [3 physical x 1 time]
                     parse(p,varargin{:});
@@ -115,8 +139,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                     if(isfield(p.Unmatched,'csm')) %[CHAxCOLxLINxPARxSLC]
                         obj.coilSens=p.Unmatched.csm;
                         obj.flags.doCoilCombine='none';
-                        %                         obj.SpiralPara.R_PE=2;
-                        %                         obj.flags.doPAT='CGSENSE';
                     end
                     if(isfield(p.Unmatched,'fm'))
                         obj.FieldMap=p.Unmatched.fm;
@@ -135,8 +157,6 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                         Acqdelay=obj.twix.hdr.Phoenix.sSpecPara.lAcquisitionDelay*1e-6; %s
                         obj.flags.phaseoffset=[0 2*pi*Acqdelay];
                     end
-
-
             end
 
             if( strcmp(obj.flags.Solver,'AMARES'))
@@ -224,7 +244,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             MissingVOXSEG = double(ksp.lPartitions- obj.twix.image.NSeg);
             obj.sig  = padarray( obj.sig ,[0,MissingVOXLIN,MissingVOXSEG,MissingVOXPAR,0,0],'post');
 
-            %if you are smart enough to adjust ADC phase to correct for FOV Shift, do it now!
+            %if you are not smart enough to adjust ADC phase to correct for FOV Shift duing acquisiton, do it now!
             if(obj.DMIPara.SeriesDateTime_start>datetime('20-Sep-2024') && ...
                     contains(obj.twix.hdr.Config.SequenceFileName,'ssfp') )
                 obj.sig=performFOVShift(obj.sig,obj.twix);
@@ -653,32 +673,14 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %             demoFit(obj,pxl_idx)
 
 
-            freq=[obj.metabolites.freq_shift_Hz];
-            fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
-            fid=padarray(fid,[size(fid,1) 0],0,'post');
-            fprintf('Performing Nlorentz fit\n')
 
-            dw=obj.DMIPara.dwell;
-            faxis=linspace(-0.5/dw,0.5/dw,length(fid));
-            [~,minIdx]=min(abs(faxis-(min(freq)-200)));
-            [~,maxIdx]=min(abs(faxis-(max(freq)+200)));
-            freqSel=minIdx:maxIdx; %1:length(faxis)
-
-            xdata=faxis(freqSel);
-            spect=(fftshift(fft(fid*exp(-1i*rad2deg(42.94)))));
-            [fitf,gof,fitoptions]=NLorentzFit(xdata(:),abs(spect(freqSel)),freq);
-            figure(34),clf,plot(xdata,abs(spect(freqSel)));
-            hold on
-            plot(xdata,real(spect(freqSel)));
-            plot(xdata,fitf(xdata));
 
 
             %test AMARES fit
             fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
-            [expParams,pk]=getAMARES_structs(mcobj);
-            if(ismatrix(obj.FieldMap))
+            [expParams,pk]=getAMARES_structs(obj);
+            if(ismatrix(obj.FieldMap)&& ~isempty(obj.FieldMap))
                 fm_est=-1*obj.FieldMap(pxl_idx(1),pxl_idx(2),pxl_idx(3));
-                fm_est=obj.mat2col(fm_est,obj.mask);
                 fm_est=fm_est./(2*pi)*(6.536 /42.567); % [Hz]
                 fm_est=fm_est./obj.DMIPara.ImagingFrequency_MHz;
             else
@@ -686,20 +688,42 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
             
             expParams.offset=fm_est;
-            [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fid(:)), expParams, pk,true,'quiet',false);
+            [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fid(:)), expParams, pk,33,'quiet',false);
             disp(fitResults)
+
+            % test Lorentzian fitting
+            fprintf('Performing Nlorentz fit\n')
+            freq=[obj.metabolites.freq_shift_Hz];
+            fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
+            fid=padarray(fid,[size(fid,1) 0],0,'post');
+
+            dw=obj.DMIPara.dwell;
+            faxis=calcFreqAxis(dw,length(fid));
+            [~,minIdx]=min(abs(faxis-(min(freq)-200)));
+            [~,maxIdx]=min(abs(faxis-(max(freq)+200)));
+            freqSel=minIdx:maxIdx; %1:length(faxis)
+
+            xdata=faxis(freqSel);
+            spect=(fftshift(fft(fid)));
+            spect=spect*exp(1i*CalcZerothPhase(faxis,spect,300));
+            [fitf,gof,fitoptions]=NLorentzFit(xdata(:),abs(spect(freqSel)),freq);
+            figure(34),clf,plot(xdata,abs(spect(freqSel)));
+            hold on
+            plot(xdata,real(spect(freqSel)));
+            plot(xdata,fitf(xdata));
 
             % try to reconstruct fitted spectrum
             taxis=expParams.timeAxis;
             sig1=zeros(size(taxis));
             a=fitResults.amplitude;
-            f=fitResults.chemShift*amares_struct.imagingFrequency;
+            f=fitResults.chemShift*expParams.imagingFrequency;
             phi=0.*deg2rad(fitResults.phase);
             d=fitResults.linewidth; % [Hz]
             for i=1:length(a)
                 sig1=sig1+a(i)*exp(-1i*phi(i)).*exp(-(pi*d(i))*taxis).*exp(1i*2*pi*f(i)*taxis);
             end
             spec_amares=fftshift(fft(sig1(:)));
+            faxis=calcFreqAxis(dw,length(spec_amares));
             figure(34),
             plot(faxis,spec_amares,'LineWidth',2);
             xlim([min(freq)-200 max(freq)+200])
@@ -803,7 +827,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
                 cax_im=[0 prctile(im_curr(:),99)];
                 clim(cax_im);
-                xticks([]),yticks([]),title(obj.metabolites(i).name)
+                xticks([]),yticks([]),title([obj.metabolites(i).name,' [SNR]'])
 
             end
 

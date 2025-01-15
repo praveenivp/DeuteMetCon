@@ -1,33 +1,65 @@
-classdef MetCon_bSSFP<matlab.mixin.Copyable
+classdef MetCon_ME<matlab.mixin.Copyable
+
+% MetCon_ME
+% A class to process bSSFP multi-echo spectral-spatial data. The constructor accepts
+% raw/twix filename and other optional arguments as name value pairs as
+% listed below: 
+%
+% | name                          | description                                                | default   | possible options                                                 |
+% |-------------------------------|------------------------------------------------------------|-----------|------------------------------------------------------------------|
+% | 'metabolites'                 | struct array with definition of metabolites                | []        | see getMetaboliteStruct.m function                               |
+% | 'NoiseDecorr'                 | Noise Decorrelation matrix [Coilxcoil]                                      | []        | 2D numeric matrix                                     |
+% | 'fm'                          | 1H fieldmap in rad/s                                       | []        | 3D numeric matrix or 'IDEAL'                                     |
+% | 'csm'                         | coil maps                                                  | []        | 3D numeric matrix                                                |
+% | 'mask'                        | mask for spectral separation                               | []        | 3D logical matrix                                                |
+% | 'doDenosing'                  | SVD denoising                                              | 0         | scalar No of components, -1 for debug                            |
+% | 'Solver'                      | spectral separation method                                 | 'IDEAL'   |{'pinv','IDEAL','IDEAL-modes','phaseonly'}          |
+% |                               |                                                            |           | 'phaseonly'- linear method with only phase evolution             |
+% |                               |                                                            |           | 'pinv'- linear method with full signal model                     |
+% |                               |                                                            |           | 'IDEAL'-  IDEAL algorithm with data averaged along phase cycles  |
+% |                               |                                                            |           | 'IDEAL-modes'-IDEAL algorithm for phase cycled data              |
+% | 'parfor'                      | flag to use parfor                                         | true      | boolean                                                          |
+% | 'doZeroPad'                   | zero pad factor                                            | [1 1 1]   | positive scalar array [3 physical axis]                          |
+% | 'doSmoothFM','maxit'          | IDEAL flags: fieldmap smooth factor and maximum iterations | 1,10      | scalar(+ve: gaussian, -ve: median),postive scalar                |
+% | 'doPhaseCorr'                 | phase correction(subtract phase of all image with 1st echo)| false     | boolean                                                          |
+% | 'CoilSel','PCSel','EchoSel'   | arrays to picks some of coils, echoes and phasecyles. | 1:max()   | positive integer array                                                |
+% | 'doNoiseDecorr'               | flag to perform noise decorrelation                        | true      | boolean                                                          |
+% | 'doKspaceFilter'              | apply restrospective skpace filter                         | 'none'    | {'none','hann','hamm'})                                          |
+% | 'doCoilCombine'               | coil combine mode                                          | 'adapt1'  | {'none','sos','adapt1','adapt2'}                                 |
+%
+% Example:
+% mcobj_me=MetCon_ME(ME_filename,'metabolites',getMetaboliteStruct('invivo'),'doZeropad',[0.5 0.5 0.5 0],'Solver','IDEAL');
+%
+% author: praveen
+
     properties
-        time  %[s]
 
-        FieldMap %spatial [rad/s]
-        mask
+        FieldMap %spatial 1H B0 map [rad/s]
+        mask % binary mask for metabolite estimation
 
-        twix
-        DMIPara
+        twix %mapVBVD object
+        DMIPara % parsed sequence parameters
         flags
 
-        filename
+        filename % of raw data file
 
-        metabolites
+        metabolites % metabolite struct see getMetaboliteStruct.m
         sig % raw data
         img % reconstructed image [CHAxCOLxLINxPARxSLCxREP]
         coilSens %%[CHAxCOLxLINxPARxSLC]
         coilNormMat %%[COLxLINxPARxSLC]
 
-        SolverObj
-        Metcon
+        SolverObj % IDEAL solver object
+        Metcon % metbolite amplitudes
 
-        Experimental
-        D % noise decoraltion matrix
+        Experimental % experimental outputs like residue, other fit parameters , fieldmap ,etc
+        D % noise decorrelation matrix
 
     end
     methods
 
         %constructor: get full path of dat file or no arguments
-        function obj=MetCon_bSSFP(varargin)
+        function obj=MetCon_ME(varargin)
             if(nargin==0)
                 %path='D:\Data\Spiral\20200918_B0test_sameres';
                 path='M:\Subject_data\20201020_subject4847';
@@ -578,7 +610,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
         end
 
 
-        function plotFit(obj,voxel_idx)
+        function demoFit(obj,voxel_idx)
             % plot the fittting results for the voxel with index for debuggig
             % (voxel_idx: 3x1 array)
             assert(strcmpi(obj.flags.Solver,'pinv'),'only implemented for pinv mode');
@@ -653,7 +685,7 @@ classdef MetCon_bSSFP<matlab.mixin.Copyable
                 niiFileName=fullfile(fPath,fn);
             elseif(isfolder(niiFileName))
                 fPath=niiFileName;
-                fn=sprintf('M%5d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
+                fn=sprintf('M%05d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
                 niiFileName=fullfile(fPath,fn);
             else
                 [fPath,~]=fileparts(niiFileName);
