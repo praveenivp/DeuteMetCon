@@ -165,33 +165,35 @@ for i=1:nMet
 
 end
 ax=nexttile(tt,2*(i-1)+1+2*nMet,[1 2]);
-legend('500 us','1400 us','2000 us','Location','southeast')
+legend('0.5 ms','1.4 ms','2 ms','Location',  [0.8750    0.5250    0.0700    0.0500])
 sgtitle('signal efficiency [1/\surds]','Interpreter','tex','fontsize',24)
 
 ax=nexttile(tt,1);
 annotation(gcf,'textbox',...
-    [0.01,ax.Position(2)+ax.Position(3)/2-0.04,0,0],...
-    'String',{'FLASH'},...
+    [0.01,ax.Position(2)+ax.Position(3)/2+0.02,0,0],...
+    'String',{'CSI-FLASH'},...
     'Rotation',90,...
     'FontWeight','bold',...
-    'FontSize',20);
+    'FontSize',20,'HorizontalAlignment','center');
+
 
 
 ax=nexttile(tt,1+nMet*2);
 annotation(gcf,'textbox',...
-    [0.01,ax.Position(2)+ax.Position(3)/2-0.02,0,0],...
-    'String',{'FISP'},...
+    [0.01,ax.Position(2)+ax.Position(3)/2+0.02,0,0],...
+    'String',{'CSI-FISP'},...
     'Rotation',90,...
     'FontWeight','bold',...
-    'FontSize',20);
+    'FontSize',20,'HorizontalAlignment','center');
 
 ax=nexttile(tt,1+nMet*2*2);
 annotation(gcf,'textbox',...
-    [0.01,ax.Position(2)+ax.Position(3)/2-0.04,0,0],...
-    'String',{'bSSFP'},...
+    [0.01,ax.Position(2)+ax.Position(3)/2+0.02,0,0],...
+    'String',{'CSI-bSSFP'},...
     'Rotation',90,...
     'FontWeight','bold',...
-    'FontSize',20);
+    'FontSize',20,'HorizontalAlignment','center');
+
 % plot protocol
 TR_ssfp=19e-3; %s
 
@@ -216,8 +218,10 @@ sig_prot3=squeeze(abs(sig_all_gre(idxTR,idxFA,1:nMet    )));
 
 metnames=reordercats(categorical({metabolites.name}),{metabolites.name});
 nexttile(tt,[1 4])
-barh(metnames,cat(2,sig_prot1,sig_prot2,sig_prot3))
-legend('bSSFP','FISP','FLASH','Location','southeast')
+bh=barh(metnames,cat(2,sig_prot1,sig_prot2,sig_prot3),'FaceAlpha',0.75);
+set(gca,'ColorOrder',[[ 0.8500,0.3250,0.0980];[ 0,0.4470,0.7410];[0.4940,0.1840,0.5560];])
+lh=legend('bSSFP','FISP','FLASH','Location','southeast');
+lh.Direction='reverse';
 grid minor
 set(gca,'FontSize',12)
 xlim(get(gca,'xlim')+[0 0.5])
@@ -229,13 +233,13 @@ legend('bSSFP/FISP','FISP/FLASH','Location','east')
 grid minor
 title('ratio')
 set(gcf,'color','w')
-xlim(get(gca,'xlim')+[1 +0.])
+xlim(get(gca,'xlim')+[1 +0.1])
 set(gca,'FontSize',12)
 
 tab=table(sig_prot1,sig_prot2,sig_prot3,sig_prot1./sig_prot2,sig_prot1./sig_prot3,'RowNames',{metabolites.name},'VariableNames',{'bSSFP','FISP','gre','bSSFP/FISP','bSSFP/GRE'})
 
 fontsize(gcf,'scale',1)
-% print(gcf,'fig2_SNRsiminvivo3','-dpng','-r300')
+% print(gcf,'s1_phantomSim_v2.png','-dpng','-r300')
 
 %%
 

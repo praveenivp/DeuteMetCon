@@ -43,7 +43,7 @@ switch(DataSelect)
         water2_T2=mean([331.47, 365.04,340.79,317.66,200]);
 
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
-    case 'invivo1'
+    case 'sub-04' 
         % for invivo we have all values except lactate
 
         %invivo: /ptmp/pvalsala/deuterium/EAZW-GUMK/proc
@@ -58,7 +58,7 @@ switch(DataSelect)
         freq_shift=[-0.6647  -55.7530 -144.9229 -205.0421]; % Hz
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T2Star=[24.3812   17.0160   25.2516   23.8431]*1e-3; %s
-    case 'invivo2'
+    case 'sub-05' %subject 5
         %invivo: /ptmp/pvalsala/deuterium/DA77-F3UY
         met_name={'water','glucose','Glx','lactate/lipid'};
         T1=[360.1643,77.9841,161.7815,165.6381]*1e-3; %s
@@ -73,7 +73,7 @@ switch(DataSelect)
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T2Star=[20.5969 14.2529 22.2796 25.2529]*1e-3; %s
 
-    case 'invivo3'
+    case 'sub-01' %subject 1
         %/ptmp/pvalsala/deuterium/HOSJ-D6P2/proc/T1T2
         met_name={'water','glucose','Glx','lactate/lipid'};
         T1=[360.5184,86.8361,158.0989,109.9415]*1e-3; %s
@@ -88,7 +88,7 @@ switch(DataSelect)
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T2Star=[21.0052 13.9556 22.3202 31.8583]*1e-3; %s
 
-    case 'invivo4'
+    case 'sub-02' %subject 2
         %/ptmp/pvalsala/deuterium/H4
         met_name={'water','glucose','Glx','lactate/lipid'};
         T1=[417.2924,64.3759,173.4299,142.9516]*1e-3; %s
@@ -102,7 +102,7 @@ switch(DataSelect)
         freq_shift_ppm=(freq_shift-freq_shift(1))./(B0*gammaH2)+4.7;
         T2Star=[19.0796 12.7327 21.4821 17.5425]*1e-3; %s
 
-    case 'invivo5'
+    case 'sub-03' %subject 3
         %/ptmp/pvalsala/deuterium/H4
         met_name={'water','glucose','Glx','lactate/lipid'};
         T1=[361.3593,77.4438,157.5635,121.6826]*1e-3; %s

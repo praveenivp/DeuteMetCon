@@ -98,6 +98,7 @@ tt=tiledlayout(4,2,'TileSpacing','compact','Padding','compact');
 picked=[9,5,7,2]; % selected tubes
 ROIs{9}=ROIs{9}-[0 ;2];
 ROIs{7}=ROIs{7}-[-1 ;2];
+ROIs{2}=ROIs{2}-[1 ;1];
 
 PlotSel=1:length(mcobj_all);    
 stat_mean=zeros(size(realigned_vol,4),size(realigned_vol,5));
@@ -125,7 +126,7 @@ cMask(ROIs{picked(ii)}(1),ROIs{picked(ii)}(2))=true;
 % cMask(ROIs{picked2(ii)}(1),ROIs{picked2(ii)}(2))=true;
 
 
-cMask=imdilate(cMask,strel('sphere',round(3*im_sf)));
+cMask=imdilate(cMask,strel('disk',round(3.5*im_sf)),1);
 cMet=reshape(mean(realigned_vol4(:,:,slcSel,ii,:),3),numel(cMask),[]);
 cMet=cMet(cMask,:);
 % stat_mean(ii,:)=mean(cMet,1);
@@ -133,31 +134,35 @@ cMet=cMet(cMask,:);
  stat_std(ii,:)=std(cMet,[],1);
 
 cMask=repmat(cMask,[1 size(realigned_vol4,5)]);
-  contour(cMask,1,'color',[255, 105, 180]./255,'linewidth',0.5)
+  contour(cMask,1,'EdgeColor',[0,0,0],'EdgeAlpha',1,'linewidth',1.5)
 
 yticks([]),xticks(round((0.5:1:(0.5+size(realigned_vol3,5)))*size(realigned_vol3,3)))
  xticklabels(data_label)
 end
+
+% colors_met=[[0,0,255];[0, 128,0]; [255,212,42];[255,102,0]]; 
+% colors_datalabels=([[127,184,221];[235,168,139];[245,215,143];]-10)./250;
 nexttile(5,[2 2])
-hb=bar(stat_mean');
+hb=bar(stat_mean,'LineWidth',0.75);
+% set(gca,"ColorOrder",colors_datalabels);
+arrayfun(@(x)set(x,'FaceAlpha',0.6),hb);
 %
 hold on;
-for k = 1:size(stat_mean,1)
+for cMet = 1:size(stat_mean,2)
     % get x positions per group
-    xpos = hb(k).XData + hb(k).XOffset;
+    xpos = hb(cMet).XData + hb(cMet).XOffset;
     % draw errorbar
-    errorbar(xpos, stat_mean(k,:), stat_std(k,:), 'LineStyle', 'none', ... 
-        'Color', 'k', 'LineWidth', 1);
+    eb_h=errorbar(xpos, stat_mean(:,cMet), stat_std(:,cMet), 'LineStyle', 'none', ... 
+        'Color', 'k', 'LineWidth', 1.5);
 end
-ylabel('SNR')
-legend({metabolites.name})
-grid minor
+ylabel('SNR'),grid minor
  set(gca,'ylim',get(gca,'ylim')+[0 10])
 % xticklabels(AllDescription(PlotSel))
- xticklabels(data_label)
+ legend(data_label),xticklabels({metabolites.name})
 fontsize(gcf,'scale',1.9);
 
     set(gcf,'Color','w','Position',[397 64 1154 943],'InvertHardcopy','off')
+disp(stat_mean./(stat_mean(:,1))) %disp mean ratios
 
 %% plot signal levels
 p1=squeeze(mcobj_me {1}.img(1,24,32,27,1,:))';

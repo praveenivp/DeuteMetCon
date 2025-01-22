@@ -8,7 +8,7 @@ addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'));
 
 metabolites=getMetaboliteStruct('invivo');
-flip =1; % invert spectrum? S1 1,0
+flip =0; % invert spectrum?
 
 %%
 
@@ -184,7 +184,7 @@ xlim([-250 100]),xlabel('frequency [Hz]'),%
 legend(lines_h,'Location','northwest')
    set(gca,'ColorOrder',jet(size(Spectrum,2)));
 peakName={metabolites.name};
-title(['Globalinversion recovery T1: ',MeasPath(regexp(MeasPath,'[^/]*$'):end)])
+title(['Global T1: inversion recovery | ',MeasPath(regexp(MeasPath,'[^/]*$'):end)])
 grid on
 
 
@@ -223,9 +223,9 @@ for i=1:length(metabolites)
     % Fit model to data.
     [fitresult, gof] = fit( st.TI_array*1e3,col(amp_all(:,i)) , ft, opts);
 
-    plot(st.TI_array*1e3,amp_all(:,i),[lcolour,'x'])
+    plot(st.TI_array*1e3,amp_all(:,i),[lcolour,'x'],'LineWidth',1.5)
     hold on
-    plot(st.TI_array*1e3,fitresult(st.TI_array*1e3),lcolour),
+    plot(st.TI_array*1e3,fitresult(st.TI_array*1e3),lcolour,'LineWidth',1.5),
     lege{1,1}=sprintf('%s , T1= %.2f ms',typ,fitresult.b);
     lege{2,1}=sprintf('%.1f*(1-2*exp(-x/%.2f))+%.1f',fitresult.a,fitresult.b,fitresult.c);
 %     disp(fitresult)
