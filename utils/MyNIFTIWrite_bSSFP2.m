@@ -255,3 +255,112 @@ timeUnitCode  = bitand(uint8(timeUnits),uint8(56)); % 0x38
 xyztCode = bitor(spaceUnitCode, timeUnitCode);
 
 end
+% https://github.com/robotology-legacy/mex-wholebodymodel/blob/master/mex-wholebodymodel/matlab/utilities/+WBM/+utilities/quat2rotm.m
+% function TT = quat2tform(quat)
+%     if (length(quat) ~= 4)
+%         error('quat2rotm: %s', WBM.wbmErrorMsg.WRONG_VEC_DIM);
+%     end
+%     dcm = zeros(3,3);
+% 
+%     qnorm = norm(quat);
+%     if (qnorm > 1)
+%         quat = quat./qnorm; % normalize
+%     end
+%     % scalar (real) part:
+%     q_0 = quat(1);
+%     % vector (imaginary) part:
+%     q_1 = quat(2);
+%     q_2 = quat(3);
+%     q_3 = quat(4);
+% 
+%     %% Compute the Direction Cosine Matrix (DCM) by applying the Euler-Rodrigues Parameterization
+%     % for efficent computing of the rotation matrix R(s,r) in SO(3) with,
+%     %
+%     %       R(s,r) = I + (2*s)*S_r + 2*(S_r*S_r),
+%     %
+%     % where s denotes the scalar part of the given quaternion, S_r is the skew-symmetric matrix of
+%     % the vector part r of the quaternion, and I is a (3x3) identity matrix.
+%     % For more details about the parametrization formula, please check:
+%     %   [1] CONTRIBUTIONS TO THE AUTOMATIC CONTROL OF AERIAL VEHICLES, Minh Duc HUA, PhD-Thesis, 2009,
+%     %       <https://www-sop.inria.fr/act_recherche/formulaire/uploads/phd-425.pdf>, p. 101, eq. (3.7) & (3.8).
+%     %   [2] Lecture notes for 'Multibody System Dynamics', Prof. Bottasso, Aerospace Engineering Departement, Politecnico di Milano,
+%     %       <https://home.aero.polimi.it/trainelli/downloads/Bottasso_ThreeDimensionalRotations.pdf>, p. 33, eq. (1.160).
+%     %   [3] The Vectorial Parameterization of Rotation, Olivier A. Bauchau & Lorenzo Trainelli, Nonlinear Dynamics, 2003,
+%     %       <http://soliton.ae.gatech.edu/people/obauchau/publications/Bauchau+Trainelli03.pdf>, p. 16, eq. (51).
+%     %   [4] Theory of Applied Robotics: Kinematics, Dynamics, and Control, Reza N. Jazar, 2nd Edition, Springer, 2010, p. 103, eq. (3.82).
+%     %
+%     % Note: The direct assignment is computationally faster than using directly the formula above. Furthermore, if the above formula
+%     %       will be used, the matrix multiplications are causing accumulative round-off errors in the main diagonal of the DCM-matrix
+%     %       (around ??0.7*1e-03). To be more accurate, it is better to use the derived transformation matrix of the formula.
+%     dcm(1,1) = q_0*q_0 + q_1*q_1 - q_2*q_2 - q_3*q_3;
+%     dcm(1,2) = 2*(q_1*q_2 - q_0*q_3);
+%     dcm(1,3) = 2*(q_0*q_2 + q_1*q_3);
+% 
+%     dcm(2,1) = 2*(q_0*q_3 + q_1*q_2);
+%     dcm(2,2) = q_0*q_0 - q_1*q_1 + q_2*q_2 - q_3*q_3;
+%     dcm(2,3) = 2*(q_2*q_3 - q_0*q_1);
+% 
+%     dcm(3,1) = 2*(q_1*q_3 - q_0*q_2);
+%     dcm(3,2) = 2*(q_0*q_1 + q_2*q_3);
+%     dcm(3,3) = q_0*q_0 - q_1*q_1 - q_2*q_2 + q_3*q_3;
+% 
+% 
+%     TT=zeros(4,4);
+%     TT(1:3,1:3)=dcm;
+%     TT(4,4)=1;
+% end
+% % https://github.com/robotology-legacy/mex-wholebodymodel/blob/master/mex-wholebodymodel/matlab/utilities/%2BWBM/%2Butilities/rotm2quat.m
+% function quat = rotm2quat(rotm)
+%     if ( (size(rotm,1) ~= 3) || (size(rotm,2) ~= 3) )
+%         error('rotm2quat: %s', WBM.wbmErrorMsg.WRONG_MAT_DIM);
+%     end
+%     quat    = zeros(4,1);
+%     epsilon = 1e-12; % min. value to treat a number as zero ...
+% 
+%     %% Compute the corresponding (unit) quaternion from a given rotation matrix R:
+%     % The transformation uses the computational efficient algorithm of Stanley.
+%     % To be numerically robust, the code determines the set with the maximum
+%     % divisor for the calculation.
+%     % For further details about the Stanley Algorithm, see:
+%     %   [1] Optimal Spacecraft Rotational Maneuvers, John L. Junkins & James D. Turner, Elsevier, 1986, pp. 28-29, eq. (2.57)-(2.59).
+%     %   [2] Theory of Applied Robotics: Kinematics, Dynamics, and Control, Reza N. Jazar, 2nd Edition, Springer, 2010, p. 110, eq. (3.149)-(3.152).
+%     % Note: There exist also an optimized version of the Stanley method and is the fastest
+%     %       possible computation method for Matlab, but it does not cover all special cases.
+%     % Further details about the fast calculation can be found at:
+%     %   [3] Modelling and Control of Robot Manipulators, L. Sciavicco & B. Siciliano, 2nd Edition, Springer, 2008,
+%     %       p. 36, formula (2.30).
+%     tr = rotm(1,1) + rotm(2,2) + rotm(3,3);
+%     if (tr > epsilon) % if tr > 0:
+%             % scalar part:
+%             quat(1,1) = 0.5*sqrt(tr + 1);
+%             s_inv = 1/(quat(1,1)*4);
+%             % vector part:
+%             quat(2,1) = (rotm(3,2) - rotm(2,3))*s_inv;
+%             quat(3,1) = (rotm(1,3) - rotm(3,1))*s_inv;
+%             quat(4,1) = (rotm(2,1) - rotm(1,2))*s_inv;
+%     else % if tr <= 0, find the greatest diagonal element for calculating
+%          % the scale factor s and the vector part of the quaternion:
+%         if ( (rotm(1,1) > rotm(2,2)) && (rotm(1,1) > rotm(3,3)) )
+%             quat(2,1) = 0.5*sqrt(rotm(1,1) - rotm(2,2) - rotm(3,3) + 1);
+%             s_inv = 1/(quat(2,1)*4);
+% 
+%             quat(1,1) = (rotm(3,2) + rotm(2,3))*s_inv;
+%             quat(3,1) = (rotm(2,1) + rotm(1,2))*s_inv;
+%             quat(4,1) = (rotm(3,1) + rotm(1,3))*s_inv;
+%         elseif (rotm(2,2) > rotm(3,3))
+%             quat(3,1) = 0.5*sqrt(rotm(2,2) - rotm(3,3) - rotm(1,1) + 1);
+%             s_inv = 1/(quat(3,1)*4);
+% 
+%             quat(1,1) = (rotm(1,3) - rotm(3,1))*s_inv;
+%             quat(2,1) = (rotm(2,1) + rotm(1,2))*s_inv;
+%             quat(4,1) = (rotm(3,2) + rotm(2,3))*s_inv;
+%         else
+%             quat(4,1) = 0.5*sqrt(rotm(3,3) - rotm(1,1) - rotm(2,2) + 1);
+%             s_inv = 1/(quat(4,1)*4);
+% 
+%             quat(1,1) = (rotm(2,1) - rotm(1,2))*s_inv;
+%             quat(2,1) = (rotm(3,1) + rotm(1,3))*s_inv;
+%             quat(3,1) = (rotm(3,2) + rotm(2,3))*s_inv;
+%         end
+%     end
+% end
