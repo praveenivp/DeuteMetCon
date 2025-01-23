@@ -1,5 +1,5 @@
-function [nifti_header]=MyNIFTIWrite_bSSFP2(Vol,twix,filename,Description)
-%[nifti_header]=MyNIFTIWrite(Vol_PRS,twix,filename,Description)
+function [nifti_header]=MyNIFTIWrite_ME(Vol,twix,filename,Description)
+%[nifti_header]=MyNIFTIWrite_ME(Vol_PRS,twix,filename,Description)
 %
 %[INPUTS]:
 % Vol : upto 7D Input volume

@@ -696,19 +696,19 @@ classdef MetCon_ME<matlab.mixin.Copyable
             if(any(strcmpi(Select,'image')))
             vol_PRS=single(squeeze(sos(flip(obj.img,3),[5 6]))); % 9.4T specific read flip
             description='averaged image across echo and phase cycle';
-            MyNIFTIWrite_bSSFP2(vol_PRS,obj.twix,niiFileName,description);
+            MyNIFTIWrite_ME(vol_PRS,obj.twix,niiFileName,description);
             end
             if(~isempty(obj.Metcon)&&any(strcmpi(Select,'SNR')))
                 fn2=sprintf('Metcon_SNR_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
                 vol_PRS=single(abs(flip(obj.getNormalized,2))); %9.4T specific read flip
                 description=sprintf('dim4_%s_%s_%s_%s_',obj.metabolites.name);
-                MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn2),description);
+                MyNIFTIWrite_ME(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn2),description);
             end
             if(~isempty(obj.Metcon)&&any(strcmpi(Select,'mM')))
                 fn3=sprintf('Metcon_mM_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
                 vol_PRS=flip(obj.getmM(norm_mat),2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s',obj.metabolites.name);
-                MyNIFTIWrite_bSSFP2(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn3),description);
+                MyNIFTIWrite_ME(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn3),description);
             end
 
         end
