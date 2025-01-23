@@ -11,7 +11,7 @@ MatSz=[64 64]/2;
 
 %% simulate some signal
  IDEALobj=IDEAL(metabolites,TE_s);
- sig=IDEALobj.simSig([32; 32;],20,0.01);
+ sig=IDEALobj.([32; 32;],20,0.01);
  fm_Hz=IDEALobj.FieldMap_Hz;
  metbol_mask=IDEALobj.experimental.Phantom;
 %% do IDEAL and ordinary least squares 
