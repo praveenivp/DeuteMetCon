@@ -58,8 +58,9 @@ for cMb=1:length(Metabolites)
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 bSSFP_peters(FA(cFA),T1,T2,TE(cTE),TR(cTR),freqOffset);
                             % Caculate duty cycle factor: assuming T2 decay calc area under T2 relaxation curve from TE to TR*DC                         
-                            dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
-                            dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
+                            dc_fac=exp(-(TR(cTR)/2)/T2);
+                            % dcf=T2*(exp(-min(TE)/T2)-exp(-(min(TE)+TR(cTR)*cDutyCycle)/T2));
+                            % dc_fac(cMb,cTR)= dcf./(TR(cTR)); %normalization
                         case {'GRE','FLASH','GRE-peters'}
                             [Msig_all(cMb,cTE,cPC,cTR,:,cFA)]=...
                                 GRESignal(FA(cFA),T1,T2star,TE(cTE),TR(cTR),freqOffset);

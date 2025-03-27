@@ -23,7 +23,7 @@ end
 
 
 Vout_all=cell(length(dirst_nii),1);
-TransformFucntion=cell(length(dirst_nii),1);
+TransformFucntion=struct;
 for fidx=1:length(dirst_nii)
 
     cfile=fullfile(dirst_nii(fidx).folder,dirst_nii(fidx).name);
@@ -57,7 +57,8 @@ for fidx=1:length(dirst_nii)
     flip_vec=find(flip_vec>0);
     Vout=(permute(ndflip(Vin, flip_vec),perm_vec));
     Vout_all{fidx}=Vout;
-    TransformFucntion{fidx}=@(im)(permute(ndflip(im, flip_vec),perm_vec));
+    TransformFucntion(fidx).flip_vec=flip_vec;
+    TransformFucntion(fidx).perm_vec=perm_vec;
 end
 
 %try to convery cell into matrix

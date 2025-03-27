@@ -14,7 +14,7 @@ dirst_me=dirst_me([1 3 4]);
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
-metabolites=getMetaboliteStruct('invivo3');
+metabolites=getMetaboliteStruct('invivo',0);
 
 
 %% if you need B0 maps
@@ -38,7 +38,7 @@ mcobj_me=cell(length(dirst_me),1);
 for cf=1:length(dirst_me)
 
        fn=fullfile(sn,dirst_me(cf).name);   
-    mcobj_me{cf}=MetCon_ME(fn,ME_setting{:},'fm','IDEAL','Solver','pinv');
+    mcobj_me{cf}=MetCon_ME(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
 %     mcobj_me{cf-1}=MetCon_ME(fn,ME_setting{:},'fm','M01169_piv_gre_B0mapping_5Echoes_fmap.nii','Solver','pinv');
 end
 

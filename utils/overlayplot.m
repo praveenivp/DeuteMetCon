@@ -92,7 +92,7 @@ anat_vol=createImMontage(squeeze(anat_vol),1);
 met_vol=createImMontage(squeeze(met_vol),1);
 mask2=createImMontage(squeeze(mask2),1);
 end
-anat_vol=anat_vol./max(anat_vol,[],'all');
+anat_vol=double(anat_vol)./max(double(anat_vol),[],'all');
 
 % figure,
 h1=imagesc(anat_vol);colormap(gca,'gray'),caxis(st.cax_im)

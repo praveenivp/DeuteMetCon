@@ -59,7 +59,7 @@ RFfac=447/refVoltage; % Flip angle scale factor
 
 metabolites=getMetaboliteStruct('invivo');
 metabolites=metabolites(1:3);
-
+ metabolites(3).T2_s=40e-3;
 pc_range=linspace(0,360,40);
 TR=19e-3;
 FA=50;

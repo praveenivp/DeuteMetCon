@@ -86,6 +86,7 @@ save('data_S3_modes.mat','vox_vol_s3','resliced_s3','mask_s3','intake_time_s3','
 load('/ptmp/pvalsala/deuterium/paper/sub1_HOSJ_modes/data_S1_modes.mat')
 load('/ptmp/pvalsala/deuterium/paper/sub2_H4_modes/data_S2_modes.mat')
 load('/ptmp/pvalsala/deuterium/paper/sub3_modes/data_S3_modes.mat')
+metabolites=getMetaboliteStruct('invivo',0);
 
  resliced_s1_av= AverageByType(resliced_s1,type_label_s1);
   resliced_s2_av= AverageByType(resliced_s2,type_label_s2);
@@ -132,7 +133,7 @@ figure(67),clf
 
 tt=tiledlayout(5,12,"TileSpacing","tight","Padding","compact");
 
-data_label={'CSI-FISP','CSI-bSSFP','ME-bSSFP'};
+data_label={'CSI','CSI-PC-\newline bSSFP','ME-PC-\newline bSSFP'};
 
 
 clim_all={[0 75],[0 35],[0 25],[0 15]};
@@ -154,18 +155,14 @@ fontsize(gca,"scale",1.2)
 colorbar
 clim(clim_all{cMet})
 colormap(gca,'turbo')
+ax=gca;
+ax.XAxis.TickLabelRotation=0;
+ax.FontWeight='bold';
 end
 
 
-
 colors_label=lines(3);
-
-
-
 yax_all={[-5 100],[-5 50],[-5 40]};
-
-
-
 
 violin_format={'bw',1,'mc','rx','medc',[]};
 
@@ -176,7 +173,7 @@ data_s1=reshape(resliced_s1_av,[],4,size(resliced_s1_av,5))./reshape(vox_scal,1,
 for cMet=1:3
 nexttile([1 4])
 violin2( squeeze(data_s1(mask_s1(:),cMet,:)),'facecolor',colors_label,violin_format{:})
-xticks([])%  xticks(1:3),xticklabels(data_label),
+ xticks(1:3),xticklabels([])
 grid on,grid minor
 ylim(yax_all{cMet})
 title([metabolites(cMet).name,' [SNR]'])
@@ -187,7 +184,7 @@ mv=mean( squeeze(data_s1(mask_s1(:),cMet,:)));
 P40=prctile( squeeze(data_s1(mask_s1(:),cMet,:)),99,1)*1.2;
 text(2.02,P40(2),sprintf('%+.0f%%',mv(2)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
 text(3.02,P40(3),sprintf('%+.0f%%',mv(3)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
-
+fontsize(gca,"scale",1.1)
 end
 
 
@@ -201,13 +198,14 @@ vh=violin2( squeeze(data_s2(mask_s2(:),cMet,:)),'facecolor',colors_label,violin_
 grid on,grid minor
 ylim(yax_all{cMet})
 legend off
-xticks([])% xticks(1:3),xticklabels(data_label)
+ xticks(1:3),xticklabels([])
  if(cMet==1),ylabel('S2'),end
  %create percentage
 mv=mean( squeeze(data_s2(mask_s2(:),cMet,:)));
 P40=prctile( squeeze(data_s2(mask_s2(:),cMet,:)),99,1)*1.2;
 text(2.02,P40(2),sprintf('%+.0f%%',mv(2)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
 text(3.02,P40(3),sprintf('%+.0f%%',mv(3)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
+fontsize(gca,"scale",1.1)
 end
 
 
@@ -227,12 +225,15 @@ mv=mean( squeeze(data_s3(mask_s3(:),cMet,:)));
 P40=prctile( squeeze(data_s3(mask_s3(:),cMet,:)),99,1)*1.2;
 text(2.02,P40(2),sprintf('%+.0f%%',mv(2)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
 text(3.02,P40(3),sprintf('%+.0f%%',mv(3)/mv(1)*100-100),'HorizontalAlignment','left','FontWeight','bold')
+ax=gca;
+ax.XAxis.TickLabelRotation=0;
+fontsize(gca,"scale",1.1)
 end
 
 % legend(gca,vh([1 3 2]),data_label,'Location','northwest')
 
-fontsize(gcf,"scale",1.3)
-set(gcf,'color','w','Position', [148 76 1570 1232])
+
+set(gcf,'color','w','Position',[148 154 1209 922])
 
 
 

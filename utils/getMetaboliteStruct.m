@@ -125,7 +125,7 @@ switch(DataSelect)
         freq_shift=(freq_shift_ppm-freq_shift_ppm(1))*B0*gammaH2;
         T1=[496 283 66 149 159]*1e-3;%s
         T2=[412 29 44 53 159/2]*1e-3;%s
-
+        T2Star=[20.8950,20.8950, 14.3771, 22.7435, 23.8578]*1e-3; %s % 9.4T
     case 'Peters12T'
         %         DOI: 10.1002/mrm.28906
         met_name={'water','glucose','lactate'};
@@ -134,7 +134,7 @@ switch(DataSelect)
         freq_shift=(freq_shift_ppm-freq_shift_ppm(1))*B0*gammaH2;
         T1=[320 64 297]*1e-3;%s
         T2=[12 32 61]*1e-3;%s
-        T2Star=[8 13 15]*1e-3; %s 15.2 T measurement
+        T2Star=[10 15 15]*1e-3; %s 15.2 T measurement
 
     case 'Feyter4T' %humans 10.1126/sciadv.aat7314 
         met_name={'water1','water2','glucose','Glx'};

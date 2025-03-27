@@ -70,15 +70,30 @@ kCenter=round(MatSz./2);
 
 
 W_E1=squeeze(W(:,kCenter(2),kCenter(3)));
-PSF_E1=fftshift(fft(padarray(W_E1(:),2^14,0,'both'),[],1),1);
+PSF_E1=fftshift(fft(padarray(W_E1(:),2^14,0,'post'),[],1),1);
 W_E2=squeeze(W(kCenter(1),:,kCenter(3)));
-PSF_E2=fftshift(fft(padarray(W_E2(:),2^14,0,'both'),[],1),1);
+PSF_E2=fftshift(fft(padarray(W_E2(:),2^14,0,'post'),[],1),1);
 W_E3=squeeze(W(kCenter(1),kCenter(2),:));
-PSF_E3=fftshift(fft(padarray(W_E3(:),2^14,0,'both'),[],1),1);
+PSF_E3=fftshift(fft(padarray(W_E3(:),2^14,0,'post'),[],1),1);
 
 FOV_e1=linspace(-FOV(1)/2,FOV(1)/2-FOV(1)/size(PSF_E1,1),size(PSF_E1,1));
 FOV_e2=linspace(-FOV(2)/2,FOV(2)/2-FOV(2)/size(PSF_E2,1),size(PSF_E2,1));
 FOV_e3=linspace(-FOV(3)/2,FOV(3)/2-FOV(3)/size(PSF_E3,1),size(PSF_E3,1));
+
+
+PSF.W_E1=W_E1;
+PSF.W_E2=W_E2;
+PSF.W_E3=W_E3;
+PSF.kaxis_E1=kaxis_e1;
+PSF.kaxis_E2=kaxis_e2;
+PSF.kaxis_E3=kaxis_e3;
+
+PSF.PSF_E1=PSF_E1;
+PSF.PSF_E2=PSF_E2;
+PSF.PSF_E3=PSF_E3;
+PSF.FOV_E1=FOV_e1;
+PSF.FOV_E2=FOV_e2;
+PSF.FOV_E3=FOV_e3;
 % PSFc=round(size(PSF)/2);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%

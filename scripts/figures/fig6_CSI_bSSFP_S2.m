@@ -13,7 +13,7 @@ addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
 
-metabolites=getMetaboliteStruct('invivo3');
+metabolites=getMetaboliteStruct('invivo',0);
 
 
 % fn_fm='/ptmp/pvalsala/deuterium/DA77-F3UY/dep/fm_MeasUID692.nii';
@@ -48,11 +48,11 @@ end
 
 
 %%
-  cd(pn)
-intake_time_ssfp=cellfun(@(x) x.getMinutesAfterIntake('08:13'),mcobj_csi_ssfp,'UniformOutput',true);
+cd(pn)
+intake_time_ssfp=cellfun(@(x) x.getMinutesAfterIntake('08:36'),mcobj_csi_ssfp,'UniformOutput',true);
 ylabel_str_ssfp=strsplit(sprintf('%.0f min\n',intake_time_ssfp(:)),'\n');
 
-intake_time_fisp=cellfun(@(x) x.getMinutesAfterIntake('08:13'),mcobj_fisp,'UniformOutput',true);
+intake_time_fisp=cellfun(@(x) x.getMinutesAfterIntake('08:36'),mcobj_fisp,'UniformOutput',true);
 ylabel_str_fisp=strsplit(sprintf('%.0f min\n',intake_time_fisp(:)),'\n');
 [intake_time_all,intake_order]=sort([intake_time_fisp;intake_time_ssfp]);
 
@@ -82,7 +82,7 @@ anat_nii_tra=double(MyNiftiRead("../*anat*_tra*.nii",'PRS'));
 
 [met_snr_me_tra]=MyNiftiRead('rtMetcon_SNR*.nii','PRS');
 [met_mm_me_tra]=MyNiftiRead('rtMetcon_mM*.nii','PRS');
-  met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
+met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
 %%
 slct=14;
 slcs=18;
@@ -307,7 +307,6 @@ end
 for i=1:length(Vol)
     Vol{i}=ndCircShift(Vol{i},shift,1:3);
     im{i}=Vol{i}(crop_val{i}(1):end-crop_val{i}(2),crop_val{i}(3):end-crop_val{i}(4),slcSel{i},:,:);
-
 end
 
 imsz1=size(im{1});
@@ -315,14 +314,9 @@ imsz2=size(im{2});
 
 diff=abs(imsz1(2)-imsz2(2));
 
-if(imsz1(1)>imsz2(1))
-
-    
+if(imsz1(1)>imsz2(1))   
     im{2}=padarray(im{2},[0 floor(diff/2)],0,'pre');
     im{2}=padarray(im{2},[0 ceil(diff/2)],0,'post');
-
-
-
 else
     im{1}=padarray(im{1},[0 floor(diff/2)],0,'pre');
     im{1}=padarray(im{1},[0 ceil(diff/2)],0,'post');
