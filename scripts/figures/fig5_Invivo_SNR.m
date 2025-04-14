@@ -88,6 +88,13 @@ load('/ptmp/pvalsala/deuterium/paper/sub2_H4_modes/data_S2_modes.mat')
 load('/ptmp/pvalsala/deuterium/paper/sub3_modes/data_S3_modes.mat')
 metabolites=getMetaboliteStruct('invivo',0);
 
+new_vol=[4.0425    4.2831    2.6670];%  1.0000    0.9438    1.5157
+for jj=1:3
+vox_vol_s1(type_label_s1==jj)=new_vol(jj);
+vox_vol_s2(type_label_s2==jj)=new_vol(jj);
+vox_vol_s2(type_label_s3==jj)=new_vol(jj);
+end
+
  resliced_s1_av= AverageByType(resliced_s1,type_label_s1);
   resliced_s2_av= AverageByType(resliced_s2,type_label_s2);
    resliced_s3_av= AverageByType(resliced_s3,type_label_s3);
@@ -96,9 +103,9 @@ metabolites=getMetaboliteStruct('invivo',0);
 % %  mask_s2=mcobj_me{1}.getMask(80);
 %  mask_s2=resliced_s2_av(:,:,:,1,1)>12;
 %  mask_s2=imdilate(mask_s2,strel('sphere',1));
-slcSel_s1=36;
-slcSel_s2=34;
-slcSel_s3=38;
+slcSel_s1=36-5;
+slcSel_s2=34-5;
+slcSel_s3=38-7;
 
 mask_s3=resliced_s3_av(:,:,:,1,1)>10;
 mask_s2=resliced_s2_av(:,:,:,1,1)>11;
@@ -178,7 +185,7 @@ grid on,grid minor
 ylim(yax_all{cMet})
 title([metabolites(cMet).name,' [SNR]'])
 legend off
- if(cMet==1),ylabel('S1'),end
+ if(cMet==1),ylabel('S1','FontWeight','bold'),end
 %create percentage
 mv=mean( squeeze(data_s1(mask_s1(:),cMet,:)));
 P40=prctile( squeeze(data_s1(mask_s1(:),cMet,:)),99,1)*1.2;
@@ -199,7 +206,7 @@ grid on,grid minor
 ylim(yax_all{cMet})
 legend off
  xticks(1:3),xticklabels([])
- if(cMet==1),ylabel('S2'),end
+ if(cMet==1),ylabel('S2','FontWeight','bold'),end
  %create percentage
 mv=mean( squeeze(data_s2(mask_s2(:),cMet,:)));
 P40=prctile( squeeze(data_s2(mask_s2(:),cMet,:)),99,1)*1.2;
@@ -219,7 +226,7 @@ grid on,grid minor
 ylim(yax_all{cMet})
 legend off
  xticks(1:3),xticklabels(data_label)
- if(cMet==1),ylabel('S3'),end
+ if(cMet==1),ylabel('S3','FontWeight','bold'),end
  %create percentage
 mv=mean( squeeze(data_s3(mask_s3(:),cMet,:)));
 P40=prctile( squeeze(data_s3(mask_s3(:),cMet,:)),99,1)*1.2;

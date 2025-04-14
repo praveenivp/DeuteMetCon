@@ -79,11 +79,29 @@ for i=1:4
 imagesc(createImMontage(imPlot(:,:,:,i),size(imPlot,3)))
 colorbar,axis image
 title(mcobj_me_modes.metabolites(i).name)
+if(i==4)
 xticks((0.5:size(imPlot,3)+0.5)*size(imPlot,2)),
-xticklabels([{'Linear','IDEAL-modes','IDEAL'},strsplit(num2str(mcobj_me_modes.DMIPara.PC_deg),' ')])
+xticklabels([{'Linear',' IDEAL-\newlinemodes','IDEAL'},strsplit(num2str(mcobj_me_modes.DMIPara.PC_deg),' ')])
+else
+    xticks([])
+end
 yticks([])
 colormap('jet')
 end
 fontsize(gcf,"scale",1.5)
 
-set(gcf,'Color','w','InvertHardcopy','off');%,'Position',[157 52 1200 1200])
+set(gcf,'Color','w','InvertHardcopy','off','Position',[0 417 1907 588])
+
+
+%%
+% figure
+% mask_me=CreateMask(imPlot(:,:,1,1,1));
+
+stats_me=reshape(imPlot,[],18+3,4);
+stats_me(:,4:end,:)=movmean(stats_me(:,4:end,:),1,2)*sqrt(1);
+stats_me=stats_me(mask_me(:),:,:);
+stats_95p_me=squeeze(prctile(stats_me,95,1));
+stats_std_me=squeeze(std(stats_me,[],1));
+stats_mean_me=squeeze(mean(stats_me,1));
+SNR_gain_p95=max(stats_95p_me(4:end,:),[],1)./stats_95p_me(1:3,:)
+SNR_gain_mean=max(stats_mean_me(4:end,:),[],1)./stats_mean_me(1:3,:);

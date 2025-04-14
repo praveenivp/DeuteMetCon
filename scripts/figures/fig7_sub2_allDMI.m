@@ -52,13 +52,13 @@ title_str={'Water [SNR]','Glc [mM]','Glx [mM]'};
 % as(imComposed2)
 
 %%
-SNR_scl=ones(size(col_tra,3),1);
-SNR_scl(type_label_s2==2)=2.85/2.98;
-SNR_scl(type_label_s2==3)=2.85/2.18;
+SNR_scl=ones(size(met_mm_me_tra,5),1);
+SNR_scl(type_label_s2==2)=4.0425/4.2831;
+SNR_scl(type_label_s2==3)=4.0425/2.6670;
 
 
-
- mask_me=(im_brain./max(im_brain(:)))>0.05;
+load('/ptmp/pvalsala/deuterium/H4DK-64GH/proc/combined/masks.mat')
+ % mask_me=(im_brain./max(im_brain(:)))>0.05;
  mask_me=m_tra|m_sag;
 % mask_me=imComposed_csi(:,:,1,1,1)>8;
  mask_me=imerode(mask_me,strel('sphere',10));
@@ -74,7 +74,7 @@ for i=1:3
     nexttile(tt,[2 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_csi,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
   'cax',cax_met{i},'Mask',mask_me);
-if(i==1),yticks(midlabel(size(im_anat,1),3)),yticklabels(intake_time_fisp),else,yticks([]),end
+if(i==1),yticks(midlabel(size(im_anat,1),3)),yticklabels(intake_time_all(type_label_s2==1)),else,yticks([]),end
 title(title_str{i})
  cb_all{cnt}=colorbar;
 cnt=cnt+1;
@@ -91,7 +91,7 @@ for i=1:3
     nexttile(tt,[2 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_ssfp,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
   'cax',cax_met{i},'Mask',mask_me);
-if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_ssfp),else,yticks([]),end
+if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_all(type_label_s2==2)),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
 cnt=cnt+1;
@@ -105,7 +105,7 @@ for i=1:3
     nexttile(tt,[3 1]);
 [cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_me,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
   'cax',cax_met{i},'Mask',mask_me);
-if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_me),else,yticks([]),end
+if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_all(type_label_s2==3)),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
 cnt=cnt+1;

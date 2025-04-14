@@ -258,6 +258,106 @@ set(gcf,'color','w')
 xlabel('frequency [ppm]')
 xlim([0.5 7])
 legend('fit','data')
+
+%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%Plot Fieldmaps%%%%%%%%%%%%%%%%%%%%%%%%%%
+metabolites=getMetaboliteStruct('invivo',0);
+for cSub=1:3
+    switch(cSub)
+        case 1
+sn='/ptmp/pvalsala/deuterium/HOSJ-D6P2/TWIX';
+dirst_me=dir(fullfile(sn,"*rh_trufi*.dat"));
+dirst_me=dirst_me(4);
+        case 2
+            sn='/ptmp/pvalsala/deuterium/H4DK-64GH/TWIX';
+dirst_me=dir(fullfile(sn,"*rh_trufi*.dat"));
+dirst_me=dirst_me(4);
+        case 3
+            sn='/ptmp/pvalsala/deuterium/I3BL-CJ5O/TWIX';
+dirst_me=dir(fullfile(sn,"*rh_trufi*.dat"));
+dirst_me=dirst_me(3);
+
+    end
+
+fn_noise=dir(fullfile(sn,"*rh_trufi*noise*.dat"));
+twix_noise=mapVBVD(fullfile(sn,fn_noise(1).name),'rmos');
+[D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix_noise);
+
+% fn_fm=(fullfile(sn,dirst_me(3).name));
+ME_setting={'NoiseDecorr',D_image,'mask',[],'metabolites',metabolites,...
+            'doPhaseCorr',true,'doZeropad',[1 1 1]*0.5,'parfor',true};
+
+     fn=fullfile(sn,dirst_me.name);   
+    mcobj_me{cSub}=MetCon_ME(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
+end
+%% reslice
+%sub1
+s1=fullfile('/ptmp/pvalsala/deuterium/DDRM-T4EU/proc/skull/fm/S1.nii');
+s1_anat=fullfile('/ptmp/pvalsala/deuterium/dataForPublication/anat/sub-01','anat_tra.nii');
+resliced_s1=myspm_reslice(dir(s1_anat),dir(s1), 'nearest','rt_');
+
+%sub2
+s2=fullfile('/ptmp/pvalsala/deuterium/DDRM-T4EU/proc/skull/fm/S2.nii');
+s2_anat=fullfile('/ptmp/pvalsala/deuterium/dataForPublication/anat/sub-02','anat_tra.nii');
+resliced_s2=myspm_reslice(dir(s2_anat),dir(s2), 'nearest','rt_');
+
+%sub3
+s3=fullfile('/ptmp/pvalsala/deuterium/DDRM-T4EU/proc/skull/fm/S3.nii');
+s3_anat=fullfile('/ptmp/pvalsala/deuterium/dataForPublication/anat/sub-03','anat_tra.nii');
+resliced_s3=myspm_reslice(dir(s3_anat),dir(s3), 'nearest','rt_');
+
+%% reslice
+s1=MyNiftiRead(fullfile('/ptmp/pvalsala/deuterium/DDRM-T4EU/proc/skull/fm/rt_S1.nii'),'PRI');
+s1_anat=MyNiftiRead(fullfile('/ptmp/pvalsala/deuterium/dataForPublication/anat/sub-01','anat_tra.nii'),'PRI');
+s1_anat=double(s1_anat)./max(double(s1_anat(:)));
+%sub2
+s2=MyNiftiRead(fullfile('/ptmp/pvalsala/deuterium/DDRM-T4EU/proc/skull/fm/rt_S2.nii'),'PRI');
+s2_anat=MyNiftiRead(fullfile('/ptmp/pvalsala/deuterium/dataForPublication/anat/sub-02','anat_tra.nii'),'PRI');
+s2_anat=double(s2_anat)./max(double(s2_anat(:)));
+
+%sub3
+s3=MyNiftiRead(fullfile('/ptmp/pvalsala/deuterium/DDRM-T4EU/proc/skull/fm/rt_S3.nii'),'PRI');
+s3_anat=MyNiftiRead(fullfile('/ptmp/pvalsala/deuterium/dataForPublication/anat/sub-03','anat_tra.nii'),'PRI');
+s3_anat=double(s3_anat)./max(double(s3_anat(:)));
+
+%%
+figure(2)
+tt=tiledlayout(3,1,'TileSpacing','tight','Padding','compact');
+cb_all={};cax_all={};cnt=1;
+% for i=1:3
+    nexttile(tt,[1 1]);
+
+    sel_s1=@(x)createImMontage( x(:,25:end-60,4:3:end),10);
+imagesc(sel_s1(s1).*imdilate((sel_s1(s1_anat)>1e-2),strel('disk',5,0)))
+cIntakeTime=intake_time_s1(type_label_s1==3);
+axis image
+xticks([]),ylabel(sprintf('S1',cIntakeTime(end))),yticks([])
+title('fieldmap [Hz]','fontsize',14)
+colorbar,clim([-1 1]*30)
+
+    nexttile(tt,[1 1]);
+    sel_s2=@(x)createImMontage( x(15:end-30,45:end-50,2:3:end-3),10);
+    imagesc(sel_s2(s2).*imdilate((sel_s2(s2_anat)>1e-2),strel('disk',2,0)))
+cIntakeTime=intake_time_s2(type_label_s2==3);
+axis image
+xticks([]),ylabel(sprintf('S2',cIntakeTime(end))),yticks([])
+% title('fieldmap [Hz]','fontsize',14)
+colorbar,clim([-1 1]*30)
+
+
+    nexttile(tt,[1 1]);
+    sel_s3=@(x)createImMontage( x(:,35:end-55,4:3:end),10);
+imagesc(sel_s3(s3).*imdilate((sel_s3(s3_anat)>2e-2),strel('disk',5,0)))
+cIntakeTime=intake_time_s3(type_label_s3==3);
+axis image
+xticks([]),ylabel(sprintf('S3',cIntakeTime(end))),yticks([])
+% title('fieldmap [Hz]','fontsize',14)
+colorbar,clim([-1 1]*30)
+
+colormap('parula')
+set(gcf,'color','w')
+
 %%
 function makeColorbar(cb_handle,cax)
 

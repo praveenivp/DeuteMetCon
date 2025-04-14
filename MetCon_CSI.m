@@ -669,16 +669,28 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
         end
 
-        function demoFit(obj,pxl_idx)
+        function demoFit(obj,pxl_idx,fig_num)
             %             demoFit(obj,pxl_idx)
 
+        if(~exist("fig_num",'var'))
+            fig_num=33;
+        end
 
-
-
+            
 
             %test AMARES fit
-            fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
             [expParams,pk]=getAMARES_structs(obj);
+            if(iscell(pxl_idx))
+                 fid=squeeze(obj.img(1,pxl_idx{1}(1),pxl_idx{1}(2),pxl_idx{1}(3),:));
+                for vx=1:length(pxl_idx)
+                     fid=fid+squeeze(obj.img(1,pxl_idx{vx}(1),pxl_idx{vx}(2),pxl_idx{vx}(3),:));
+                end
+            
+            fm_est=0;
+            else
+            fid=squeeze(obj.img(1,pxl_idx(1),pxl_idx(2),pxl_idx(3),:));
+           
+            
             if(ismatrix(obj.FieldMap)&& ~isempty(obj.FieldMap))
                 fm_est=-1*obj.FieldMap(pxl_idx(1),pxl_idx(2),pxl_idx(3));
                 fm_est=fm_est./(2*pi)*(6.536 /42.567); % [Hz]
@@ -686,11 +698,13 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             else
                 fm_est=0;
             end
+            end
+
             
             expParams.offset=fm_est;
-            [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fid(:)), expParams, pk,33,'quiet',false);
+            [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fid(:)), expParams, pk,fig_num,'quiet',false);
             disp(fitResults)
-
+return;
             % test Lorentzian fitting
             fprintf('Performing Nlorentz fit\n')
             freq=[obj.metabolites.freq_shift_Hz];

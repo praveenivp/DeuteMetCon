@@ -6,10 +6,10 @@
 % vioin plots are still in native resolution
 
 
-type_label_s2=[1     3     2     3     1     2     3];
-intake_time_all=[43,55,67,87,122,132,143];
-
-pn='/ptmp/pvalsala/deuterium/H4DK-64GH/proc/combined';
+% type_label_s2=[1     3     2     3     1     2     3];
+% intake_time_all=[43,55,67,87,122,132,143];
+% 
+% pn='/ptmp/pvalsala/deuterium/H4DK-64GH/proc/combined';
 %
 %%
 % load('/ptmp/pvalsala/deuterium/paper/sub2_H4_modes/data_S2_modes.mat')
@@ -46,13 +46,17 @@ for cSub=[1 3]
     end
 end
 
-% met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
-%%
+%There is some misregistration
 met_mm_me_tra{1}=(circshift(met_mm_me_tra{1},-7,2));
 met_mm_me_tra{3}=(circshift(met_mm_me_tra{3},-5,2));
+
+
+% met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
+%%
+
 cSub=1;
-slct_s1=14;
-slcs_s1=18;
+slct_s1=15;
+slcs_s1=20;
 % crop_val  sag             tra : [idx1:end-idx2,idx3:end-idx4]
 crop_val_s1={[45 70 40 30],[25 35 20 55]};
 
@@ -85,7 +89,7 @@ title_str={'Water [SNR]','Glc [mM]','Glx [mM]'};
 
 
 
-%% plot figure
+% plot figure
 cSub=1;
 load('/ptmp/pvalsala/deuterium/fig8_sub1and3/sub-01/MC/masks_s1.mat')
 % mask_me=(im_brain{cSub}./max(im_brain{cSub}(:)))>0.01;

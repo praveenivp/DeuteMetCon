@@ -60,7 +60,7 @@ cellfun(@(x) x.WriteImages(),mcobj_all,'UniformOutput',false)
 dirst_nii=dir(fullfile(pwd,"Metcon_SNR*.nii"));
 resliced_vol=myspm_reslice(dirst_nii(1).name,dirst_nii,'nearest','r');
 [realigned_vol]=realign_vol(resliced_vol);
-data_label={'CSI-FISP','CSI-bSSFP','ME-bSSFP'};
+data_label={'CSI','CSI-PC-SSFP','ME-PC-bSSFP'};
 
 
 im_sf=3;
@@ -70,13 +70,13 @@ vox_vol=cellfun(@(x)prod(x.DMIPara.resolution_PSF(1:3)*1e2),mcobj_all,'UniformOu
 AllDescription=cellfun(@(obj) getDescription(obj),mcobj_all,'UniformOutput',false);
 %mask 
 slcSel=28*im_sf;
-  figure
-imMask=CreateMask(squeeze(realigned_vol3(:,:,slcSel,1,1)));
+  % 
+% figure,imMask=CreateMask(squeeze(realigned_vol3(:,:,slcSel,1,1)));
 
 %  save('processced_data.mat','dirst*','CSI_setting','ME_setting','mcobj_me','mcobj_csi','slcSel','tubes','realigned_vol3','vox_vol','imMask','AllDescription','-v7.3')
 
-%% get ROIs
-slcSel=28*im_sf;
+%% get ROIs and plot
+slcSel=28*im_sf;%+(-20:-15); % more slices for better stats
 getRotm= @(theta)[cosd(theta) sind(theta); -sind(theta) cosd(theta)];
 tubes={[46,115],[110,42]}; %diagonally opposite 9th tube and 
 center=0.5*(tubes{1}+tubes{2});
@@ -105,7 +105,7 @@ stat_mean=zeros(size(realigned_vol,4),size(realigned_vol,5));
 for ii=1:size(realigned_vol,4)
     nexttile()
     realigned_vol4=realigned_vol3./reshape(vox_vol,1,1,1,1,[]);
-im_plot=reshape(realigned_vol4(:,:,slcSel,ii,:),size(realigned_vol4,1),[]);
+im_plot=reshape(mean(realigned_vol4(:,:,slcSel,ii,:),3),size(realigned_vol4,1),[]);
 
 %black sorounding
 mask=reshape(repmat(imMask(:,:),[1 1 1 size(realigned_vol4,5) ]),size(realigned_vol4,1),[]);
@@ -116,7 +116,6 @@ title(metabolites(ii).name)
 set(gca,'color','black')
 
 % plot ROI
-
 cMask=zeros(size(realigned_vol4,1),size(realigned_vol4,3),'logical');
 cMask(ROIs{picked(ii)}(1),ROIs{picked(ii)}(2))=true;
 
@@ -143,19 +142,19 @@ end
 % colors_met=[[0,0,255];[0, 128,0]; [255,212,42];[255,102,0]]; 
 % colors_datalabels=([[127,184,221];[235,168,139];[245,215,143];]-10)./250;
 nexttile(5,[2 2])
-hb=bar(stat_mean,'LineWidth',0.75);
+hb_handle=bar(stat_mean,'LineWidth',0.75);
 % set(gca,"ColorOrder",colors_datalabels);
-arrayfun(@(x)set(x,'FaceAlpha',0.6),hb);
+arrayfun(@(x)set(x,'FaceAlpha',0.6),hb_handle);
 %
 hold on;
-for cMet = 1:size(stat_mean,2)
+for cMethod = 1:size(stat_mean,2)
     % get x positions per group
-    xpos = hb(cMet).XData + hb(cMet).XOffset;
+    xpos = hb_handle(cMethod).XEndPoints% + hb_handle(cMethod).XOffset;
     % draw errorbar
-    eb_h=errorbar(xpos, stat_mean(:,cMet), stat_std(:,cMet), 'LineStyle', 'none', ... 
+    eb_h=errorbar(xpos, stat_mean(:,cMethod), stat_std(:,cMethod), 'LineStyle', 'none', ... 
         'Color', 'k', 'LineWidth', 1.5);
 end
-ylabel('SNR'),grid minor
+ylabel('SNR'),grid on,grid minor
  set(gca,'ylim',get(gca,'ylim')+[0 10])
 % xticklabels(AllDescription(PlotSel))
  legend(data_label),xticklabels({metabolites.name})

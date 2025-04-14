@@ -678,7 +678,7 @@ classdef MetCon_ME<matlab.mixin.Copyable
 
             % write nifti files of avaearged ME-images, Metabolite
             % amplitudes in SNR units and metabolite concentrations in mM
-            % eg: mcobj.WriteImages('',{'image','snr','mm'})
+            % eg: mcobj.WriteImages('',{'image','snr','mm','fm'})
             if(nargin==1 || isempty(niiFileName))
                 fPath=pwd;
                 fn=sprintf('M%05d_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription);
@@ -709,6 +709,13 @@ classdef MetCon_ME<matlab.mixin.Copyable
                 vol_PRS=flip(obj.getmM(norm_mat),2); %9.4T specific
                 description=sprintf('dim4_%s_%s_%s_%s',obj.metabolites.name);
                 MyNIFTIWrite_ME(squeeze(single(abs(vol_PRS))),obj.twix,fullfile(fPath,fn3),description);
+            end
+            %export fir
+            if(isfield(obj.Experimental,'fm_est') && ~isempty(obj.Experimental.fm_est)&&any(strcmpi(Select,'fm')))
+                fn3=sprintf('fm_Hz_m%05d_%s_%s.nii',obj.twix.hdr.Config.MeasUID,obj.twix.hdr.Config.SequenceDescription,obj.flags.Solver);
+                vol_PRS=flip(obj.Experimental.fm_est,2); %9.4T specific
+                description='fieldmap estimated with IDEAL';
+                MyNIFTIWrite_ME(squeeze(single((vol_PRS))),obj.twix,fullfile(fPath,fn3),description);
             end
 
         end
