@@ -1,44 +1,44 @@
-%% plot simulated and measured bSSFP phase cycle profiles in a single ROI
-% pn='S:\Deuterium\20250311_RatData\LaKu_Flex1_20_MRI2_001_DMIRat39_t3_LaKu_Fle_1_1_20250306_150629';
+%% Demo Script 
 pathFolder='S:\Deuterium\20250311_RatData\LaKu_Flex1_20_MRI2_001_DMIRat39_t4_LaKu_Fle_1_1_20250311_144001';
-% pn='S:\Deuterium\20220413_111704_Deuterium_SSFPtest_1_10';
-cd('S:\Deuterium\20250311_RatData\proc')
 
-% overview
+% check the measurement ID
 [picked_data]=BrPickDataset(pathFolder);
- picked_data = regexp(picked_data{1}, '(\d+)\\fid','tokens');
- picked_data=picked_data{1}{1};
+%  picked_data = regexp(picked_data{1}, '(\d+)\\fid','tokens');
+%  picked_data=picked_data{1}{1};
 
- %% Rolf portion
+addpath('DeuteMetCon')
+addpath('OXSA')
+
+ %% read and parse bruker data
 CSIpath = fullfile(pathFolder,'15');
 imagepath = fullfile(pathFolder,'4');
 
-im = DataClass;
-im = im.BrReadPro(imagepath);
-csi = DataClass;
-csi = csi.BrReadRaw(CSIpath);
-csi = csi.CSISpatialFT(2*[size(csi.RawData,2),size(csi.RawData,3),size(csi.RawData,4)]);
-rCSIView(csi,im);
+imObj = DataClass;
+imObj = imObj.BrReadPro(imagepath);
+csiObj = DataClass;
+csiObj = csiObj.BrReadRaw(CSIpath);
+csiObj = csiObj.CSISpatialFT(2*[size(csiObj.RawData,2),size(csiObj.RawData,3),size(csiObj.RawData,4)]);
+rCSIView(csiObj,imObj);
 
 %% 7T rat AMARES
 
 % Input voxel index
 voxel_idx={10,6,19}; % x and y has to be swapped
-fid=csi.ProData(:,voxel_idx{:});
-faxis=linspace(-0.5*csi.AcqParameters.Bandwidth,0.5*csi.AcqParameters.Bandwidth,length(fid));
-ppmAxis=faxis./csi.AcqParameters.Frequency;
-timeAxis=csi.AcqParameters.TE*1e-3+linspace(0,csi.AcqParameters.DwellTime*(length(fid)-1),length(fid));
+fid=csiObj.ProData(:,voxel_idx{:});
+faxis=linspace(-0.5*csiObj.AcqParameters.Bandwidth,0.5*csiObj.AcqParameters.Bandwidth,length(fid));
+ppmAxis=faxis./csiObj.AcqParameters.Frequency;
+timeAxis=csiObj.AcqParameters.TE*1e-3+linspace(0,csiObj.AcqParameters.DwellTime*(length(fid)-1),length(fid));
 nMet=3;
 amares_struct=struct('chemShift',[1.3;3.7;4.8], ...in ppm
     'phase', zeros(nMet,1),...
     'amplitude', ones(nMet,1),...
     'linewidth', 10*ones(nMet,1), ...
-    'imagingFrequency', csi.AcqParameters.Frequency,... in MHz
-    'BW', csi.AcqParameters.Bandwidth,...
+    'imagingFrequency', csiObj.AcqParameters.Frequency,... in MHz
+    'BW', csiObj.AcqParameters.Bandwidth,...
     'timeAxis', timeAxis(:), ... [s]
-    'dwellTime', csi.AcqParameters.DwellTime,... [s]
+    'dwellTime', csiObj.AcqParameters.DwellTime,... [s]
     'ppmAxis',ppmAxis(:), ...
-    'beginTime',-1*csi.AcqParameters.TE*1e-3, ... [s]
+    'beginTime',-1*csiObj.AcqParameters.TE*1e-3, ... [s]
     'offset',0,...
     'samples',length(fid), ... [s]
     'peakName',string({'lac','glc','water'}));
@@ -53,18 +53,19 @@ pk.bounds(1).chemShift=1.3+[-1 1]*0.5;
 [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid(:)), amares_struct, pk, true,'quiet',false);
 
 %% fit all voxels
-nVoxels=numel(csi.ProData)/size(csi.ProData,1);
+nVoxels=numel(csiObj.ProData)/size(csiObj.ProData,1);
 met_con=zeros(nVoxels,nMet);
 for vxl=1:nVoxels
-fid=csi.ProData(:,vxl);
-[fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid(:)), amares_struct, pk, false,'quiet',true);
-met_con(vxl,:)=fitResults.amplitude;
+    fid=csiObj.ProData(:,vxl);
+    [fitResults, fitStatus, figureHandle, CRBResults] = AMARES.amaresFit(double(fid(:)), amares_struct, pk, false,'quiet',true);
+    met_con(vxl,:)=fitResults.amplitude;
 end
-met_con=reshape(met_con,size(csi.ProData,2),size(csi.ProData,3),size(csi.ProData,4),nMet);
+met_con=reshape(met_con,size(csiObj.ProData,2),size(csiObj.ProData,3),size(csiObj.ProData,4),nMet);
 
 %% try export NIFTI
-MyNIFTIWrite_Bruker(im.ProData,im,'im.nii');
-MyNIFTIWrite_Bruker(met_con,csi,'csi.nii');
+cd(CSIpath)
+MyNIFTIWrite_Bruker(imObj.ProData,imObj,'im.nii');
+MyNIFTIWrite_Bruker(met_con,csiObj,'csi.nii');
 
 %% OLD IDEAL code
 % timeSel=7:size(csi_fid,4);

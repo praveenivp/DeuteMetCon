@@ -4,7 +4,7 @@ function [nifti_header]=MyNIFTIWrite_Bruker(Vol,data_struct,filename,Description
 %[INPUTS]:
 % Vol : upto 7D Input volume
 %       Please make sure the first three physical dim are in this order: PHASExREADxPARTITION
-% csi_struct : DataClass object from Rolf Pohmann
+% data_struct : DataClass object from Rolf Pohmann
 % filename : string (optinal)
 % Description : string (optional)
 %
@@ -28,12 +28,12 @@ end
 if(isfield(data_struct.AcqParameters,'CSIPosition'))
     %permute onlt CSI data accoriding to Pohmann
 
-%     Vol=permute(Vol,[abs(data_struct.RecoParameters.RearrangeDims),4,5]);
+    %     Vol=permute(Vol,[abs(data_struct.RecoParameters.RearrangeDims),4,5]);
     Vol=permute(Vol,[2,1,3,4,5]);
-%    Vol=ndflip(Vol,find(data_struct.RecoParameters.RearrangeDims<0));
-%  Vol=ndflip(Vol,[1,2,3]);
- FOV_RPS=data_struct.AcqParameters.FOV(abs(data_struct.RecoParameters.RearrangeDims)); %mm
-%   FOV_RPS=data_struct.AcqParameters.FOV(:); %mm
+    %    Vol=ndflip(Vol,find(data_struct.RecoParameters.RearrangeDims<0));
+    %  Vol=ndflip(Vol,[1,2,3]);
+    FOV_RPS=data_struct.AcqParameters.FOV(abs(data_struct.RecoParameters.RearrangeDims)); %mm
+    %   FOV_RPS=data_struct.AcqParameters.FOV(:); %mm
 else
     %image you don't need to permute
     FOV_RPS=data_struct.RecoParameters.FOV(:); %mm
@@ -93,9 +93,11 @@ scaling_affine=diag([Res_RPS(:); 1]);
 % get normal
 
 if(isfield(data_struct.AcqParameters,'CSIPosition'))
-    Normal=data_struct.AcqParameters.Orientation;     
+    Normal=data_struct.AcqParameters.Orientation;
+    %Rolf did some permute already
     Normal=[0;0;1];
 else
+    %Rolf did some permute already
     Normal=[0;0;1];
 end
 
@@ -130,32 +132,32 @@ Rotmat_normal=Rm2*Rm1;
 
 %inplane rotation
 theta=0;
-  rotmat_inplane =  [[cos(-theta), sin(+theta), 0];...
-                    [sin(-theta), cos(-theta), 0];...
-                    [0         , 0         , 1]];
+rotmat_inplane =  [[cos(-theta), sin(+theta), 0];...
+    [sin(-theta), cos(-theta), 0];...
+    [0         , 0         , 1]];
 rotation_affine=eye(4);
 rotation_affine(1:3,1:3)=Rotmat_normal*rotmat_inplane;
 
 %%
-   % translation (center of image)
-    corner_mm =[-1*FOV_RPS(:)/2 ; 1];
-    corner_mm(3)=corner_mm(3)+Res_RPS(3)/2;
-    T=rotation_affine;
-    % image is bruker reconstructed so need the image center
-    %csi is not centered so we don't need image center
-    if(isfield(data_struct.AcqParameters,'CSIPosition'))
-    offcenter_SCT=data_struct.AcqParameters.CSIPosition*0; 
-    else
+% translation (center of image)
+corner_mm =[-1*FOV_RPS(:)/2 ; 1];
+corner_mm(3)=corner_mm(3)+Res_RPS(3)/2;
+T=rotation_affine;
+% image is bruker reconstructed so need the image center
+%csi is not centered so we don't need image center
+if(isfield(data_struct.AcqParameters,'CSIPosition'))
+    offcenter_SCT=data_struct.AcqParameters.CSIPosition*0;
+else
     offcenter_SCT=data_struct.AcqParameters.Position*-1;
-    end
-    T(1:3,4)=offcenter_SCT;
-    offset = T * corner_mm;
-    translation_affine = eye(4);
-    translation_affine(:,4) = offset;
-    % LPS to RAS, Note LPS and PCS (patient coordinate system [Sag, Cor, Tra] ) are identical here (head first/supine).
-    LPS_to_RAS = eye(4);%diag([-1, -1, 1, 1]); % Flip mm coords in x and y directions
+end
+T(1:3,4)=offcenter_SCT;
+offset = T * corner_mm;
+translation_affine = eye(4);
+translation_affine(:,4) = offset;
+% LPS to RAS, Note LPS and PCS (patient coordinate system [Sag, Cor, Tra] ) are identical here (head first/supine).
+LPS_to_RAS = eye(4);%diag([-1, -1, 1, 1]); % Flip mm coords in x and y directions
 
-    affine = LPS_to_RAS *translation_affine * rotation_affine * scaling_affine;
+affine = LPS_to_RAS *translation_affine * rotation_affine * scaling_affine;
 
 end
 
