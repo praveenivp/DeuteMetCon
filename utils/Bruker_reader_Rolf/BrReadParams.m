@@ -192,6 +192,9 @@ while line ~= -1
                                 IsStruct = 1;
                             elseif ar(1) == '<'  % A string (character array) enclosed in < .. >
                                 res = ar(2:end-1);
+                                if strcmp(params{cnt},'ACQ_time')
+                                    res = datetime(t,'InputFormat','yyyy-MM-dd''T''HH:mm:ss,SSSZ','TimeZone','local');
+                                end
                             else
                                 ar = split(ar);
                                 numarr = str2double(ar);
@@ -223,7 +226,7 @@ while line ~= -1
                                         end
                                     end
                                 end
-                                res = reshape(res,NumDim);
+                                res = reshape(res,fliplr(NumDim));
                                 res = squeeze(res);
                             end
                                 
@@ -357,7 +360,9 @@ while line ~= -1
                     end
                     if contains(params{cnt},'ACQ_jobs') && sres(1) == 9
                         fields = {'ScanSize','transactionBlocks','dummyScans','nTotalScans','receiverGain','swh','nStoredScans','ChanNum','title'};
-                    elseif contains(params{cnt},'Pulse') && sres(1) == 12
+                    elseif contains(params{cnt},'ACQ_jobs') && sres(1) == 8   % ParaVision 6
+                        fields = {'ScanSize','transactionBlocks','dummyScans','nTotalScans','receiverGain','swh','scanShift','nStoredScans'};
+                    elseif contains(params{cnt},'Pul') && sres(1) == 12
                         fields = {'Length','Bandwidth','Flipangle','Calculated','Sharpness','Bwfac','Sint','Pint','Type','Rpfac','Pow','Shape'};
                     elseif contains(params{cnt},'Pulse') && contains(params{cnt},'Ampl') && sres(1) == 3
                         fields = {'ppow','pampl','patt'};

@@ -72,6 +72,7 @@ This package has unmodified/modified code from other sources.
 - wsvd coil combine is from Chris Rodgers, University of Oxford, 2014.
 - noise decorrelation: [ismrm_sunrise_matlab](https://github.com/hansenms/ismrm_sunrise_matlab.git)
 - some plot utilies are taken from matlab file exchange.
+- Bruker data reader and other utils from Rolf Pohmann. 
 
 The external softwares are bundled togther for easy testing of this repository. Please contact me if it violates any copyright.
 

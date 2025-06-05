@@ -7,6 +7,7 @@ function fid = BrReadFid(path)
 
 % Written by Rolf Pohmann
 % Max Planck Institute for Biological Cybernetics, Tübingen, Germany
+path
 if nargin < 1
     [f,p] = uigetfile([{'fid*;ser*;rawdata*', ...
             'Bruker raw data files';'*.*','All Files'}], ... 
