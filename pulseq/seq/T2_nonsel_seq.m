@@ -8,12 +8,11 @@ pulse_dur=1e-3;
 dwell_s=250e-6; %[s]
 TR= 2500e-3; %[s]
 
-% 10 mins with 8 averages TR 2.5 s
-% TI_array=[20:15:280 300:50:600 700:250:1500 2000]*1e-3; %[s]
+
 % 6 mins with 8 averages TR 2.5s
 TE_array=[ 10:5:20 20:10:40 50:50:300 400:150:800 ]*1e-3; %[s]
 
-% TE_array=10e-3;
+
 
 Nav=16;
 wait_s=0;

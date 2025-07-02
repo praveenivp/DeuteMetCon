@@ -1,13 +1,16 @@
-%% load sequence file
-clearvars,%clc
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
-metabolites=getMetaboliteStruct('invivo');
-flip=false;
-
-% addpath(genpath('/ptmp/pvalsala/MATLAB'))
+%% Script to 
+addpath(genpath('/ptmp/pvalsala/Packages/mapVBVD'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
+
+ % metabolites=getMetaboliteStruct('phantom');
+% flip=false;
+ % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+
+% metabolites=getMetaboliteStruct('invivo');
+flip=true;
+% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-02';
 %%
 
 
@@ -24,7 +27,7 @@ st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
 %%
-% dirst=dir(fullfile(sn,'*pulseq_T1_invFOCI_10mins*.dat'));
+% MeasPath='/ptmp/pvalsala/deuterium/phantoms/20240925_Newsequence/TWIX';
 dirst=dir(fullfile(MeasPath,'*_T2*.dat'));
 st.filename=dirst(end).name; %load last file
 twix=mapVBVD(fullfile(MeasPath,st.filename));
@@ -38,7 +41,7 @@ if(iscell(twix_noise)), twix_noise=twix_noise{end}; end
 if(iscell(twix)), twix=twix{end}; end
 data=twix.image{''};
 data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions);
-data=padarray(data,[2*size(data,1),0,0,0],0,'post');
+data=padarray(data,[0*size(data,1),0,0,0],0,'post');
 Spectrum=squeeze(mean(fftshift(fft(data,[],1),1),[2 3]));
 st.Cfreq=twix.hdr.Dicom.lFrequency; %Hz
 st.hdr=twix.hdr;
@@ -55,55 +58,37 @@ data_whiten=reshape(D_image*data(:,:),size(data));
 data_whiten=permute(data_whiten,[2 1 3 4]);
 
 % Combine coil data with wsvd
-data_whiten=mean(data_whiten,4);
+  % data_whiten=mean(data_whiten,4);
 DataSize=size(data_whiten);
 %we already noise decorrelated data!
 wsvdOption.noiseCov         =0.5*eye(DataSize(2));
 data_Combined=zeros([DataSize(1) DataSize(3:end)]);
-for rep=1:size(data_whiten,3)
+for rep=1:prod(DataSize(3:end))
     rawSpectra=squeeze(data_whiten(:,:,rep));  % fid x Coil
-    [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
-    data_Combined(:,rep)=-1*wsvdCombination;
+    % [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
+    [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvdApod(rawSpectra, [], 1/50e-3,expParams.timeAxis,wsvdOption);
+    data_Combined(:,rep)=wsvdCombination;
     wsvdQuality_all(rep)=wsvdQuality;
 end
-%% Test amares
-st.AcqDelay_s=seq.getBlock(5).blockDuration+seq.getBlock(6).blockDuration+seq.getBlock(7).adc.delay;
-filter_delay=(2.9023e-6+st.dwell_s*1.4486);
-st.AcqDelay_s=0;%(st.AcqDelay_s+filter_delay);
 
-%    metabolites(2).freq_shift_Hz=-68;
+data_quality=norm(mean(data_Combined,[3])./std(data_Combined,[],[3])) % around sub-2 63.84
+ data_Combined=mean(data_Combined,3);
+%% Test amares
+st.AcqDelay_s=seq.getBlock(1).blockDuration/2;
+filter_delay=(2.9023e-6+st.dwell_s*1.4486);
+st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
 [expParams,pk]=getAMARES_structs_T1inv(twix,metabolites,st);
+expParams.beginTime=st.AcqDelay_s;
 
 spec1=specFft(padarray(data_Combined,[512*4 0],'post'));
-% n=n+1;
-%  faxis=linspace(-0.5/st.dwell_s,(0.5/st.dwell_s)-(1/(st.dwell_s*size(spec1,1))),size(spec1,1));
-%   faxis=linspace(-0.5/st.dwell_s,(0.5/st.dwell_s)-1*(1/(st.dwell_s*size(spec1,1))),size(spec1,1));
 faxis=calcFreqAxis(st.dwell_s,size(spec1,1));
 
-%fix zeroth order phase offset so that amplitude doesn't flip
-
-[phi0]=CalcZerothPhase(faxis,specFft(padarray(data_Combined,[512*4 0],'post')),300);
-
-for cm=1:4
-    pk.bounds(cm).phase=50*[-1 +1]-rad2deg(median(phi0))  -180*flip;
-    pk.initialValues(cm).phase=-1*rad2deg(median(phi0)) -180*flip;
+if(contains(MeasPath,'sub'))
+pk.bounds(4).linewidth=[15 30];
+else
+    pk.bounds(3).linewidth=[5 20];
+    pk.bounds(4).linewidth=[5 20];
 end
-pk.bounds(1).linewidth=[3,25];
-pk.bounds(3).linewidth=[3,25];
-pk.bounds(2).linewidth=[10 40];
-pk.bounds(4).linewidth=[10 30];
-%pick the best acq_delay
-clear relNorm;
-acq_delay_arr=linspace(st.AcqDelay_s,1000e-6,50);
-for jj=1:length(acq_delay_arr)
-    expParams.beginTime=acq_delay_arr(jj);
-    [~, fitStatus,~,~] = AMARES.amaresFit(double(data_Combined(:,end)), expParams, pk,0,'quiet',true);
-    relNorm(jj)=fitStatus.relativeNorm;
-end
-[minRelNorm,idx]=min(relNorm);
-st.AcqDelay_s=acq_delay_arr(idx);
-expParams.beginTime=acq_delay_arr(idx);
-
 clear fitResults fitStatus CRBResults
 for i=1:size(data_Combined,2)
     [fitResults{i}, fitStatus{i},~,CRBResults{i}] = AMARES.amaresFit(double(data_Combined(:,i)), expParams, pk,0,'quiet',true);
@@ -118,8 +103,15 @@ all_lw=cell2mat(cellfun(@(x) x.linewidth,fitResults,'UniformOutput',false)');
 med_lw=median(all_lw(1:5,:),1);
 std_lw=std(all_lw(1:5,:),[],1);
 
+all_cs=cell2mat(cellfun(@(x) x.chemShift,fitResults,'UniformOutput',false)');
+med_cs=median(all_cs(1:5,:),1);
+std_cs=std(all_cs(1:5,:),[],1);
+
 for cMet=1:length(metabolites)
-    pk.bounds(cMet).linewidth=[-1,1]*0.1*std_lw(cMet)+med_lw(cMet);
+    pk.bounds(cMet).linewidth=[-1,1]*std_lw(cMet)+med_lw(cMet);
+    pk.initialValues(cMet).linewidth=med_lw(cMet);
+    pk.bounds(cMet).chemShift=[-1,1]*std_cs(cMet)+med_cs(cMet);
+    pk.initialValues(cMet).chemShift=med_cs(cMet);
 end
 clear fitResults fitStatus CRBResults
 for i=1:size(data_Combined,2)
@@ -130,7 +122,7 @@ end
 
 %
 %  plot overview
-figure(13),clf
+figure(14),clf
 
 tt=tiledlayout(2,4,'Padding','compact','TileSpacing','compact');
 nexttile(tt,1,[2 2])
@@ -146,7 +138,7 @@ for crep=1:15
     % model = @(cf,a,g)a./(1 + ((faxis - cf)/(g/2)).^2) ; %  Lorentzian
     model_time = @(cf,a,t2)a.*exp(-taxis/t2).*exp(2i*pi*cf*taxis); %  Lorentzian
     spec_sim=zeros(size(faxis));
-    amp=[1 0.5 0.50 0.5];
+    % amp=[1 0.5 0.50 0.5];
     fid=zeros(size(taxis));
     for i=1:length(metabolites)
         T2star_s=1/(pi*fitResults{crep}.linewidth(i)); %s
@@ -173,7 +165,8 @@ grid on
 
 %     xlim([-75.6206 -38.8002]),ylim([-0.0377 0.0571]) %glucose
 
-weights=1./cell2mat(cellfun(@(x)x.amplitude,CRBResults,'UniformOutput',false)');
+  weights=1./sqrt(cell2mat(cellfun(@(x)x.amplitude,CRBResults,'UniformOutput',false)'));
+  % weights=repmat(exp(-(1:15)/10)',[1 4]);
 plt_id=[3 4, 7 8];
 for i=1:length(metabolites)
     nexttile(tt,plt_id(i));
@@ -182,13 +175,13 @@ for i=1:length(metabolites)
     lcolour='r'; typ='AMARES';
     if(i==1 && contains(MeasPath,'sub'))
         % Set up fittype and options.
-        ft = fittype( 'f*(a*(exp(-x/b)) +d*(exp(-x/e))) +c +1e5*(a+d-1)', 'independent', 'x', 'dependent', 'y' );
+        ft = fittype( 'f*(a*exp(-x/b) +d*exp(-x/e)) +0*c +1e6*(a+d-1)', 'independent', 'x', 'dependent', 'y' );
         opts = fitoptions( 'Method', 'NonlinearLeastSquares','Weights',weights(:,i) );
         opts.Display = 'Off';
         opts.Robust = 'on';
-        opts.StartPoint = [1 0.1e3 0 0.1 500 1];
-        opts.Lower = [0.7 1 -Inf 0 200 -Inf];
-        opts.Upper = [1 50 Inf 0.25  900 Inf];
+        opts.StartPoint = [0.8    10      0       0.05   300  1];
+        opts.Lower =      [0.7    1      -Inf      0.05    200  -Inf];
+        opts.Upper =      [0.95    100      Inf     0.25  600  Inf];
 
         % Fit model to data.
         [fitresult, gof] = fit( st.TE_array*1e3,col(amp_all(:,i)) , ft, opts );
@@ -235,7 +228,7 @@ fprintf('\n%% %s',MeasPath)
 fprintf('\nT2=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s',cellfun(@(x)x.b ,fitresult_all))
 CI=cellfun(@(x)confint(x),(fitresult_all),'UniformOutput',false);
 fprintf('\nT2_CI=[%.4f,%.4f,%.4f,%.4f]*1e-3; %%s diff(CI95)/2',cellfun(@(x) diff(x(:,2))/2,CI))
-if(isfield(fitresult_all{1},'d'))
+if(contains(MeasPath,'sub'))
     fprintf('\n%%T2(%.2f%%) =%.4f and T2(%.2f%%) =%.4f',fitresult_all{1}.a*100,fitresult_all{1}.b,fitresult_all{1}.d*100,fitresult_all{1}.e)
 end
 
