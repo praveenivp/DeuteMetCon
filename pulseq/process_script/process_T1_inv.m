@@ -1,13 +1,13 @@
 %% load sequence file
 clearvars
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
 
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'));
 
-metabolites=getMetaboliteStruct('invivo');
+metabolites=getMetaboliteStruct('phantom');
 flip =0; % invert spectrum?
 
 %%
@@ -60,20 +60,17 @@ data_whiten=reshape(D_image*data(:,:),size(data));
 data_whiten=permute(data_whiten,[2 1 3 4]);
 
 % Combine coil data with wsvd
-  % data_whiten=mean(data_whiten,4);
- DataSize=size(data_whiten);
+data_whiten=mean(data_whiten,4);
+DataSize=size(data_whiten);
 %we already noise decorrelated data!
 wsvdOption.noiseCov         =0.5*eye(DataSize(2));
 data_Combined=zeros([DataSize(1) DataSize(3:end)]);
-for rep=1:prod(DataSize(3:end))
+for rep=1:size(data_whiten,3)
     rawSpectra=squeeze(data_whiten(:,:,rep));  % fid x Coil
     [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
     data_Combined(:,rep)=wsvdCombination;
     wsvdQuality_all(rep)=wsvdQuality;
 end
-
- data_quality=norm(mean(data_Combined,[3])./std(data_Combined,[],[3])) % around sub-2 63.84
- % data_Combined=mean(data_Combined,3);
 %% Test amares
 st.AcqDelay_s=seq.getBlock(5).blockDuration+seq.getBlock(4).rf.ringdownTime+seq.getBlock(6).adc.delay;
 filter_delay=(2.9023e-6+st.dwell_s*1.4486);

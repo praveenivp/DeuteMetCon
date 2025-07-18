@@ -26,7 +26,8 @@ for cMb=1:length(Metabolites)
             for cTR=1:length(TR)
                 %if Dutycycle is a fucntion handle
                 if(~isnumeric(DutyCycle))
-                    cDutyCycle=DutyCycle(TR(cTR));  
+                    cDutyCycle=DutyCycle(TR(cTR)); 
+                    if(cDutyCycle<0),cDutyCycle=0;end
                 else
                     cDutyCycle=DutyCycle;
                 end
@@ -211,7 +212,7 @@ Sfisp=M0*(sin(FA)/(1+cos(FA)))*(1-(E1-cos(FA)).*r);
 % q=E2.*(1-E1)*(1+cos(flip));
 
 %phase evolution and T2 decay
-Sfisp=Sfisp.*exp(1i*2*pi*freqOffset*TE).*exp(-TE./T2);
+Sfisp=Sfisp.*exp(1i*2*pi*freqOffset*TE).*exp(-TE./T2star);
 
 end
 
