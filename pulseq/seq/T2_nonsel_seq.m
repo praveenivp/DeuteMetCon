@@ -93,7 +93,7 @@ for rep=1:Nrep
         seq.addBlock(spoilerx,spoilery,spoilerz);
         % fill the rest of TR
         TR_fill= TR- (mr.calcDuration(rf)/2 + TE_array(rep)+ ...
-          mr.calcDuration(adc)+mr.calcDuration(spoilerx));
+          mr.calcDuration(adc)+mr.calcDuration(spoilerx))
         seq.addBlock(mr.makeDelay(TR_fill));
     end
     % inter rep delay

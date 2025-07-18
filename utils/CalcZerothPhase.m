@@ -35,5 +35,7 @@ end
 phi0(crep)=phi0_axis(idx_max_slp);
 spec2(:,crep)=spec(:,crep)*exp(1i*phi0_axis(idx_max_slp));
 end
-
+%flip them if necesssary
+% phi0=phi0+(max(real(-1*spec2)) >max(real(1*spec2)))'*pi;
+% spec2=spec2.*exp(1i*(max(-1*spec2) >max(1*spec2))*pi);
 end

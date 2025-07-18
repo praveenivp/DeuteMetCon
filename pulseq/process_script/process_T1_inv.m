@@ -1,13 +1,17 @@
 %% load sequence file
 clearvars
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+% metabolites=getMetaboliteStruct('phantom');
+
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
+metabolites=getMetaboliteStruct('invivo');
 
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'));
 
-metabolites=getMetaboliteStruct('phantom');
+
 flip =0; % invert spectrum?
 
 %%

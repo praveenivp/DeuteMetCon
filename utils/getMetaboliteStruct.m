@@ -5,7 +5,7 @@ function metabolites=getMetaboliteStruct(DataSelect,freqOffset)
 %
 %EXAMPLES:
 % to print table use without output arguments
-%getMetaboliteStruct('invivo') 
+%getMetaboliteStruct('invivo')
 %met_Struct=getMetaboliteStruct('phantom');
 %
 %Dataselect: one of {'sub-01'}    {'sub-02'}    {'sub-03'}    {'sub-04'}    {'sub-05'}    {'phantom'}    {'invivo'}    {'invivo9T'}    {'Roig7T'}    {'Peters12T'}
@@ -18,12 +18,12 @@ gammaH2=6.536; % [MHz/T]
 
 switch(DataSelect)
     case 'phantom' %@9.4T
-        %new phantom: /ptmp/pvalsala/deuterium/20240102_new2Hphantom
+        %see: DeuteMetCon/scripts/process_all_relaxometry.m
         met_name={'water','glucose','glutamic acid','lactate'};
-        T1=[449.8212,60.3493,162.9081,241.4547]*1e-3; %s
-        T1_CI=[47.9218,23.5754,34.9505,24.2403]*1e-3; %s diff(CI95)/2
-        T2=[270.8520,56.7103,112.8461,247.8881]*1e-3; %s
-        T2_CI=[7.1701,7.4427,12.0632,23.1362]*1e-3; %s diff(CI95)/2
+        T1=[458.7212 67.5265 160.5774 319.3940]*1e-3; %s
+        T1_std=[4.3498 10.3023 20.8912 41.5633]*1e-3; %s
+        T2=[304.1309 56.8033 156.8406 254.8299]*1e-3; %s
+        T2_std=[3.6967 8.7555 17.7546 35.3229]*1e-3; %s
         ImagingFreq=61359114.0000; %Hz
         freq_shift=[2.68  -63.83 -152.88 -213.58]; %Hz has less residue
 
@@ -38,47 +38,43 @@ switch(DataSelect)
         met_name={'water','glucose','Glx','lactate/lipid'};
         subIdx=str2double(DataSelect(end-1:end));
 
+        % see: DeuteMetCon/scripts/process_all_relaxometry.m
         % data from process_T1_inv
         T1 = [
-            360.5184   86.8361  158.0989  109.9415;
-            417.2924   64.3759  173.4299  142.9516;
-            361.3593   77.4438  157.5635  121.6826;
-            351.2728   81.6462  157.6897  143.1148;
-            360.1643   77.9841  161.7815  165.6381
-            ] * 1e-3; % Convert to seconds
+            372.1884   71.1968  142.7747   67.7676
+            400.0000   61.7577  134.3558   44.5676
+            342.7002   65.8658  137.0337   78.7666
+            358.2341   66.6929  144.9041   86.7971
+            365.0854   63.3548  139.2259   75.5844
+            ]; % in ms
 
-        T1_CI = [
-            5.5403    9.4113    3.6082   18.5691;
-            55.7675   4.2608   15.5232   40.3232;
-            6.8110    4.4586    4.7049    9.6327;
-            19.3575   7.5787    4.6537   23.5573;
-            7.2214    1.9944    5.9712   46.3589
-            ] * 1e-3; % Convert to seconds
+        T1_std = [
+            3.3597    1.4793    2.1845    4.3329
+            42.1997    5.0280   13.8865   10.8930
+            49.8865    8.9086   14.2134   16.6408
+            0.0059    0.0121    0.0074    0.0011
+            2.8877    1.5630    2.9416   20.4450
+            ] ; % in ms
 
         %data from process_T2.m
+        % water_T2,Glu_T2,Glx_t2,lipid_T2,Water2_T2 in ms and water2_fac
         T2 = [
-            29.9663   40.4833   93.4319   50.1270  340.7986
-            34.2895   38.2420  103.6166  248.7363  317.6638
-            36.5687   37.2845   81.0161   32.0723  200.0000
-            31.4127   35.2399   97.6876   69.8372  331.4707
-            34.5786   32.2199  111.4885   65.1398  365.0476
-            ] * 1e-3; % Convert to seconds
+            28.1280   48.6978   98.8150  107.8537  308.0978    0.1693
+            29.4282   39.7355   99.1927  171.5556  333.7481    0.2411
+            35.0754   30.4258   91.2093  158.4283  244.6254    0.1016
+            29.3883   45.9762   96.0668  143.1346  277.8036    0.1822
+            28.0758   40.4198  105.1521  107.9723  303.4141    0.2154
+            ];
+        %standard devitaiton of above with numerical hessian matrix
+        T2_std = [
+            0.5342    1.8976    3.4090   11.8423   16.0746    0.0059
+            0.6030    1.0390    4.0714   16.4482   12.4866    0.0056
+            44.7541  201.3917   16.0118   22.8937  181.6521    0.2994
+            0.5321    1.6238    3.4144   15.1081   12.6802    0.0057
+            0.4265    0.9315    3.4549    9.8602   10.7013    0.0035
+            ];
 
-        T2_CI = [
-            6.7563    5.2629   14.5070   15.3652  0;
-            25.2735   3.4229   14.7962  134.0744  0;
-            7.8778    6.9314   31.6491   14.2051  0;
-            8.3531    4.2345   22.9319   31.9338  0;
-            11.3065   5.7484   35.9891   54.9027  0
-            ] * 1e-3; % Convert to seconds
 
-        water2_percent=[
-            10.9100         0;
-            8.3700         0;
-            8.7400         0;
-            12.1800         0;
-            12.2700         0;
-            ]; % Water 2 compartment and standard deviation in %
 
         % CSI datasets see plotT2star.m
         csi_datasets = {'M997', 'M997', 'M997', 'M412', 'M695'};
@@ -101,13 +97,13 @@ switch(DataSelect)
 
         %slice or take mean!
         if(isnan(subIdx))
-            T1=mean(T1,1);
-            T2=mean(T2(:,1:4),1);
+            T1=mean(T1,1)*1e-3;
+            T2=mean(T2(:,1:4),1)*1e-3; % ms -> s
             T2Star=mean(T2Star,2);
             freq_shift=mean(freq_shift-freq_shift(:,1),1);
         else
-            T1=T1(subIdx,:);
-            T2=T2(subIdx,1:4);
+            T1=T1(subIdx,:)*1e-3;
+            T2=T2(subIdx,1:4)*1e-3;
             T2Star=T2Star(subIdx,:);
             freq_shift=freq_shift(subIdx,:);
         end
@@ -160,25 +156,3 @@ end
 
 
 
-%% plotting mean
-% all_sub={'invivo1','invivo2','invivo3','invivo4','invivo5'};
-% metabolites_all=cellfun(@(x) getMetaboliteStruct(x,0),all_sub,'UniformOutput',false);
-%
-% fprintf('T1=[%.4f, %.4f, %.4f, %.4f]*1e-3; %%s \n',...
-%     1e3*mean(cell2mat(cellfun (@(x)[x.T1_s],metabolites_all,'UniformOutput',false)')));
-% fprintf('T1_std=[%.4f, %.4f, %.4f, %.4f]*1e-3; %%s \n',...
-%     1e3*std(cell2mat(cellfun (@(x)[x.T1_s],metabolites_all,'UniformOutput',false)')));
-% fprintf('T2=[%.4f, %.4f, %.4f, %.4f]*1e-3; %%s \n',...
-%     1e3*mean(cell2mat(cellfun (@(x)[x.T2_s],metabolites_all,'UniformOutput',false)')));
-% fprintf('T2_std=[%.4f, %.4f, %.4f, %.4f]*1e-3; %%s \n',...
-%     1e3*std(cell2mat(cellfun (@(x)[x.T2_s],metabolites_all,'UniformOutput',false)')));
-%
-% fprintf('T2Star=[%.4f, %.4f, %.4f, %.4f]*1e-3; %%s \n',...
-%     1e3*mean(cell2mat(cellfun (@(x)[x.T2star_s],metabolites_all,'UniformOutput',false)')));
-% fprintf('T2Star_std=[%.4f, %.4f, %.4f, %.4f]*1e-3; %%s \n',...
-%     1e3*std(cell2mat(cellfun (@(x)[x.T2star_s],metabolites_all,'UniformOutput',false)')));
-%
-% fprintf('freq_shift=[%.4f, %.4f, %.4f, %.4f]; %%Hz \n',...
-%     mean(cell2mat(cellfun (@(x)[x.freq_shift_Hz],metabolites_all,'UniformOutput',false)')));
-% fprintf('freq_shift_std=[%.4f, %.4f, %.4f, %.4f]; %%Hz \n',...
-%     std(cell2mat(cellfun (@(x)[x.freq_shift_Hz],metabolites_all,'UniformOutput',false)')));
