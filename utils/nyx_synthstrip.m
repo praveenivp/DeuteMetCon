@@ -1,3 +1,39 @@
+function [brainmask,brain,fname_mask]=nyx_synthstrip(fname_nii,varargin)
+% [brainmask,brain,filename]=nyx_synthstrip(fname_nii,desired_orientation);
+% perform synstrip on the host with appatainer
+% Inputs
+% filename - nifti filename
+% orientation_desired - 3 char orienation like 'RAS','LPS','ARI' or empty ''
+% R/L- right/left, A/P- anterior/posterior I/S-Inferioir/superior
+
+[pn,fn]=fileparts(fname_nii);
+
+[fn,ext]=strtok(fn,'.');
+
+if(isempty(pn))
+pn=pwd;
+fname_nii=fullfile(pn,fname_nii);
+end
+fname_stripped=fullfile(pn,[fn,'_strip',ext]);
+fname_mask=fullfile(pn,[fn,'_mask',ext]);
+
+% here the synthstrip magic happens
+tic
+cmd = sprintf('ssh $(hostname) apptainer exec -B /ptmp /ptmp/neurocontainers/synthstrip_7.4.1_20240913.simg mri_synthstrip -i %s -o %s -m %s', fname_nii, fname_stripped, fname_mask);
+fprintf('calling synthstrip:%s\n',cmd)
+[status,out] = system(cmd);
+t=toc;
+if status==0
+    fprintf('synthstrip successfull! (t=%.2fs)\n', t)
+else
+    disp(out);
+end
+
+brainmask=MyNiftiRead(fname_mask,varargin{:});
+brain=MyNiftiRead(fname_nii,varargin{:});
+
+end
+
 function [Vout_all,TransformFucntion]=MyNiftiRead(filename,orientation_desired)
 %V=MyNiftiRead(filename,orientation_desired)
 %Nifti reader which respects orientaion
@@ -36,7 +72,7 @@ for fidx=1:length(dirst_nii)
 
 
     curr_orient=printOrientation(rotm);
-   if(~exist('orientation_desired','var')||isempty(orientation_desired))
+    if(~exist('orientation_desired','var')||isempty(orientation_desired))
         orientation_desired=curr_orient;
     else
         fprintf('Converting %s to %s orientation \n',curr_orient,orientation_desired);

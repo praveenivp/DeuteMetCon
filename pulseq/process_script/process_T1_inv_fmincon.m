@@ -5,10 +5,9 @@ addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
   % metabolites=getMetaboliteStruct('phantom');
-   % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+  %  MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom_old';
 
-% metabolites=getMetaboliteStruct('invivo');
-% 
+% metabolites=getMetaboliteStruct('invivo'); 
 % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
 
 %% read pulseq sequence
@@ -92,18 +91,18 @@ faxis=linspace(-0.5/(st.dwell_s),0.5/st.dwell_s,length(data_Combined));
 %% full 2d fitting
 st.AcqDelay_s=seq.getBlock(5).blockDuration+seq.getBlock(4).rf.ringdownTime+seq.getBlock(6).adc.delay;
 filter_delay=(2.9023e-6+st.dwell_s*1.4486);
-st.AcqDelay_s=(st.AcqDelay_s+filter_delay)+3e-04;
+st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
 
 
 
 
 % Optimization options
-tol=1e-14;
+tol=1e-9;
 options = optimoptions(@fmincon, ...
     'Display', 'final-detailed', ...
     'Algorithm', 'interior-point', ...
     'UseParallel', true,'StepTol',tol,'OptimalityTol',tol,'FunctionTol',tol,...
-    'MaxFunction',inf,'Maxiter',2000);
+    'MaxFunction',inf,'Maxiter',200);
 
 taxis=0:st.dwell_s:st.dwell_s*(length(data_Combined)-1);
 taxis=taxis+st.AcqDelay_s;
@@ -117,24 +116,24 @@ x0 = [1 0.1 0.1 0.1, ...    % Amplitudes (a_i)
     [metabolites.freq_shift_Hz],...       % Frequencies (cf_i, Hz)
     [metabolites.T2star_s], ...  % T2* times (s)
     [metabolites.T1_s], ...  % T1 times (s)
-    0,...       % Zero-order phase (rad
-    0,2];         %additional delay [s] and fit
+    pi,...       % Zero-order phase (rad)
+    6e-4,ones(1,4)*1.8];         %additional delay [s] and fit
 
 % Parameter bounds: [lb] and [ub]
 lb = [0,0,0,0, ...           % a_i >= 0
     [metabolites.freq_shift_Hz]-10, ... % Frequencies
-    [30e-3, 10e-3, 15e-3, 20e-3], ...  % T2* times (s)
+    [15e-3, 10e-3, 15e-3, 15e-3], ...  % T2* times (s)
     200e-3,40e-3,100e-3,200e-3, ...           % T1 times [s]
     pi, ...                % phi0 in [-π, π]
-    -1e-3,1.6];
+    -1e-3,ones(1,4)*1];
 ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
     [metabolites.freq_shift_Hz]+10, ...    % Frequencies
-    [60e-3, 20e-3, 50e-3, 80e-3],... %T2* times [s]
-    600e-3,100e-3,200e-3,800e-3, ...    % T1 times [s]
+    [60e-3, 20e-3, 50e-3, 30e-3],... %T2* times [s]
+    500e-3,100e-3,200e-3,400e-3, ...    % T1 times [s]
    2*pi, ...                 % phi0
-    1e-3,2];
+    1e-3,ones(1,4)*2];
 
-obj_func=@(x)objective(x,st.TI_array(1:1:end-4),taxis,data_Combined(:,1:1:end-4));
+obj_func=@(x)objective(x,st.TI_array(1:1:end),taxis,data_Combined(:,1:1:end));
 else
 % inputs
 x0 = [0.3664 0.4598 0.0835 0.0703, ...    % Amplitudes (a_i)
@@ -142,21 +141,21 @@ x0 = [0.3664 0.4598 0.0835 0.0703, ...    % Amplitudes (a_i)
     [metabolites.T2star_s], ...  % T2* times (s)
     [metabolites.T1_s], ...  % T1 times (s)
     1.32,...       % Zero-order phase (rad
-    0,2];         %additional delay [s] and fit
+    0,ones(1,4)*1.8];         %additional delay [s] and fit
 
 % Parameter bounds: [lb] and [ub]
 lb = [0,0,0,0, ...           % a_i >= 0
     [metabolites.freq_shift_Hz]-10, ... % Frequencies
-    [5e-3, 5e-3, 5e-3, 10e-3], ...  % T2* times (s)
+    [5e-3, 5e-3, 5e-3, 3e-3], ...  % T2* times (s)
     200e-3,50e-3,100e-3,10e-3, ...           % T1 times [s]
     0, ...                % phi0 in [-π, π]
-    -1e-3,1.5];
-ub = [Inf,Inf,Inf,5, ...    % a_i upper bound
+    -2e-4,ones(1,4)*1];
+ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
     [metabolites.freq_shift_Hz]+10, ...    % Frequencies
     [25e-3, 25e-3, 25e-3, 15e-3],... %T2* times [s]
-    400e-3,200e-3,300e-3,200e-3, ...    % T1 times [s]
+    450e-3,200e-3,300e-3,200e-3, ...    % T1 times [s]
     2*pi, ...                 % phi0
-    0e-3,2];
+    2e-4,ones(1,4)*2];
 
 obj_func=@(x)objective(x,st.TI_array(1:1:end),taxis,data_Combined(:,1:1:end));
 end
@@ -165,7 +164,7 @@ end
 inp_func=@(x) simulate_fid(x,st.TI_array,taxis);
 s0=inp_func(x0);
 [x_opt,fval,exitflag,output,lambda,grad,hessian] = fmincon(obj_func,x0,[],[],[],[],lb,ub,[],options);
-st.AcqDelay_s=st.AcqDelay_s-x_opt(18);
+% st.AcqDelay_s=st.AcqDelay_s+x_opt(18);
 
 
 
@@ -184,6 +183,7 @@ covariance_matrix = 2 * mse * pinv(hessian);
 
 % 3. Extract the standard deviations
 std_devs = sqrt(diag(covariance_matrix));
+ assert(any(imag(std_devs)<eps)) % fit parameter at bounds
 clear fitResults_T1
 fitResults_T1.T1_std=std_devs([13:16])'*1e3;
 fitResults_T1.amplitude = x_opt(1:4);
@@ -192,7 +192,7 @@ fitResults_T1.T2star_ms = x_opt(9:12)*1e3;
 fitResults_T1.T1_ms = x_opt(13:16)*1e3;
 fitResults_T1.phi0 = rad2deg(x_opt(17));
 fitResults_T1.additional_delay=x_opt(18);
-fitResults_T1.b=x_opt(19);
+fitResults_T1.b=x_opt(19:22);
 fitResults_T1.resnorm=fval;
 fitResults_T1.MeasPath=MeasPath;
 fitResults_T1.ub=ub;
@@ -238,7 +238,7 @@ cmap_lines=jet(15);
 nexttile([1 3])
 for crep=1:15
     hold on,
-    lines_all{crep}=plot(faxis,spec_fit(:,crep),'LineWidth',1.5,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TI= %.1f ms',st.TI_array(crep)*1e3));
+    lines_all{crep}=plot(faxis,spec_fit(:,crep),'LineWidth',1.5,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TI=%.0f ms',st.TI_array(crep)*1e3));
     plot(faxis,real(spec_data(:,crep)),'.','MarkerSize',7,'LineWidth',1.5,'Color',cmap_lines(crep,:))
 end
 xlim([-300 100])
@@ -250,7 +250,7 @@ legend([l1,l2,lines_all{:}],'Location','northwest','numColumns',2),set(gca,'Font
 nexttile([1 3])
 for crep=1:15
     hold on,
-    lines_all{crep}=plot(faxis,real(specFft(S_opt_plot(:,crep)).*zero_order.*first_order_only),'LineWidth',1.5,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TI= %.1f ms',st.TI_array(crep)*1e3));
+    lines_all{crep}=plot(faxis,real(specFft(S_opt_plot(:,crep)).*zero_order.*first_order_only),'LineWidth',1.5,'Color',cmap_lines(crep,:),'DisplayName',sprintf('TI=%.0f ms',st.TI_array(crep)*1e3));
     plot(faxis,-0.2+real(specFft(S_opt_plot(:,crep)).*zero_order.*first_order_only)-real(spec_data(:,crep)),'--','MarkerSize',7,'LineWidth',1.5,'Color',cmap_lines(crep,:))
 end
 xlim([-300 100]),title('fit with residuals'),xlabel('frequency [Hz]'),ylabel('amplitude [a.u]')
@@ -311,7 +311,7 @@ T1_s = params(13:16);
 phi0 = params(17);
 taxis=taxis+params(18);
 
-b=params(19);
+b=params(19:22);
 % taxis=taxis+beginTime;
 % Initialize FID matrix [N_TE x N_time]
 s = zeros(length(taxis),length(TI));
@@ -320,7 +320,7 @@ model_time = @(cf,a,t2)a.*exp(-taxis/t2).*exp(2i*pi*cf*taxis); %  Lorentzian
 for j=1:length(TI)
     fid=zeros(size(taxis));
     for i=1:length(a)
-        fid=fid+model_time(freq_shift_Hz(i),a(i).*(1-b*exp(-TI(j)/T1_s(i))),T2star_s(i));
+        fid=fid+model_time(freq_shift_Hz(i),a(i).*(1-b(i)*exp(-TI(j)/T1_s(i))),T2star_s(i));
     end
     % fid=fid+model_time(freq_shift_Hz(1),0.2*a(1).*(1-b*exp(-TI(j)/(1.75*T1_s(1)))),2.5*T2star_s(i));
     s(:,j)=fid(:);

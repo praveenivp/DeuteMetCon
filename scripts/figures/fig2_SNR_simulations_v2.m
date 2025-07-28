@@ -19,7 +19,7 @@ apply_T2star=true;
 calc_signaleff=true;
 
 
-B0=randn([1000,1])*2*6.5360*9.4; % 2ppm
+B0=randn([100,1])*2*6.5360*9.4; % 2ppm
 
 %% SSFP signal signal
 
@@ -82,17 +82,16 @@ for cTR=1:size(sig_all_gre,1)
 
     end
 end
-
+fac=(1.15);
 % apply T2* and duty cycle penalty
 if(apply_T2star)
 
-    sig_all_gre=sig_all_gre.*sqrt(dc_fac_gre);
-    sig_all_FISP=sig_all_FISP.*sqrt(dc_fac_fisp);
-    sig_all_csi=sig_all_csi.*sqrt(dc_fac_csi);
-     sig_all_me=sig_all_me.*sqrt(dc_fac_me);
-    sig_all_csi_noPC=sig_all_csi_noPC.*sqrt(dc_fac_csi);
-     sig_all_me_noPC=sig_all_me_noPC.*sqrt(dc_fac_me);
-
+    sig_all_gre=sig_all_gre.*sqrt(dc_fac_gre)*fac;
+    sig_all_FISP=sig_all_FISP.*sqrt(dc_fac_fisp)*fac;
+    sig_all_csi=sig_all_csi.*sqrt(dc_fac_csi)*fac;
+     sig_all_me=sig_all_me.*sqrt(dc_fac_me)*fac;
+    sig_all_csi_noPC=sig_all_csi_noPC.*sqrt(dc_fac_csi)*fac;
+     sig_all_me_noPC=sig_all_me_noPC.*sqrt(dc_fac_me)*fac;
 end
 
 %calcualte signal efficiency
@@ -101,7 +100,7 @@ if(calc_signaleff)
     sig_all_FISP=sig_all_FISP./sqrt(TR_all_gre(:));
     sig_all_csi=sig_all_csi./sqrt(TR_all_bssfp(:));
     sig_all_me=sig_all_me./sqrt(TR_all_bssfp(:));
-        
+
     sig_all_csi_noPC=sig_all_csi_noPC./sqrt(TR_all_bssfp(:));
     sig_all_me_noPC=sig_all_me_noPC./sqrt(TR_all_bssfp(:));
 end

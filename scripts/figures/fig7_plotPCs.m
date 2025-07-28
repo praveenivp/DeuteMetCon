@@ -45,16 +45,25 @@ end
 All_PC=cellfun(@(mcobj) mcobj.getNormalized(),mcobj_us,'UniformOutput',false);
 All_PC=cat(5, All_PC{:});
 All_PC=cat(5,mcobj_csi_ssfp_pinv.getNormalized(),mcobj_csi_ssfp_modes.getNormalized(),mcobj_csi_ssfp_IDEAL.getNormalized(),sqrt(4)*All_PC);
-% imPlot=ndflip(squeeze(permute(All_PC(:,20,:,:,:),[3 2 1 5 4])),[1 ]);
-imPlot=ndflip(squeeze(permute(All_PC(:,29,:,:,:),[3 1 2 5 4])),[ 1 ]); %sag
-% imPlot=ndflip(squeeze(permute(All_PC(:,:,30,:,:),[1 2 3 5 4])),[  ]); %tra
+% imPlot=ndflip(squeeze(permute(All_PC(:,29,:,:,:),[3 1 2 5 4])),[ 1 ]); %sag
+imPlot=ndflip(squeeze(permute(All_PC(:,:,30,:,:),[1 2 3 5 4])),[  ]); %tra
 
 % sum(All_PC,5)./(sqrt(size(All_PC,5)))
 figure(4),clf
-tt=tiledlayout(4,1,'TileSpacing','tight','Padding','compact');
+tt=tiledlayout(5,3,'TileSpacing','tight','Padding','compact');
+
+
+%create mask
+% mask=All_PC(:,:,30,1)>10;
+%figure,mask=CreateMask(imPlot(:,:,1,1));
+
+nexttile(tt,3),
+fm=mcobj_csi_ssfp_modes.Experimental.fm_est;
+imagesc(imdilate(mask,strel("disk",5,0)).*fm(:,:,30)),cb=colorbar;, axis image,ylabel('fieldmap [Hz]')
+xticks([]),yticks([]),colormap(gca,"turbo")
+set(gca,'FontWeight','bold'),clim([-30 30])
 
 %calc stats
-% figure,mask=CreateMask(imPlot(:,:,1,1));
 stats=reshape(imPlot,[],7,4);
 stats=stats(mask(:),:,:);
 stats_95p=squeeze(prctile(stats,95,1));
@@ -64,7 +73,7 @@ SNR_gain_p95=max(stats_95p(4:7,:),[],1)./stats_95p(1:3,:);
 
 
 for i=1:4
-    nexttile(tt)
+    nexttile(tt,1+3*i,[1 3])
 imagesc(createImMontage(imPlot(:,:,:,i),size(imPlot,3)))
 colorbar,axis image
 
@@ -95,7 +104,7 @@ end
 
 if(i==1),title('CSI-PC-bSSFP metabolite maps [SNR]'),end
 yticks([])
-colormap('turbo')
+colormap(gca,'turbo')
 set(gca,'clim',get(gca,'clim').*[1 0.9])
 
 for jj=3:3+4
@@ -103,6 +112,6 @@ text(size(imPlot,1)*jj,5,'x2','FontSize',12,'Color','W')
 end
  set(gca,'FontWeight','bold')
 end
-fontsize(gcf,"scale",1.5)
+fontsize(gcf,"scale",1.4)
 
-set(gcf,'Color','w','InvertHardcopy','off','Position', [150 212 1471 824])
+set(gcf,'Color','w','InvertHardcopy','off','Position', [150 52 1500 1100])

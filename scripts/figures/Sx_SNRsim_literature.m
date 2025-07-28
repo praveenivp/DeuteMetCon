@@ -116,7 +116,7 @@ end
 set(gca,'FontSize',12)
 
 %%
-%% Peters et al 2021
+%% Frese et al 2025
 % 0.1974           0.2401
 %  0.80797            1.7652
 %   0.28553        0.79157
@@ -134,14 +134,14 @@ DC=0.869;
 
 [Msig_all,dc_fac]=MetSignalModel   (metabolites,TE,0, ...
     TR,B0,deg2rad(FA),'GRE',DC);
-SE_csi=abs(Msig_all).*sqrt(dc_fac)./sqrt(TR);
+SE_csi=abs(Msig_all).*(dc_fac);
 
 TR=23e-3;
 FA=50;
 DC=0.76;
 [Msig_all,dc_fac]=MetSignalModel(metabolites,TE,deg2rad(PC), ...
     TR,B0,deg2rad(FA),'bSSFP',DC);
-SE_me=abs(Msig_all).*sqrt(dc_fac)./sqrt(TR);
+SE_me=abs(Msig_all).*(dc_fac);
 
 
 

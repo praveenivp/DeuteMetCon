@@ -5,10 +5,10 @@ addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
  % metabolites=getMetaboliteStruct('phantom');
- % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
-
+ % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom_old';
+% 
 % metabolites=getMetaboliteStruct('invivo');
-% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-03';
+% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
 %%
 
 
@@ -44,11 +44,9 @@ st.Cfreq=twix.hdr.Dicom.lFrequency; %Hz
 st.hdr=twix.hdr;
 st.RefVoltage= twix.hdr.Spice.TransmitterReferenceAmplitude;
 st.VectorSize=512;
-%%
 st.AcqDelay_s=seq.getBlock(1).blockDuration/2;
 filter_delay=(2.9023e-6+st.dwell_s*1.4486);
 st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
-
 
 % noise decorr and coil combination
 
@@ -83,8 +81,6 @@ end
 %normalize data: some data may ne acquired with low receiver gain
 data_Combined=data_Combined./max(abs(specFft(data_Combined(:,1))));
 
-
-
 %B0 correction for sub-03
 if(contains(MeasPath,'sub-03'))
     %do zeroth order phase correction between rep
@@ -105,35 +101,34 @@ if(contains(MeasPath,'sub-03'))
     data_Combined=data_Combined(1:512,:);
 end
 
-% full 2d fitting
-
+%% full 2d fitting
+st.AcqDelay_s=seq.getBlock(1).blockDuration/2;
+filter_delay=(2.9023e-6+st.dwell_s*1.4486);
+st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
 
 
 if(contains(MeasPath,'phantom'))
 
 % inputs
-x0 = [0.3664 0.4598 0.0835 0.0703, ...    % Amplitudes (a_i)
-    [metabolites.freq_shift_Hz],...       % Frequencies (cf_i, Hz)
+x0 = [0,0,0,0 ...    % Amplitudes (a_i)
+    [metabolites.freq_shift_Hz]+10,...       % Frequencies (cf_i, Hz)
     30e-3, 10e-3, 25e-3, 10e-3, ...  % T2* times (s)
-    0.3, 0.05, 0.2, 0.3, ...  % T2 times (s)
-    2.1933,0,...       % Zero-order phase (rad), additional delay
-    400e-3,0.1];         %water 2 
+    0.3, 0.05, 0.1, 0.1, ...  % T2 times (s)
+    pi,0,...       % Zero-order phase (rad), additional delay
+    ];         %water 2 
 % Parameter bounds: [lb] and [ub]
 lb = [0,0,0,0, ...           % a_i >= 0
     [metabolites.freq_shift_Hz]-10, ... % Frequencies
     [15e-3, 5e-3, 10e-3, 10e-3], ...  % T2* times (s)
     100e-3,10e-3,30e-3,100e-3, ...           % T2_i > 0
-    0,-1e-3,...                % phi0 in [-π, π]
-    200e-3,0];
+    pi,-1e-3,...                % phi0 in [-π, π]
+    ];
 ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
     [metabolites.freq_shift_Hz]+10, ...    % Frequencies
     [60e-3, 25e-3, 25e-3, 60e-3],... %T2* times
     350e-3,100e-3,200e-3,300e-3, ...    % T2 times
     2*pi,1e-3, ...                 % phi0
-    500e-3,Inf];
-
-   
-x0(end-1:end)=[];lb(end-1:end)=[];ub(end-1:end)=[];
+    ];
 
 
 else
@@ -161,12 +156,12 @@ ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
 end
 
 % Optimization options
-tol=1e-14;
+tol=1e-9;
 options = optimoptions(@fmincon, ...
     'Display', 'final', ...
     'Algorithm', 'interior-point', ...
     'UseParallel', true,'StepTol',tol,'OptimalityTol',tol,'FunctionTol',tol,...
-    'MaxFunction',inf,'Maxiter',2000);
+    'MaxFunction',inf,'Maxiter',200);
 
 taxis=0:st.dwell_s:st.dwell_s*(length(data_Combined)-1);
 taxis=taxis+st.AcqDelay_s;
@@ -193,9 +188,9 @@ fitResults_T2.x_opt  =x_opt;
 
 
 
-st.AcqDelay_s=st.AcqDelay_s-x_opt(18);
+st.AcqDelay_s=st.AcqDelay_s+x_opt(18);
 
-%% get uncertainity
+% get uncertainity
 N=numel(data_Combined);
 acf_r=autocorr(real(data_Combined(:)));
 acf_i=autocorr(imag(data_Combined(:)));
@@ -225,10 +220,9 @@ fitResults_T2.water2_fac_std=abs(f/(A+B))*sqrt((B^2/A^2)*std_devs(20)^2+std_devs
 fitResults_T2_all2{str2double(MeasPath(end-1:end))}=fitResults_T2;
 
 end
-
 disp(fitResults_T2)
-%%  plot
-figure(4),clf,
+%  %%%%%%%%%%%%%%%% plot %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+figure(41),clf,
 tt2=tiledlayout(2,6,'TileSpacing','tight','Padding','tight');
 
 taxis=0:st.dwell_s:st.dwell_s*(length(data_Combined)-1);
@@ -358,11 +352,11 @@ model_fid = simulate_fid(params, TE, taxis);
 residual = model_fid - FID_data;
 % residual=residual.*exp(-TE'/100e-3);
 
-if(length(params)>18)
-    reg=(1*(params(20)/params(1)-0.1))^2; %maximize T2 values difference between water and free water
-else
-    reg=0;
-end
+% if(length(params)>18)
+%     reg=(1*(params(20)/params(1)-0.1))^2; %maximize T2 values difference between water and free water
+% else
+    % reg=0;
+% end
 
-obj = sum(abs(residual(:)).^2)+reg;  % Sum of squared residuals
+obj = sum(abs(residual(:)).^2);%+reg;  % Sum of squared residuals
 end

@@ -10,8 +10,8 @@ metabolites=getMetaboliteStruct('phantom',0);
 nMet=4;
 metabolites=metabolites(1:nMet);
 
- pc_range=linspace(0,360-360/4,4)+180;
-% pc_range=linspace(0,360-360/18,18)+180;
+ pc_range_csi=linspace(0,360-360/4,4)+180;
+ pc_range_me=linspace(0,360-360/18,18)+180;
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
 FA_all=linspace(10,90,60);
@@ -38,10 +38,10 @@ for cTR=1:size(sig_all_bssfp,1)
     [~,maxFA_bssfp(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_bssfp,3)
         %off-resonance is set to -1*chemical shift otherwise increase phase-cyles
-        [Msig_all,dc_fac_ssfp(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range), ...
+        [Msig_all,dc_fac_ssfp(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_csi), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_ssfp);
         sig_all_bssfp(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
-                [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range), ...
+                [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_me), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_me);
         sig_all_me(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
 

@@ -1,4 +1,4 @@
-%% why increasing phase cycles decreases SNR
+%% why phase cycles decreases SNR
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
@@ -101,8 +101,22 @@ print(gcf,'sx_modes_eigen_vec','-dpng','-r300')
 %% plot conditioning/NSA
 metabolites=getMetaboliteStruct('invivo');
 
+
+% % 3T sim
+% for i=1:4
+% metabolites(i).freq_shift_Hz=metabolites(i).freq_shift_Hz.*(3/9.4);
+% end
+% deltaT=(0.01:0.05:1)*1e-3;
+% N=64*4;
+% deltaTE=(0.1:0.01:20)*1e-3;
+% NE=5;
+
+
 deltaT=(0.01:0.01:0.5)*1e-3;
 N=64;
+deltaTE=(0.1:0.01:6)*1e-3;
+NE=5;
+
 NSA_CSI=zeros(length(metabolites),length(deltaT));
 for cDT=1:length(deltaT)
     TE=2e-3+(0:N-1)*deltaT(cDT);
@@ -110,8 +124,7 @@ for cDT=1:length(deltaT)
     A=(IDEALobj_pinv.getA);
     NSA_CSI(:,cDT)=abs(diag(inv(A'*A)));
 end
-deltaTE=(0.1:0.01:6)*1e-3;
-NE=5;
+
 NSA_ME=zeros(length(metabolites),length(deltaTE));
 for cDT=1:length(deltaTE)
     TE=2e-3+(0:NE-1)*deltaTE(cDT);
@@ -176,3 +189,48 @@ B0=0;
         xlabel('FA [deg]'),grid on
         title('1 PC')
 
+%%  FISP and FLASH signal for Glx at optimal flip angle vs TR
+metabolites=getMetaboliteStruct('invivo');
+cMet=3;
+metabolites(cMet).T2star_s=23e-3;
+TR_all=linspace(15e-3,metabolites(cMet).T1_s*3,500);
+FA_all=acos(exp(-TR_all./metabolites(3).T1_s));
+DC=@(TR_s) ((TR_s-7.56e-3)/TR_s).*double(TR_s>7.56e-3); % 7.56 ms non-encoing time
+TE=2.3e-3;
+
+xaxis=TR_all*1e3;
+xaxis=TR_all./metabolites(cMet).T1_s;
+
+[Msig_all,dc_fac]=MetSignalModel(metabolites(cMet),0,0, ...
+    TR_all,0,FA_all,'FLASH',DC);
+figure(131),clf%
+ plot(xaxis,squeeze(max(Msig_all,[],6))./sqrt(TR_all'),'LineWidth',2)
+hold on
+% plot(xaxis,sqrt(DC(TR_all))'.*squeeze(max(Msig_all,[],6))./sqrt(TR_all'),'LineWidth',2)
+  plot(xaxis,10*(dc_fac(:)).*squeeze(max(Msig_all,[],6)),'LineWidth',2) % T2star
+
+[Msig_all,dc_fac]=MetSignalModel(metabolites(cMet),0,0, ...
+    TR_all,0,FA_all,'FISP',DC);
+
+
+plot(xaxis,squeeze(max(Msig_all,[],6))./sqrt(TR_all'),'LineWidth',2)
+ % plot(xaxis,sqrt(DC(TR_all))'.*squeeze(max(Msig_all,[],6))./sqrt(TR_all'),'LineWidth',2)
+   plot(xaxis,10*(dc_fac(:)).*squeeze(max(Msig_all,[],6)),'LineWidth',2) %T2star
+
+
+
+xlabel('TR/$T_1$','Interpreter','latex'),ylabel('signal eff, [1/$\sqrt{TR}$]','Interpreter','latex')
+grid on,ylim([0.4 2.1])
+
+% stem((36e-3)/metabolites(cMet).T1_s ,2)
+
+stem((metabolites(cMet).T2star_s*1.26+7.56e-3) /metabolites(cMet).T1_s ,2)
+legend('FLASH','FLASH-T_2* effects','FISP','FISP-T_2* effects','TR=36 ms')
+fontsize('scale',1.2)
+
+%% show 1.26*T2* is optimum readout length
+
+figure(131),clf,plot(TR_all*1e3,dc_fac.*sqrt(TR_all)) % SNR metric
+% plot(TR_all*1e3,dc_fac) % SNR metric
+hold on
+ stem(metabolites(3).T2star_s*1e3*1.26+7.56,0.1)
