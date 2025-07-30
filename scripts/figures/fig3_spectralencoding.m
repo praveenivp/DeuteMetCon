@@ -3,10 +3,10 @@ addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 
 %% all input files
-sn='/ptmp/pvalsala/deuterium/20240813_spectral';
-fn_noise=fullfile(sn,'meas_MID00849_FID14520_pvrh_trufi_Noise.dat');
-fn_1PC=fullfile(sn,'meas_MID00845_FID14516_pvrh_trufi_5E_1PC_12P5mm_FA50_s4_r180.dat');
-fn_18PC=fullfile(sn,'meas_MID00844_FID14515_pvrh_trufi_5E_18PC_12P5mm_FA50_s4_r180.dat');
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/phantom-PC';
+fn_noise=fullfile(MeasPath,'meas_MID00849_FID14520_pvrh_trufi_Noise.dat');
+fn_1PC=fullfile(MeasPath,'meas_MID00845_FID14516_pvrh_trufi_5E_1PC_12P5mm_FA50_s4_r180.dat');
+fn_18PC=fullfile(MeasPath,'meas_MID00844_FID14515_pvrh_trufi_5E_18PC_12P5mm_FA50_s4_r180.dat');
 
 % fn_1PC=fullfile(sn,'meas_MID00847_FID14518_pvrh_trufi_6E_1PC_12P5mm_FA50_s4_r180.dat');
 % fn_18PC=fullfile(sn,'meas_MID00848_FID14519_pvrh_trufi_6E_18PC_12P5mm_FA50_s4_r180.dat');
@@ -65,7 +65,7 @@ cond_std=squeeze(std(cond_all1,[],1,"omitnan"))';
 cond_std(2,1:3)=nan;
 cond_mean(2,1:3)=nan;
 dataset_label={'18PC','1PC'};
-cd(sn)
+cd(MeasPath)
 % save('latest_fig3 data.mat',"allmet","cond*","Nechoes","dataset_label")
 
 %% cretate nice mask

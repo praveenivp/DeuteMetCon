@@ -1,12 +1,12 @@
 
-addpath(genpath('/ptmp/pvalsala/MATLAB'))
+% addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
 refVoltage=480; % upto 480-520 V
 kFactor=0.83;
 RFfac=447/refVoltage; % Flip angle scale factor
 
-metabolites=getMetaboliteStruct('invivo');
+metabolites=getMetaboliteStruct('invivo',0);
 nMet=3;
 metabolites=metabolites(1:nMet);
 pc_range_csi=180+linspace(0,360-360/4,4);
@@ -19,13 +19,13 @@ apply_T2star=true;
 calc_signaleff=true;
 
 
-B0=randn([100,1])*2*6.5360*9.4; % 2ppm
+B0=randn([1000,1])*2*6.5360*9.4; % 1ppm
 
 %% SSFP signal signal
 
-sig_all_csi=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
+sig_all_bssfp=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
 sig_all_me=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
-sig_all_csi_noPC=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
+sig_all_bssfp_noPC=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
 sig_all_me_noPC=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
 dc_fac_csi=zeros(length(TR_all_bssfp),1,length(metabolites));
 dc_fac_me=zeros(length(TR_all_bssfp),1,length(metabolites));
@@ -33,23 +33,23 @@ maxFA_bssfp=zeros([length(TR_all_bssfp) 3]);
   DC_ssfp=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-bSSFP
 DC_me=@(TR_s) ((TR_s-5.5e-3)/TR_s).*double(TR_s>5.5e-3); % 5.5 ms non-encoing time ME-bSSFP
 % figure,tiledlayout("flow")
-for cTR=1:size(sig_all_csi,1)
+for cTR=1:size(sig_all_bssfp,1)
     [~,maxFA_bssfp(cTR,1)]=SimpleSARModel(1,500e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     [~,maxFA_bssfp(cTR,2)]=SimpleSARModel(1,1400e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     [~,maxFA_bssfp(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
-    for CM=1:size(sig_all_csi,3)
+    for CM=1:size(sig_all_bssfp,3)
         %off-resonance is set to -1*chemical shift otherwise increase phase-cyles
         [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_csi), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_ssfp);
-        sig_all_csi(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
-                [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_me), ...
+        sig_all_bssfp(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
+        [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_me), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_me);
         sig_all_me(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
 
 %no phase cycling
         [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(180), ...
             TR_all_bssfp(cTR),0,deg2rad(FA_all),'bSSFP',DC_ssfp);
-        sig_all_csi_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
+        sig_all_bssfp_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
                 [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(180), ...
             TR_all_bssfp(cTR),0,deg2rad(FA_all),'bSSFP',DC_me);
         sig_all_me_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
@@ -82,15 +82,15 @@ for cTR=1:size(sig_all_gre,1)
 
     end
 end
-fac=(1.15);
+fac=(1);
 % apply T2* and duty cycle penalty
 if(apply_T2star)
 
     sig_all_gre=sig_all_gre.*sqrt(dc_fac_gre)*fac;
     sig_all_FISP=sig_all_FISP.*sqrt(dc_fac_fisp)*fac;
-    sig_all_csi=sig_all_csi.*sqrt(dc_fac_csi)*fac;
+    sig_all_bssfp=sig_all_bssfp.*sqrt(dc_fac_csi)*fac;
      sig_all_me=sig_all_me.*sqrt(dc_fac_me)*fac;
-    sig_all_csi_noPC=sig_all_csi_noPC.*sqrt(dc_fac_csi)*fac;
+    sig_all_bssfp_noPC=sig_all_bssfp_noPC.*sqrt(dc_fac_csi)*fac;
      sig_all_me_noPC=sig_all_me_noPC.*sqrt(dc_fac_me)*fac;
 end
 
@@ -98,10 +98,10 @@ end
 if(calc_signaleff)
     sig_all_gre=sig_all_gre./sqrt(TR_all_gre(:));
     sig_all_FISP=sig_all_FISP./sqrt(TR_all_gre(:));
-    sig_all_csi=sig_all_csi./sqrt(TR_all_bssfp(:));
+    sig_all_bssfp=sig_all_bssfp./sqrt(TR_all_bssfp(:));
     sig_all_me=sig_all_me./sqrt(TR_all_bssfp(:));
 
-    sig_all_csi_noPC=sig_all_csi_noPC./sqrt(TR_all_bssfp(:));
+    sig_all_bssfp_noPC=sig_all_bssfp_noPC./sqrt(TR_all_bssfp(:));
     sig_all_me_noPC=sig_all_me_noPC./sqrt(TR_all_bssfp(:));
 end
 
@@ -147,7 +147,7 @@ for i=1:nMet
 
 
     ax=nexttile(tt,6+i,[2 1]);
-    imagesc((TR_all_bssfp*1e3),FA_all,sig_all_csi(:,:,i)'),colorbar
+    imagesc((TR_all_bssfp*1e3),FA_all,sig_all_bssfp(:,:,i)'),colorbar
     hold on
     plot(TR_all_bssfp*1e3,maxFA_bssfp,'LineWidth',2);
     mycolors = [1 0 0; 0 1 0; 0 0 1];
@@ -189,6 +189,7 @@ for i=1:nMet
     if(exist("plotProtbssfp",'var')),hold on,plotProtbssfp(),end
 
 end
+colormap parula
 % 
 ax=nexttile(tt,3,[2 1]);
 legend('0.5 ms','1.4 ms','2 ms','Location',[0.500954137600433 0.790301521829005 0.111786146753469 0.0485436880183452])
@@ -222,9 +223,9 @@ TR_ssfp=19e-3; %s
 [~,idxTR]=min(abs(TR_all_bssfp-TR_ssfp));
 FA_bSSFP=maxFA_bssfp(idxTR,2);
 [~,idxFA]=min(abs(FA_all-FA_bSSFP)); %use max flip angle
-sig_bSSFP=squeeze(abs(sig_all_csi(idxTR,idxFA,1:nMet)));
+sig_bSSFP=squeeze(abs(sig_all_bssfp(idxTR,idxFA,1:nMet)));
 sig_me=squeeze(abs(sig_all_me(idxTR,idxFA,1:nMet)));
-sig_bSSFP_noPC=squeeze(abs(sig_all_csi_noPC(idxTR,idxFA,1:nMet)));
+sig_bSSFP_noPC=squeeze(abs(sig_all_bssfp_noPC(idxTR,idxFA,1:nMet)));
 sig_me_noPC=squeeze(abs(sig_all_me_noPC(idxTR,idxFA,1:nMet)));
 
 %FISP
@@ -269,30 +270,28 @@ yticks(1:3),yticklabels({metabolites.name})
 
 
 
-
+FtSize=12;
 lab_csi=string(strsplit(sprintf('%0.0fx ',(round([1 1 1])))));
-text(bh{3}(1).YEndPoints,bh{3}(1).XEndPoints,lab_csi(1:3),"FontSize",12)
+text(bh{3}(1).YEndPoints,bh{3}(1).XEndPoints,lab_csi(1:3),"FontSize",FtSize)
 
 lab_csi=string(strsplit(sprintf('%0.2fx ',(round(sig_bSSFP./sig_fisp,2)))));
-text(bh{2}(1).YEndPoints,bh{2}(1).XEndPoints,lab_csi(1:3),"FontSize",12)
+text(bh{2}(1).YEndPoints,bh{2}(1).XEndPoints,lab_csi(1:3),"FontSize",FtSize)
 
 lab_csi=string(strsplit(sprintf('%0.2fx ',(round(sig_me./sig_fisp,2)))));
-text(bh{1}(1).YEndPoints,bh{1}(1).XEndPoints,lab_csi(1:3),"FontSize",12)
+text(bh{1}(1).YEndPoints,bh{1}(1).XEndPoints,lab_csi(1:3),"FontSize",FtSize)
 
 
-lab_csi=string(strsplit(sprintf('%0.2fx ',(round(sig_bSSFP_noPC./sig_fisp,2)))));
-lab_csi{2}='';
-text(bh{2}(2).YEndPoints,bh{2}(2).XEndPoints,lab_csi(1:3),"FontSize",12,'Color',[1,1,1]*0.5)
+lab_csi=compose('%+.0f%% ',100*(round(sig_bSSFP_noPC./sig_fisp-sig_bSSFP./sig_fisp,2)));
+text(bh{2}(2).YEndPoints,bh{2}(2).XEndPoints,lab_csi(1:3),"FontSize",FtSize,'Color',[1,1,1]*0.6)
 
-lab_csi=string(strsplit(sprintf('%0.2fx ',(round(sig_me_noPC./sig_fisp,2)))));
-lab_csi{2}='';
-text(bh{1}(2).YEndPoints,bh{1}(2).XEndPoints,lab_csi(1:3),"FontSize",12,'Color',[1,1,1]*0.5)
+lab_csi=compose('%+0.0f%% ',100*(round(sig_me_noPC./sig_fisp-sig_me./sig_fisp,2)));
+text(bh{1}(2).YEndPoints,bh{1}(2).XEndPoints,lab_csi(1:3),"FontSize",FtSize,'Color',[1,1,1]*0.6)
 
 
 tab=table(sig_bSSFP,sig_me,sig_fisp,sig_flash,sig_bSSFP./sig_fisp,sig_me./sig_fisp, ...
     'RowNames',{metabolites.name},'VariableNames',{'CSI-PC-bSSFP','ME-PC-BSSFP','FISP','gre','CSI-bSSFP/FISP','ME-bSSFP/FISP'})
 
-
+xlim([-0.1 2.4]),box on
 % print(gcf,'fig2_SNRsiminvivo3','-dpng','-r300')
 %
 

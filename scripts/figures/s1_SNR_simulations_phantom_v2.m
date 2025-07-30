@@ -2,7 +2,7 @@
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
-refVoltage=480; % upto 480-520 V
+refVoltage=550; % upto 550-610 V
 kFactor=0.83;
 RFfac=447/refVoltage; % Flip angle scale factor
 
@@ -20,16 +20,18 @@ apply_T2star=true;
 calc_signaleff=true;
 
 
-B0=randn([1000,1])*2*6.5360*9.4; % 2ppm
+B0=randn([1e3,1])/3*(2*6.5360*9.4); % 2ppm
 
 %% SSFP signal signal
 
 sig_all_bssfp=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
 sig_all_me=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
-dc_fac_ssfp=zeros(length(TR_all_bssfp),1,length(metabolites));
+sig_all_bssfp_noPC=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
+sig_all_me_noPC=zeros(length(TR_all_bssfp),length(FA_all),length(metabolites));
+dc_fac_bssfp=zeros(length(TR_all_bssfp),1,length(metabolites));
 dc_fac_me=zeros(length(TR_all_bssfp),1,length(metabolites));
 maxFA_bssfp=zeros([length(TR_all_bssfp) 3]);
-  DC_ssfp=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-bSSFP
+DC_ssfp=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-bSSFP
 DC_me=@(TR_s) ((TR_s-5.5e-3)/TR_s).*double(TR_s>5.5e-3); % 5.5 ms non-encoing time ME-bSSFP
 % figure,tiledlayout("flow")
 for cTR=1:size(sig_all_bssfp,1)
@@ -38,20 +40,27 @@ for cTR=1:size(sig_all_bssfp,1)
     [~,maxFA_bssfp(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_bssfp,3)
         %off-resonance is set to -1*chemical shift otherwise increase phase-cyles
-        [Msig_all,dc_fac_ssfp(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_csi), ...
+        [Msig_all,dc_fac_bssfp(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_csi), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_ssfp);
         sig_all_bssfp(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
                 [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_me), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_me);
         sig_all_me(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
 
-        %            nexttile(), plot(pc_range,abs(Msig_all(:)))
+   %no phase cycling
+        [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(180), ...
+            TR_all_bssfp(cTR),0,deg2rad(FA_all),'bSSFP',DC_ssfp);
+        sig_all_bssfp_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
+                [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(180), ...
+            TR_all_bssfp(cTR),0,deg2rad(FA_all),'bSSFP',DC_me);
+        sig_all_me_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
     end
 end
 
 %% GRE signal efficiency
 sig_all_gre=zeros(length(TR_all_gre),length(FA_all),length(metabolites));
 sig_all_FISP=zeros(length(TR_all_gre),length(FA_all),length(metabolites));
+
 dc_fac_fisp=zeros(length(TR_all_gre),1,length(metabolites));
 dc_fac_gre=zeros(length(TR_all_gre),1,length(metabolites));
 
@@ -80,8 +89,10 @@ if(apply_T2star)
 
     sig_all_gre=sig_all_gre.*sqrt(dc_fac_gre);
     sig_all_FISP=sig_all_FISP.*sqrt(dc_fac_fisp);
-    sig_all_bssfp=sig_all_bssfp.*sqrt(dc_fac_ssfp);
+    sig_all_bssfp=sig_all_bssfp.*sqrt(dc_fac_bssfp);
      sig_all_me=sig_all_me.*sqrt(dc_fac_me);
+       sig_all_bssfp_noPC=sig_all_bssfp_noPC.*sqrt(dc_fac_csi)*fac;
+     sig_all_me_noPC=sig_all_me_noPC.*sqrt(dc_fac_me)*fac;
 end
 
 %calcualte signal efficiency
@@ -90,6 +101,8 @@ if(calc_signaleff)
     sig_all_FISP=sig_all_FISP./sqrt(TR_all_gre(:));
     sig_all_bssfp=sig_all_bssfp./sqrt(TR_all_bssfp(:));
     sig_all_me=sig_all_me./sqrt(TR_all_bssfp(:));
+    sig_all_bssfp_noPC=sig_all_bssfp_noPC./sqrt(TR_all_bssfp(:));
+    sig_all_me_noPC=sig_all_me_noPC./sqrt(TR_all_bssfp(:));
 end
 
 
@@ -100,7 +113,7 @@ plotProtTR36= @ () plot(36,41*RFfac,'r*','MarkerSize',10);
 plotProtbssfp= @ () plot(19,50*RFfac,'r*','MarkerSize',10);
 
 %% Plot everything
-fh=figure(3);
+fh=figure(35); clf
 set(fh,'OuterPosition', [60 49 1162 1011],'color','w'),clf
 
 tt=tiledlayout(9,nMet,"TileSpacing","compact",'Padding','tight');
@@ -212,6 +225,9 @@ FA_bSSFP=maxFA_bssfp(idxTR,2);
 sig_bSSFP=squeeze(abs(sig_all_bssfp(idxTR,idxFA,1:nMet)));
 sig_me=squeeze(abs(sig_all_me(idxTR,idxFA,1:nMet)));
 
+sig_bSSFP_noPC=squeeze(abs(sig_all_bssfp_noPC(idxTR,idxFA,1:nMet)));
+sig_me_noPC=squeeze(abs(sig_all_me_noPC(idxTR,idxFA,1:nMet)));
+
 %FISP
 TR_gre=36e-3; %s
 FA_gre=41*RFfac; %deg
@@ -228,6 +244,7 @@ sig_flash=squeeze(abs(sig_all_gre(idxTR,idxFA,1:nMet    )));
 
 metnames=reordercats(categorical({metabolites.name}),{metabolites.name});
  nexttile(tt,nMet*2*3+1,[3 nMet])
+if(true) % plot only phase-cycled
 bh=barh(metnames,cat(2,sig_me,sig_bSSFP,sig_fisp),'FaceAlpha',0.75);
 set(gca,'ColorOrder',flip(lines(3),1));%,[[ 0.8500,0.3250,0.0980];[ 0,0.4470,0.7410];[0.4940,0.1840,0.5560];])
 lh=legend('ME-PC-bSSFP','CSI-PC-bSSFP','CSI','Location','southeast');
@@ -236,24 +253,6 @@ grid minor
 set(gca,'FontSize',12)
 title('signal efficiencies of the study protocols')
 xlim(get(gca,'xlim')+[0 0.2])
-
-% nexttile(tt,[1 3])
-% barh(metnames,cat(2,sig_prot1./sig_prot2,sig_prot2./sig_prot3),'FaceAlpha',0.75);
-% set(gca,'ColorOrder',flip(lines(2),1))
-% legend('bSSFP/FISP','FISP/FLASH','Location','southeast')
-% grid minor
-% title('ratio')
-% set(gcf,'color','w')
-% xlim(get(gca,'xlim')+[1 -0.2])
-% set(gca,'FontSize',12)
-
-tab=table(sig_bSSFP,sig_me,sig_fisp,sig_flash,sig_bSSFP./sig_fisp,sig_me./sig_fisp, ...
-    'RowNames',{metabolites.name},'VariableNames',{'CSI-PC-bSSFP','ME-PC-BSSFP','FISP','gre','CSI-bSSFP/FISP','ME-bSSFP/FISP'})
-
-
-% print(gcf,'fig2_SNRsiminvivo3','-dpng','-r300')
-%
-
 lab_csi=string(strsplit(sprintf('%0.0fx ',(round([1 1 1 1])))));
 text(bh(3).YEndPoints,bh(3).XEndPoints,lab_csi(1:nMet),"FontSize",12)
 
@@ -262,6 +261,56 @@ text(bh(2).YEndPoints,bh(2).XEndPoints,lab_csi(1:nMet   ),"FontSize",12)
 
 lab_csi=string(strsplit(sprintf('%0.2fx ',(round(sig_me./sig_fisp,2)))));
 text(bh(1).YEndPoints,bh(1).XEndPoints,lab_csi(1:nMet),"FontSize",12)
+
+
+ else
+hold on
+dat=cat(1,[sig_flash,0*sig_flash],[sig_bSSFP,sig_bSSFP_noPC-sig_bSSFP],[sig_me,sig_me_noPC-sig_me]);
+xindx=[(1:4)+0.25,1:4,(1:4)-0.25];
+co=flip(lines(3),1);
+clear bh;
+bh{1}=barh (xindx(mod(xindx*10,10)==7.5),dat(mod(xindx*10,10)==7.5,:),    'stacked','BarWidth',0.2,'FaceColor',co(1,:));
+bh{2}=barh (xindx(mod(xindx*10,10)==0),dat(mod(xindx*10,10)==0,:),    'stacked','BarWidth',0.2,'FaceColor',co(2,:));
+bh{3}=barh (xindx(mod(xindx*10,10)==2.5),dat(mod(xindx*10,10)==2.5,:),    'stacked','BarWidth',0.2,'FaceColor',co(3,:));
+bh{1}(2).FaceAlpha=0.2;
+bh{2}(2).FaceAlpha=0.2;
+bh{3}(2).FaceAlpha=0.2;
+
+bh{1}(1).FaceAlpha=0.7;
+bh{2}(1).FaceAlpha=0.7;
+bh{3}(1).FaceAlpha=0.7;
+% barh([1 2 3]*2+0.2,[sig_bSSFP,sig_bSSFP_noPC],'stacked','LineWidth',0.2)
+lh=legend([bh{1}(1),bh{2}(1),bh{3}(1)],'ME-PC-bSSFP','CSI-PC-bSSFP','CSI','Location','southeast');
+lh.Direction='reverse';
+grid minor,grid on
+set(gca,'FontSize',12)
+title('signal efficiencies of the study protocols')
+ xlim(get(gca,'xlim')+[-1 1]),ylim([0.4 4.6])
+yticks(1:nMet),yticklabels({metabolites.name})
+
+FtSize=12;
+lab_csi=compose('%0.0fx',(round([1 1 1 1])));
+text(bh{3}(1).YEndPoints,bh{3}(1).XEndPoints,lab_csi,"FontSize",FtSize)
+
+lab_csi=compose('%0.2fx ',(round(sig_bSSFP./sig_fisp,2)));
+text(bh{2}(1).YEndPoints,bh{2}(1).XEndPoints,lab_csi,"FontSize",FtSize)
+
+lab_csi=compose('%0.2fx ',(round(sig_me./sig_fisp,2)));
+text(bh{1}(1).YEndPoints,bh{1}(1).XEndPoints,lab_csi,"FontSize",FtSize)
+
+lab_csi=compose('%+.0f%% ',100*(round(sig_bSSFP_noPC./sig_fisp-sig_bSSFP./sig_fisp,2)));
+text(bh{2}(2).YEndPoints,bh{2}(2).XEndPoints,lab_csi,"FontSize",FtSize,'Color',[1,1,1]*0.6)
+
+lab_csi=compose('%+0.0f%% ',100*(round(sig_me_noPC./sig_fisp-sig_me./sig_fisp,2)));
+text(bh{1}(2).YEndPoints,bh{1}(2).XEndPoints,lab_csi,"FontSize",FtSize,'Color',[1,1,1]*0.6)
+
+tab=table(sig_bSSFP,sig_me,sig_fisp,sig_flash,sig_bSSFP./sig_fisp,sig_me./sig_fisp, ...
+    'RowNames',{metabolites.name},'VariableNames',{'CSI-PC-bSSFP','ME-PC-BSSFP','FISP','gre','CSI-bSSFP/FISP','ME-bSSFP/FISP'})
+xlim([-0.5 3]),box on
+
+end
+
+
 
 %%
 

@@ -6,30 +6,75 @@
 % vioin plots are still in native resolution
 
 
+%set up paths and data specifics
+
+addpath(genpath('/ptmp/pvalsala/MATLAB'))
+addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
+
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/sub-02-DMI';
+pn=fullfile(MeasPath,sprintf('proc_all_%s',datetime('today','Format','yyyyMMMdd')));
+mkdir(pn);cd(pn);
+dirst_csi=dir(fullfile(sn,"*rpcsi*.dat"));
+dirst_me=dir(fullfile(sn,"*rh_trufi_5E_18PC*.dat"));
+
+metabolites=getMetaboliteStruct('invivo');
 type_label_s2=[1     3     2     3     1     2     3];
-intake_time_all=[43,55,67,87,122,132,143];
+intake_time_all=[43,55,67,87,122,132,143]; % minutes
+data_label={'CSI-FISP','CSI-bSSFP','ME-bSSFP'};
 
-pn='/ptmp/pvalsala/deuterium/H4DK-64GH/proc/combined';
+%% process noise and init settings
+fn_noise=dir(fullfile(sn,"*rh_trufi*noise*.dat"));
+twix_noise=mapVBVD(fullfile(sn,fn_noise(1).name),'rmos');
+[D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix_noise);
+
+ME_setting={'NoiseDecorr',D_image,'mask',[],'metabolites',metabolites,...
+            'doPhaseCorr',false,'doZeropad',[1 1 1]*0.5,'parfor',true};
+CSI_setting={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,...
+    'doCoilCombine','adapt1','doZeropad',[0.5 0.5 0.5 0],'mask',[],'Solver','IDEAL-modes','fm','IDEAL'};
+% fm_meas_Hz=mcobj_ideal.Experimental.fm_est*(-2*pi)/(6.536 /42.567);
+%% process all data and export nifti
+mcobj_me=cell(length(dirst_me),1);
+for cf=1:length(dirst_me)
+
+       fn=fullfile(sn,dirst_me(cf).name);   
+    mcobj_me{cf}=MetCon_ME(fn,ME_setting{:},'fm','IDEAL','Solver','IDEAL-modes');
+end
+mcobj_me{3}.ShiftMetcon([0,-10,0])% shift ~10 mm in read for up in IS direction: motion corr
+% CSI data
+
+mcobj_csi=cell(length(dirst_csi),1);
+for cf=1:length(dirst_csi)
+       fn=fullfile(sn,dirst_csi(cf).name);
+    mcobj_csi{cf}=MetCon_CSI(fn,CSI_setting{:});
+end
+%write images
+
+[intake_time_s2,order_idx_s2]=sort(cellfun(@(x) x.getMinutesAfterIntake('08:36'),[mcobj_csi;mcobj_me],'UniformOutput',true));
 
 
-%%
+%% reslice
+cd(pn)
+cellfun(@(x) x.WriteImages('',{'snr','mM'}),[mcobj_csi;mcobj_me],'UniformOutput',false);
+reslice_all_sag=myspm_reslice('../anat/*anat*_sag*.nii',dir('Metcon_*.nii'), 'nearest','rs');
+reslice_all_tra=myspm_reslice('../anat/*anat*_tra*.nii',dir('Metcon_*.nii'), 'nearest','rt');
+
 %% read mifti and try imcompose
 cd(pn)
-anat_nii_sag=double(MyNiftiRead("../*anat_sag.nii",'IPR'));
-brain_nii_sag=double(MyNiftiRead("../*brain_sag.nii",'IPR'));
+anat_nii_sag=double(MyNiftiRead("../anat/*anat_sag.nii",'IPR'));
+brain_nii_sag=double(MyNiftiRead("../anat/*brain_sag.nii",'IPR'));
 brain_nii_sag=brain_nii_sag./max(brain_nii_sag);
 
 [met_snr_me_sag]=MyNiftiRead('rsMetcon_SNR*.nii','IPR');
-[met_mm_me_sag]=MyNiftiRead('rsMetcon_mM*.nii','IPR');
- met_mm_me_sag(:,:,:,1,:)=met_snr_me_sag(:,:,:,1,:);
+[met_mm_sag]=MyNiftiRead('rsMetcon_mM*.nii','IPR');
+ met_mm_sag(:,:,:,1,:)=met_snr_me_sag(:,:,:,1,:);
 
-anat_nii_tra=double(MyNiftiRead("../*anat_tra.nii",'PRS'));
-brain_nii_tra=double(MyNiftiRead("../*brain_tra.nii",'PRS'));
+anat_nii_tra=double(MyNiftiRead("../anat/*anat_tra.nii",'PRS'));
+brain_nii_tra=double(MyNiftiRead("../anat/*brain_tra.nii",'PRS'));
 brain_nii_tra=brain_nii_tra./max(brain_nii_tra);
 
 [met_snr_me_tra]=MyNiftiRead('rtMetcon_SNR*.nii','PRS');
-[met_mm_me_tra]=MyNiftiRead('rtMetcon_mM*.nii','PRS');
-met_mm_me_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
+[met_mm_tra]=MyNiftiRead('rtMetcon_mM*.nii','PRS');
+met_mm_tra(:,:,:,1,:)=met_snr_me_tra(:,:,:,1,:);
 %%
 slct=14;
 slcs=18;
@@ -47,12 +92,12 @@ title_str={'Water [SNR]','Glc [mM]','Glx [mM]'};
 %  as(im_anat)
 
 %
-[imComposed_csi]=ComposeImage({met_mm_me_sag(:,:,:,:,(type_label_s2==1)),met_mm_me_tra(:,:,:,:,(type_label_s2==1))}, ...
+[imComposed_csi]=ComposeImage({met_mm_sag(:,:,:,:,(type_label_s2==1)),met_mm_tra(:,:,:,:,(type_label_s2==1))}, ...
     {slcs,slct},crop_val,[0 5 0]);
 % as(imComposed2)
 
-%%
-SNR_scl=ones(size(met_mm_me_tra,5),1);
+%
+SNR_scl=ones(size(met_mm_tra,5),1);
 SNR_scl(type_label_s2==2)=4.0425/4.2831;
 SNR_scl(type_label_s2==3)=4.0425/2.6670;
 
@@ -64,7 +109,8 @@ load('/ptmp/pvalsala/deuterium/H4DK-64GH/proc/combined/masks.mat')
  mask_me=imerode(mask_me,strel('sphere',10));
  mask_me=imdilate(mask_me,strel('sphere',8));
 
-cax_met={[0 70],[0 3],[0 3]}
+ common_settting={'prctile',99,'SlcSel',1,'transform',@(x) x,'cax_im',[0 1],'Mask',mask_me};
+cax_met={[0 70],[0 2.2],[0 2.2]};
 figure(45),clf
     set(gcf,"Position",[50 50 1080 1080])
 tt=tiledlayout(9,3,'TileSpacing','compact','Padding','compact');
@@ -72,8 +118,7 @@ sgtitle('CSI vs CSI-bSSFP','fontsize',24)
 cb_all={};cax_all={};cnt=1;
 for i=1:3
     nexttile(tt,[2 1]);
-[cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_csi,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+[cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_csi,'MetIdx',i,'cax',cax_met{i},common_settting{:});
 if(i==1),yticks(midlabel(size(im_anat,1),3)),yticklabels(intake_time_all(type_label_s2==1)),else,yticks([]),end
 title(title_str{i})
  cb_all{cnt}=colorbar;
@@ -84,27 +129,25 @@ end
 
 
 % cax_met{1}=[0 40]
-[imComposed_ssfp]=ComposeImage({met_mm_me_sag(:,:,:,:,(type_label_s2==2)),met_mm_me_tra(:,:,:,:,(type_label_s2==2))}, ...
+[imComposed_ssfp]=ComposeImage({met_mm_sag(:,:,:,:,(type_label_s2==2)),met_mm_tra(:,:,:,:,(type_label_s2==2))}, ...
     {slcs,slct},crop_val,[0,0,0]);
 imComposed_ssfp(:,:,:,1,:)=imComposed_ssfp(:,:,:,1,:)*SNR_scl(3);
 for i=1:3
     nexttile(tt,[2 1]);
-[cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_ssfp,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+[cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_ssfp,'MetIdx',i,'cax',cax_met{i},common_settting{:});
 if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_all(type_label_s2==2)),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
 cnt=cnt+1;
 
 end
-cax_met={[0 50],[0 3],[0 3]};
-[imComposed_me]=ComposeImage({met_mm_me_sag(:,:,:,:,(type_label_s2==3)),met_mm_me_tra(:,:,:,:,(type_label_s2==3))}, ...
+cax_met{1}=[0 50];
+[imComposed_me]=ComposeImage({met_mm_sag(:,:,:,:,(type_label_s2==3)),met_mm_tra(:,:,:,:,(type_label_s2==3))}, ...
     {slcs,slct},crop_val,[0,0,0]);
 imComposed_me(:,:,:,1,:)=imComposed_me(:,:,:,1,:)*SNR_scl(2);
 for i=1:3
     nexttile(tt,[3 1]);
-[cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_me,'MetIdx',i,'prctile',98,'SlcSel',1,'transform',@(x) x,...
-  'cax',cax_met{i},'Mask',mask_me);
+[cb_all{cnt},cax_all{cnt}]=overlayplot(im_anat,imComposed_me,'MetIdx',i,'cax',cax_met{i},common_settting{:});
 if(i==1),yticks(midlabel(size(im_anat,1),4)),yticklabels(intake_time_all(type_label_s2==3)),else,yticks([]),end
 title(title_str{i})
 cb_all{cnt}=colorbar;
@@ -135,12 +178,12 @@ mask=brain_nii_tra(:,:,:,1,1)>1e-3;
 mask=imdilate(mask,strel('disk',10,0));
 % as(mask.*anat_nii_tra)
 
-col_tra=reshape(met_mm_me_tra,[],4,size(met_mm_me_tra,5));
+col_tra=reshape(met_mm_tra,[],4,size(met_mm_tra,5));
 
 colors_label=lines(3);
 
-mask=mask(:) & all(col_tra(:,2,:)<4,3);
-mask=mask(:) & all(col_tra(:,3,:)<4,3);
+mask=mask(:) & all(col_tra(:,2,:)<3,3);
+mask=mask(:) & all(col_tra(:,3,:)<3,3);
 
 % figure,
 % tt=tiledlayout(1,3);
@@ -196,7 +239,7 @@ ax2 = axes('Position',cb_handle.Position);
 imagesc(linspace(0,1,100)'),colormap(ax2,'turbo')
 set(ax2,'YAxisLocation','right','FontSize',10,'FontWeight','bold','YDir','normal')
 yticks(linspace(0,100,4))
-yticklabels(round(linspace(0,1,4)*cax(2),0))
+yticklabels(round(linspace(0,1,4)*cax(2),1))
 xticks([])
 end
 

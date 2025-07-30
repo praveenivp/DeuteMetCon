@@ -351,7 +351,7 @@ classdef MetCon_ME<matlab.mixin.Copyable
                     obj.img= sqrt(sum(abs(obj.img).^2,1));
                 case 'adapt1' %preserves phase better?
 
-                    [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,:,:),[5,6]),[1 1 1]*7);
+                    [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,1,:),[5,6]),[1 1 1]*7);
                     obj.img=(sum(obj.coilSens.*obj.img,1));
                     %                     obj.img=obj.img.*permute(obj.coilNormMat,[5 1 2 3 4]); %norm
                 case 'adapt2'

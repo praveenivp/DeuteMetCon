@@ -26,7 +26,7 @@ st=Parseinput(anat_vol,varargin{:});
 
 % transform
 anat_vol=st.transform(anat_vol);
-anat_vol=double(anat_vol)./double(max(anat_vol));
+anat_vol=double(anat_vol)./double(max(anat_vol(:)));
 met_vol=st.transform(met_vol);
 imSize=size(anat_vol);
 

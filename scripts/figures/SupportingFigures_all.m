@@ -2,7 +2,7 @@
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
-refVoltage=500; % upto 480-520 V
+refVoltage=520; % upto 480-520 V
 RFfac=447/refVoltage; % Flip angle scale factor
 
 metabolites=getMetaboliteStruct('invivo');
@@ -11,7 +11,7 @@ metabolites=metabolites(1:3);
 pc_range=linspace(0,360,40);
 TR=19e-3;
 FA=50;
-TE=4e-3;
+TE=2e-3;
 B0=0;
 
 figure,tt=tiledlayout(1,2,"TileSpacing","tight",'Padding','compact')
@@ -19,9 +19,9 @@ nexttile()
 DC=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-bSSFP
 [Msig_all,dc_fac_ssfp]=MetSignalModel(metabolites,TE,deg2rad(pc_range), ...
     TR,-1*[metabolites.freq_shift_Hz],deg2rad(FA*RFfac),'bSSFP',DC);
-DC=@(TR_s) ((TR_s-7e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-FISP
+DC=@(TR_s) ((TR_s-7.56e-3)/TR_s).*double(TR_s>7.56e-3); % 4.2 ms non-encoing time csi-FISP
 [Msig_all_FISP,dc_fac_ssfp]=MetSignalModel(metabolites,TE,0, ...
-    36e-3,0,deg2rad(41*RFfac),'FLASH',DC);
+    36e-3,0,deg2rad(41*RFfac),'FISP',DC);
 Msig_all=cat(2,squeeze(Msig_all(1,:,:,:,1)),squeeze(Msig_all(2,:,:,:,2)),squeeze(Msig_all(3,:,:,:,3)));
 plot(pc_range,squeeze(abs(Msig_all)),'LineWidth',2)
 hold on
@@ -41,7 +41,7 @@ DC=@(TR_s) ((TR_s-4.2e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time 
     TR,-1*[metabolites.freq_shift_Hz],deg2rad(FA*RFfac),'bSSFP',DC);
 DC=@(TR_s) ((TR_s-7e-3)/TR_s).*double(TR_s>4.1e-3); % 4.2 ms non-encoing time csi-FISP
 [Msig_all_FISP,dc_fac_ssfp]=MetSignalModel(metabolites,TE,0, ...
-    36e-3,0,deg2rad(41*RFfac),'FLASH',DC);
+    36e-3,0,deg2rad(41*RFfac),'FISP',DC);
 Msig_all=cat(2,squeeze(Msig_all(1,:,:,:,1)),squeeze(Msig_all(2,:,:,:,2)),squeeze(Msig_all(3,:,:,:,3)),squeeze(Msig_all(4,:,:,:,4)));
 plot(pc_range,squeeze(abs(Msig_all)),'LineWidth',2)
 hold on

@@ -1,12 +1,12 @@
-%% Script to
+%% Script to calculate T2 with custom non-linear constrained optimization
 addpath(genpath('/ptmp/pvalsala/Packages/mapVBVD'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
- % metabolites=getMetaboliteStruct('phantom');
- % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
-% 
+% metabolites=getMetaboliteStruct('phantom');
+% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+%
 % metabolites=getMetaboliteStruct('invivo');
 % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
 %%
@@ -20,14 +20,14 @@ seq=mr.Sequence(system);              % Create a new sequence object
 seq.read(fullfile(MeasPath,'../pulseq/','T2_nonsel_2H_10min.seq'))
 
 st.dwell_s=seq.getDefinition('dwell');
-st.TE_array=seq.getDefinition('TE_array');
+st.TE_array=seq.getDefinition('TE_array')-0.46e-3;
 st.rf_dur=seq.getDefinition('rf_dur');
 st.averages=seq.getDefinition('averages');
 st.repetitions=seq.getDefinition('repetitions');
- %%
- % MeasPath='/ptmp/pvalsala/deuterium/phantoms/20240925_Newsequence/TWIX';
-  % MeasPath='/ptmp/pvalsala/deuterium/phantoms/20250709_phantomSNR_4rep/TWIX';
- % MeasPath='/ptmp/pvalsala/deuterium/phantoms/20250717_relaxometryphantom';
+%%
+% MeasPath='/ptmp/pvalsala/deuterium/phantoms/20240925_Newsequence/TWIX';
+% MeasPath='/ptmp/pvalsala/deuterium/phantoms/20250709_phantomSNR_4rep/TWIX';
+% MeasPath='/ptmp/pvalsala/deuterium/phantoms/20250717_relaxometryphantom';
 dirst=dir(fullfile(MeasPath,'*_T2*.dat'));
 st.filename=dirst(end).name; %load last file
 twix=mapVBVD(fullfile(MeasPath,st.filename));
@@ -49,15 +49,11 @@ filter_delay=(2.9023e-6+st.dwell_s*1.4486);
 st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
 
 % noise decorr and coil combination
-
 data=twix.image{''};
 data=reshape(data,size(data,1),size(data,2),st.averages,st.repetitions,[]);
 data=permute(data,[2 1 4 3 5]);
 data_whiten=reshape(D_image*data(:,:),size(data));
 data_whiten=permute(data_whiten,[2 1 3 4 5]);
-
-% data_whiten=movmean(data_whiten,10,1);
-
 timeAxis=0:st.dwell_s:st.dwell_s*(size(data_whiten,1)-1);
 
 % Combine coil data with wsvd
@@ -68,13 +64,12 @@ wsvdOption.noiseCov         =0.5*eye(DataSize(2));
 data_Combined=zeros([DataSize(1) (DataSize(3:end))]);
 for rep=1:prod(DataSize(3:end))
     rawSpectra=squeeze(data_whiten(:,:,rep));  % fid x Coil
-
     if(contains(MeasPath,'phantom'))
-         [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
+        [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
     else
-     [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvdApod(rawSpectra, [], 1/20e-3,timeAxis(:),wsvdOption);
+        [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvdApod(rawSpectra, [], 1/20e-3,timeAxis(:),wsvdOption);
     end
-     data_Combined(:,rep)=wsvdCombination;
+    data_Combined(:,rep)=wsvdCombination;
     wsvdQuality_all(rep)=wsvdQuality;
 end
 
@@ -103,60 +98,57 @@ end
 
 
 % if you want to correct phase manually
-spec1=specFft(padarray(data_Combined,[512 0],0,'post'));
- faxis=linspace(-0.5/(st.dwell_s),0.5/st.dwell_s,length(spec1));
-InteractivePhaseCorr(faxis,spec1)
+% spec1=specFft(padarray(data_Combined,[512 0],0,'post'));
+% faxis=linspace(-0.5/(st.dwell_s),0.5/st.dwell_s,length(spec1));
+% InteractivePhaseCorr(faxis,spec1)
 %% full 2d fitting
 st.AcqDelay_s=seq.getBlock(1).blockDuration/2;
 filter_delay=(2.9023e-6+st.dwell_s*1.4486);
 st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
 
-
+% some Initial condition/bounds are manually tuned to minimize the uncertainity!
 if(contains(MeasPath,'phantom'))
-% inputs
-x0 = [0,0,0,0 ...    % Amplitudes (a_i)
-    [metabolites.freq_shift_Hz]+10,...       % Frequencies (cf_i, Hz)
-    30e-3, 10e-3, 25e-3, 10e-3, ...  % T2* times (s)
-    0.3, 0.05, 0.1, 0.1, ...  % T2 times (s)
-    pi,-150e-6,...       % Zero-order phase (rad), additional delay
-    ];         %water 2 
-% Parameter bounds: [lb] and [ub]
-lb = [0,0,0,0, ...           % a_i >= 0
-    [metabolites.freq_shift_Hz]-10, ... % Frequencies
-    [20e-3, 15e-3, 15e-3, 20e-3], ...  % T2* times (s)
-    100e-3,10e-3,30e-3,100e-3, ...           % T2_i > 0
-    pi,x0(18),...                % phi0 in [-π, π]
-    ];
-ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
-    [metabolites.freq_shift_Hz]+10, ...    % Frequencies
-    [60e-3, 25e-3, 40e-3, 80e-3],... %T2* times
-    350e-3,100e-3,200e-3,300e-3, ...    % T2 times
-    2*pi,x0(18), ...                 % phi0
-    ];
-
-
+    % inputs
+    x0 = [0,0,0,0 ...    % Amplitudes (a_i)
+        [metabolites.freq_shift_Hz]+10,...       % Frequencies (cf_i, Hz)
+        30e-3, 10e-3, 25e-3, 10e-3, ...  % T2* times (s)
+        0.3, 0.05, 0.1, 0.1, ...  % T2 times (s)
+        pi,-150e-6,...       % Zero-order phase (rad), additional delay
+        ];         %water 2
+    % Parameter bounds: [lb] and [ub]
+    lb = [0,0,0,0, ...           % a_i >= 0
+        [metabolites.freq_shift_Hz]-10, ... % Frequencies
+        [20e-3, 15e-3, 15e-3, 20e-3], ...  % T2* times (s)
+        100e-3,10e-3,30e-3,100e-3, ...           % T2_i > 0
+        pi,x0(18),...                % phi0 in [-π, π]
+        ];
+    ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
+        [metabolites.freq_shift_Hz]+10, ...    % Frequencies
+        [60e-3, 25e-3, 40e-3, 80e-3],... %T2* times
+        350e-3,100e-3,200e-3,300e-3, ...    % T2 times
+        2*pi,x0(18), ...                 % phi0
+        ];
 else
     % inputs
-x0 = [0.3664 0.4598 0.0835 0.0703, ...    % Amplitudes (a_i)
-    [metabolites.freq_shift_Hz],...       % Frequencies (cf_i, Hz)
-    30e-3, 10e-3, 25e-3, 10e-3, ...  % T2* times (s)
-    0.3, 0.05, 0.2, 0.3, ...  % T2 times (s)
-    2.1933,0,...       % Zero-order phase (rad), additional delay
-    400e-3,0.1];         %water 2 
-% Parameter bounds: [lb] and [ub]
-lb = [0,0,0,0, ...           % a_i >= 0
-    [metabolites.freq_shift_Hz]-10, ... % Frequencies
-    [15e-3, 5e-3, 15e-3, 11e-3]-10e-3, ...  % T2* times (s)
-    10e-3,10e-3,60e-3,10e-3, ...           % T2_i > 0
-    0,-1e-3,...                % phi0 in [-π, π]
-    200e-3,0];
-ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
-    [metabolites.freq_shift_Hz]+10, ...    % Frequencies
-    [15e-3, 15e-3, 15e-3, 15e-3]+15e-3,... %T2* times
-    50e-3,100e-3,200e-3,200e-3, ...    % T2 times
-    2*pi,1e-3, ...                 % phi0
-    500e-3,Inf];
-
+    x0 = [0.3664 0.4598 0.0835 0.0703, ...    % Amplitudes (a_i)
+        [metabolites.freq_shift_Hz],...       % Frequencies (cf_i, Hz)
+        30e-3, 10e-3, 25e-3, 10e-3, ...  % T2* times (s)
+        0.3, 0.05, 0.2, 0.3, ...  % T2 times (s)
+        2.1933,0,...       % Zero-order phase (rad), additional delay
+        400e-3,0.1];         %water 2
+    % Parameter bounds: [lb] and [ub]
+    lb = [0,0,0,0, ...           % a_i >= 0
+        [metabolites.freq_shift_Hz]-10, ... % Frequencies
+        [15e-3, 5e-3, 15e-3, 11e-3]-10e-3, ...  % T2* times (s)
+        10e-3,10e-3,60e-3,10e-3, ...           % T2_i > 0
+        0,-1e-3,...                % phi0 in [-π, π]
+        200e-3,0];
+    ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
+        [metabolites.freq_shift_Hz]+10, ...    % Frequencies
+        [15e-3, 15e-3, 15e-3, 15e-3]+15e-3,... %T2* times
+        50e-3,100e-3,200e-3,200e-3, ...    % T2 times
+        2*pi,1e-3, ...                 % phi0
+        500e-3,Inf];
 end
 
 % Optimization options
@@ -189,11 +181,10 @@ fitResults_T2.ub=ub;
 fitResults_T2.lb=lb;
 fitResults_T2.x0=x0;
 fitResults_T2.x_opt  =x_opt;
-
-
-
 st.AcqDelay_s=st.AcqDelay_s+x_opt(18);
 
+
+% very suspicious uncertainity calculation!
 % calculate effcetive sample size
 N=size(data_Combined,1);
 acf_r=autocorr(real(data_Combined(:,1)));
@@ -216,14 +207,14 @@ fitResults_T2.T2_std=std_devs([13:16])'*1e3;
 
 
 if(~contains(MeasPath,'phantom'))
-fitResults_T2.water2_T2_ms=x_opt(19)*1e3;
+    fitResults_T2.water2_T2_ms=x_opt(19)*1e3;
 
-fitResults_T2.water2_fac=x_opt(20)./(x_opt(1)+x_opt(20));
-fitResults_T2.water2_T2_std_ms=std_devs(19)*1e3;
-% https://en.wikipedia.org/wiki/Propagation_of_uncertainty
-f=x_opt(20)./(x_opt(1)+x_opt(20));A=x_opt(20);B=x_opt(1);
-fitResults_T2.water2_fac_std=abs(f/(A+B))*sqrt((B^2/A^2)*std_devs(20)^2+std_devs(1)^2);
-fitResults_T2_all2{str2double(MeasPath(end-1:end))}=fitResults_T2;
+    fitResults_T2.water2_fac=x_opt(20)./(x_opt(1)+x_opt(20));
+    fitResults_T2.water2_T2_std_ms=std_devs(19)*1e3;
+    % https://en.wikipedia.org/wiki/Propagation_of_uncertainty
+    f=x_opt(20)./(x_opt(1)+x_opt(20));A=x_opt(20);B=x_opt(1);
+    fitResults_T2.water2_fac_std=abs(f/(A+B))*sqrt((B^2/A^2)*std_devs(20)^2+std_devs(1)^2);
+    fitResults_T2_all2{str2double(MeasPath(end-1:end))}=fitResults_T2;
 
 end
 disp(fitResults_T2)
@@ -249,7 +240,7 @@ clim(cax)
 nexttile([1 2])
 imagesc(st.TE_array*1e3,faxis,    real(specFft(S_opt_plot).*zero_order.*first_order_only))
 axis square,ylim([-300 100]),clim(cax);title('fit'),xlabel('TE [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
- yticklabels([]),ylabel([])
+yticklabels([]),ylabel([])
 
 nexttile([1 2])
 imagesc(st.TE_array*1e3,faxis,    abs(real(spec1.*zero_order.*first_order_only)- real(specFft(S_opt_plot).*zero_order.*first_order_only)))
@@ -361,7 +352,7 @@ residual = model_fid - FID_data;
 % if(length(params)>18)
 %     reg=(1*(params(20)/params(1)-0.1))^2; %maximize T2 values difference between water and free water
 % else
-    % reg=0;
+% reg=0;
 % end
 
 obj = sum(abs(residual(:)).^2);%+reg;  % Sum of squared residuals

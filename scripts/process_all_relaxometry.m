@@ -50,6 +50,9 @@ std(T1_allsub)
 process_T1_inv_fmincon;
 assert(strcmp(MeasPath,'/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom'))%check Measpath is unaltered
 fitResults_T1_phantom=fitResults_T1;
+
+%%
+save('fitresults_jul30_final.mat','fitResults_T1_phantom','fitResults_T2_phantom','fitResults_T1_all','fitResults_T2_all')
 %% for table
 clc
 fprintf('%d ± %d\n',[round([mean(T1_allsub),fitResults_T1_phantom.T1_ms]); ...

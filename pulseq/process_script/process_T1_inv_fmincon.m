@@ -1,14 +1,14 @@
-%% Script to
+%% Script to calculate T1 with custom non-linear constrained optimization
 addpath(genpath('/ptmp/pvalsala/Packages/mapVBVD'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 %
-% metabolites=getMetaboliteStruct('phantom');
+%  metabolites=getMetaboliteStruct('phantom');
 % MeasPath: '/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
 
-% metabolites=getMetaboliteStruct('invivo');
-% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
+metabolites=getMetaboliteStruct('invivo');
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
 
 %% read pulseq sequence
 system = mr.opts('rfRingdownTime', 20e-6, 'rfDeadTime', 100e-6, ...
@@ -74,16 +74,13 @@ end
 data_Combined=data_Combined./max(abs(specFft(data_Combined(:,end))));
 
 % if you want to correct phase manually
-spec1=specFft(padarray(data_Combined,[512 0],0,'post'));
- faxis=linspace(-0.5/(st.dwell_s),0.5/st.dwell_s,length(spec1));
-InteractivePhaseCorr(faxis,spec1)
+% spec1=specFft(padarray(data_Combined,[512 0],0,'post'));
+%  faxis=linspace(-0.5/(st.dwell_s),0.5/st.dwell_s,length(spec1));
+% InteractivePhaseCorr(faxis,spec1)
 %% full 2d fitting
 st.AcqDelay_s=seq.getBlock(5).blockDuration+seq.getBlock(4).rf.ringdownTime+seq.getBlock(6).adc.delay;
 filter_delay=(2.9023e-6+st.dwell_s*1.4486);
 st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
-
-
-
 
 % Optimization options
 tol=1e-9;
@@ -96,11 +93,8 @@ options = optimoptions(@fmincon, ...
 taxis=0:st.dwell_s:st.dwell_s*(length(data_Combined)-1);
 taxis=taxis+st.AcqDelay_s;
 
-
-
-
+% some Initial condition/bounds are manually tuned to minimize the uncertainity!
 if(contains(MeasPath,'phantom'))
-
     %get additional delay=100e-6 from manual phase correction!
     % inputs
     x0 = [1 0.1 0.1 0.1, ...    % Amplitudes (a_i)
@@ -132,19 +126,19 @@ else
         [metabolites.T2star_s], ...  % T2* times (s)
         [metabolites.T1_s], ...  % T1 times (s)
         1.32,...       % Zero-order phase (rad
-        0,ones(1,4)*1.8];         %additional delay [s] and fit
+        0,ones(1,4)*1.5];         %additional delay [s] and fit
 
     % Parameter bounds: [lb] and [ub]
     lb = [0,0,0,0, ...           % a_i >= 0
         [metabolites.freq_shift_Hz]-10, ... % Frequencies
-        [5e-3, 5e-3, 5e-3, 3e-3], ...  % T2* times (s)
-        200e-3,50e-3,100e-3,10e-3, ...           % T1 times [s]
+        [5e-3, 5e-3, 5e-3, 20e-3], ...  % T2* times (s)
+        200e-3,50e-3,100e-3,100e-3, ...           % T1 times [s]
         0, ...                % phi0 in [-π, π]
-        -2e-4,ones(1,4)*1];
+        -2e-4,ones(1,4)*0.7];
     ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
         [metabolites.freq_shift_Hz]+10, ...    % Frequencies
-        [25e-3, 25e-3, 25e-3, 15e-3],... %T2* times [s]
-        450e-3,200e-3,300e-3,200e-3, ...    % T1 times [s]
+        [25e-3, 25e-3, 25e-3, 25e-3],... %T2* times [s]
+        450e-3,200e-3,300e-3,300e-3, ...    % T1 times [s]
         2*pi, ...                 % phi0
         2e-4,ones(1,4)*2];
 
@@ -157,7 +151,7 @@ s0=inp_func(x0);
 [x_opt,fval,exitflag,output,lambda,grad,hessian] = fmincon(obj_func,x0,[],[],[],[],lb,ub,[],options);
 st.AcqDelay_s=st.AcqDelay_s+x_opt(18);
 
-
+% very suspicious uncertainity calculation!
 
 % calculate effcetive sample size
 N=size(data_Combined,1);
@@ -213,7 +207,7 @@ spec_data=real(spec_data.*first_order_only.*zero_order);
 spec_fit=real(specFft(S_opt_plot).*first_order_only.*zero_order);
 
 
-cax=[-1 1]*0.1;
+cax=[-1 1]*0.05;
 nexttile([1 2])
 imagesc(st.TI_array*1e3,faxis, spec_data)
 axis square,ylim([-300 100]),colorbar,cb=colorbar;title('data'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
@@ -253,7 +247,7 @@ legend([l1,l2,lines_all{:}],'Location','northwest','numColumns',2),set(gca,'Font
 
 sgtitle(['Inversion recovery T1 measurements | ', MeasPath(regexp(MeasPath,'[^/]*$'):end)],'fontweight','bold','fontsize',16)
 fontsize(gcf,'scale',1.1),box on,grid minor
-set(gcf,'Position',[296 348 1200 730],'color','w')
+set(gcf,'Position',[296 348 1200 710],'color','w')
 
 
 % debug plots
@@ -330,6 +324,10 @@ end
 function obj = objective(params, TE, taxis, FID_data)
 model_fid = simulate_fid(params, TE, taxis);
 residual = model_fid - FID_data;
+
+
+%make sure fat and Glx are 61.32 Hz apart
+% reg = 0.1*(diff(params(7:8))+63).^2;
 
 obj = sum(abs(residual(:)).^2);  % Sum of squared residuals
 end
