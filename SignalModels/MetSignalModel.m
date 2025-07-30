@@ -212,7 +212,7 @@ Sfisp=M0*(sin(FA)/(1+cos(FA)))*(1-(E1-cos(FA)).*r);
 % q=E2.*(1-E1)*(1+cos(flip));
 
 %phase evolution and T2 decay
-Sfisp=Sfisp.*exp(1i*2*pi*freqOffset*TE).*exp(-TE./T2star);
+Sfisp=Sfisp.*exp(1i*2*pi*freqOffset*TE).*exp(-TE./T2);
 
 end
 

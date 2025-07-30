@@ -1,10 +1,10 @@
 %% load sequence file
 clearvars
-% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
-% metabolites=getMetaboliteStruct('phantom');
-
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
-metabolites=getMetaboliteStruct('invivo');
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+metabolites=getMetaboliteStruct('phantom');
+% 
+% MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
+% metabolites=getMetaboliteStruct('invivo');
 
 addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
@@ -214,13 +214,13 @@ for i=1:length(metabolites)
 %     else
 
     % Set up fittype and options.
-    ft = fittype( 'a*(1-2*exp(-x/b))+c', 'independent', 'x', 'dependent', 'y' );
+    ft = fittype( 'a*(1-c*exp(-x/b))', 'independent', 'x', 'dependent', 'y' );
     opts = fitoptions( 'Method', 'NonlinearLeastSquares','Robust','Bisquare','exclude',[] ,'Weights',weights(:,i));
     opts.Display = 'Off';
     opts.Robust = 'Off';
-    opts.StartPoint = [6e3 200 0];
-    opts.Lower = [-Inf 20 -Inf];
-    opts.Upper = [Inf 1e3 Inf];
+    opts.StartPoint = [6e3 200 2];
+    opts.Lower = [-Inf 20 1];
+    opts.Upper = [Inf 1e3 2];
 %     end
 
 
@@ -231,7 +231,7 @@ for i=1:length(metabolites)
     hold on
     plot(st.TI_array*1e3,fitresult(st.TI_array*1e3),lcolour,'LineWidth',1.5),
     lege{1,1}=sprintf('%s , T1= %.2f ms',typ,fitresult.b);
-    lege{2,1}=sprintf('%.1f*(1-2*exp(-x/%.2f))+%.1f',fitresult.a,fitresult.b,fitresult.c);
+    lege{2,1}=sprintf('%.1f*(1-%.1f*exp(-x/%.2f))',fitresult.a,fitresult.c,fitresult.b);
 %     disp(fitresult)
 
     xlabel('TI [ms]')

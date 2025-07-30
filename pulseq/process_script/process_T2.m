@@ -1,7 +1,7 @@
 %% load sequence file
 clearvars,%clc
-MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
-metabolites=getMetaboliteStruct('invivo');
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
+metabolites=getMetaboliteStruct('phantom');
 flip=false;
 
 % addpath(genpath('/ptmp/pvalsala/MATLAB'))

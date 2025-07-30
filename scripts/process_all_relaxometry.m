@@ -21,7 +21,7 @@ mean(T2_allsub)
 std(T2_allsub)
 
 %% phnatom
-    MeasPath=sprintf('/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom_old');
+    MeasPath=sprintf('/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom');
     metabolites=getMetaboliteStruct('phantom');
 process_T2_fmincon;
 assert(strcmp(MeasPath,'/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom'))%check Measpath is unaltered

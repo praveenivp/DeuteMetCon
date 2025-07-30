@@ -5,7 +5,7 @@ addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 
  % metabolites=getMetaboliteStruct('phantom');
- % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom_old';
+ % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/phantom';
 % 
 % metabolites=getMetaboliteStruct('invivo');
 % MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/Relaxometry/sub-01';
@@ -70,7 +70,7 @@ for rep=1:prod(DataSize(3:end))
     rawSpectra=squeeze(data_whiten(:,:,rep));  % fid x Coil
 
     if(contains(MeasPath,'phantom'))
-     [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
+         [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvd(rawSpectra, [], wsvdOption);
     else
      [wsvdCombination, wsvdQuality, wsvdCoilAmplitudes, wsvdWeights] = wsvdApod(rawSpectra, [], 1/20e-3,timeAxis(:),wsvdOption);
     end
@@ -101,6 +101,11 @@ if(contains(MeasPath,'sub-03'))
     data_Combined=data_Combined(1:512,:);
 end
 
+
+% if you want to correct phase manually
+spec1=specFft(padarray(data_Combined,[512 0],0,'post'));
+ faxis=linspace(-0.5/(st.dwell_s),0.5/st.dwell_s,length(spec1));
+InteractivePhaseCorr(faxis,spec1)
 %% full 2d fitting
 st.AcqDelay_s=seq.getBlock(1).blockDuration/2;
 filter_delay=(2.9023e-6+st.dwell_s*1.4486);
@@ -108,26 +113,25 @@ st.AcqDelay_s=(st.AcqDelay_s+filter_delay);
 
 
 if(contains(MeasPath,'phantom'))
-
 % inputs
 x0 = [0,0,0,0 ...    % Amplitudes (a_i)
     [metabolites.freq_shift_Hz]+10,...       % Frequencies (cf_i, Hz)
     30e-3, 10e-3, 25e-3, 10e-3, ...  % T2* times (s)
     0.3, 0.05, 0.1, 0.1, ...  % T2 times (s)
-    pi,0,...       % Zero-order phase (rad), additional delay
+    pi,-150e-6,...       % Zero-order phase (rad), additional delay
     ];         %water 2 
 % Parameter bounds: [lb] and [ub]
 lb = [0,0,0,0, ...           % a_i >= 0
     [metabolites.freq_shift_Hz]-10, ... % Frequencies
-    [15e-3, 5e-3, 10e-3, 10e-3], ...  % T2* times (s)
+    [20e-3, 15e-3, 15e-3, 20e-3], ...  % T2* times (s)
     100e-3,10e-3,30e-3,100e-3, ...           % T2_i > 0
-    pi,-1e-3,...                % phi0 in [-π, π]
+    pi,x0(18),...                % phi0 in [-π, π]
     ];
 ub = [Inf,Inf,Inf,Inf, ...    % a_i upper bound
     [metabolites.freq_shift_Hz]+10, ...    % Frequencies
-    [60e-3, 25e-3, 25e-3, 60e-3],... %T2* times
+    [60e-3, 25e-3, 40e-3, 80e-3],... %T2* times
     350e-3,100e-3,200e-3,300e-3, ...    % T2 times
-    2*pi,1e-3, ...                 % phi0
+    2*pi,x0(18), ...                 % phi0
     ];
 
 
@@ -190,18 +194,20 @@ fitResults_T2.x_opt  =x_opt;
 
 st.AcqDelay_s=st.AcqDelay_s+x_opt(18);
 
-% get uncertainity
-N=numel(data_Combined);
-acf_r=autocorr(real(data_Combined(:)));
-acf_i=autocorr(imag(data_Combined(:)));
-Neff=(1-acf_r(2))/(1+acf_r(2))*N+(1-acf_i(2))/(1+acf_i(2))*N;
+% calculate effcetive sample size
+N=size(data_Combined,1);
+acf_r=autocorr(real(data_Combined(:,1)));
+acf_i=autocorr(imag(data_Combined(:,1)));
+Neff_real = N / (1 + 2 * acf_r(2));
+Neff_imag = N / (1 + 2 * acf_i(2));
+Neff = 15* (Neff_real + Neff_imag) / 2;
 
 P=length(x0);
 % 1. Calculate Mean Squared Error
-mse = sqrt(fval) / (Neff - P);
+mse = fval / (Neff - P);
 
 % 2. Calculate parameter covariance matrix
-covariance_matrix = 2 * mse * pinv(hessian);
+covariance_matrix = mse * pinv(hessian);
 
 % 3. Extract the standard deviations (standard errors)
 std_devs = sqrt(diag(covariance_matrix));
