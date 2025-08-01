@@ -48,22 +48,24 @@ from `[fList, pList] = matlab.codetools.requiredFilesAndProducts('MetCon_CSI.m')
 clone this repository and its dependencies.  
 ```
 !git clone --depth=1 https://github.com/pehses/mapVBVD.git
-!git clone --depth=1 https://github.com/praveenivp/DeutMetCon.git
+!git clone --depth=1 https://github.com/praveenivp/DeutMeteCon.git
 addpath(fullfile(pwd,'mapVBVD'))
-addpath(genpath(fullfile(pwd,'DeutMetCon')))
+addpath(genpath(fullfile(pwd,'DeutMeteCon')))
 
 ```
 ## Documentaion
 
-Note that this repository is highly experimental, and for the most part, the code serves as its own documentation. Check out these demos to get a feel for what's going on, and then decide if diving into the code is worth your while.
+Note that this repository is experimental, and for the most part, the code serves as its own documentation. Check out these demos to get a feel for what's going on, and then decide if diving into the code is worth your while.
 
-The data required  for all demo scripts can be found in zenodo.org with [DOI:10.5281/zenodo.14652737](https://doi.org/10.5281/zenodo.14652737) 
+The data required  for all demo scripts can be found in zenodo.org with [DOI:10.5281/zenodo.15864245](https://doi.org/10.5281/zenodo.15864245) 
 
 - Demo 01 [[live script](./doc/demo01_CSI_phantom.mlx)][[PDF](./doc/demo01_CSI_phantom.pdf)] - CSI phantom data 
 - Demo 02 [[live script](./doc/demo02_ME_phantom.mlx)][[PDF](./doc/demo02_ME_phantom.pdf)] - ME phantom data 
 - Demo 03 [[live script](./doc/demo03_CSI_invivo.mlx)][[PDF](./doc/demo03_CSI_invivo.pdf)] - CSI invivo data 
 - Demo 04 [[live script](./doc/demo04_ME_invivo.mlx)][[PDF](./doc/demo04_ME_invivo.pdf)] - ME invivo data 
 - Demo 05 [[live script](./doc/demo05_NoiseTest.mlx)][[PDF](./doc/demo05_NoiseTest.pdf)] - Noise Test to verify
+
+In case you want to reproduce the figures in the publication, please into the [Figure scripts folder](./scripts/figures). 
 
 
 ## Acknowledgements 
@@ -87,7 +89,7 @@ The external softwares are bundled togther for easy testing of this repository. 
 If you find this helpful for your work, please cite 
 
 ```
-to be added later!
+[pre-print](https://arxiv.org/abs/2501.18567) for now 
 ```
 
 ## Author
