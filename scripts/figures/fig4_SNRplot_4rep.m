@@ -1,18 +1,15 @@
 %% input files
-MeasPath='/ptmp/pvalsala/deuterium/phantoms/20250709_phantomSNR_4rep';
-sn=fullfile(MeasPath,'TWIX');
+MeasPath='/ptmp/pvalsala/deuterium/dataForPublication/phantom-DMI-4rep';
 
-dirst_csi=dir(fullfile(sn,"*rpcsi_fid*.dat"));
+dirst_csi=dir(fullfile(MeasPath,"*rpcsi_fid*.dat"));
 % dirst_csi=dirst_csi(1);
-dirst_csi_ssfp=dir(fullfile(sn,"*rpcsi_ssfp*.dat"));
+dirst_csi_ssfp=dir(fullfile(MeasPath,"*rpcsi_ssfp*.dat"));
 % dirst_csi_ssfp(2:3);
-dirst_me=dir(fullfile(sn,"*pvrh_trufi_5E_18*.dat"));
+dirst_me=dir(fullfile(MeasPath,"*pvrh_trufi_5E_18*.dat"));
 % dirst_me=dirst_me(2);
 
 pn=fullfile(MeasPath,sprintf('proc/csi_GRE_%s',datetime('today','Format','yyyyMMMdd')));
 
-
-addpath(genpath('/ptmp/pvalsala/MATLAB'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 addpath(genpath('/ptmp/pvalsala/Packages/mapVBVD'))
@@ -21,8 +18,8 @@ addpath(genpath('/ptmp/pvalsala/Packages/mapVBVD'))
 metabolites=getMetaboliteStruct('phantom',0);
 
 %% process noise anf get fieldmap
-fn_noise=dir(fullfile(sn,"*oise*.dat"));
-twix_noise=mapVBVD(fullfile(sn,fn_noise(1).name),'rmos');
+fn_noise=dir(fullfile(MeasPath,"*oise*.dat"));
+twix_noise=mapVBVD(fullfile(MeasPath,fn_noise(1).name),'rmos');
 [D_noise,D_image,noise_info]=CalcNoiseDecorrMat(twix_noise);
 
 ME_setting={'NoiseDecorr',D_image,'mask',[],'metabolites',metabolites,...
@@ -38,18 +35,18 @@ CSI_setting_ssfp={'metabolites',metabolites,'doPhaseCorr','none','parfor',true,.
 %% process all CSI
 mcobj_csi=cell(length(dirst_csi),1);
 for cf=1:length(dirst_csi)
-       fn=fullfile(sn,dirst_csi(cf).name);
+       fn=fullfile(MeasPath,dirst_csi(cf).name);
     mcobj_csi{cf}=MetCon_CSI(fn,CSI_setting{:});
 end
 mcobj_csi_ssfp=cell(length(dirst_csi_ssfp),1);
 for cf=1:length(dirst_csi_ssfp)
-       fn=fullfile(sn,dirst_csi_ssfp(cf).name);
+       fn=fullfile(MeasPath,dirst_csi_ssfp(cf).name);
     mcobj_csi_ssfp{cf}=MetCon_CSI(fn,CSI_setting_ssfp{:});
 end
 % process all ME data
 mcobj_me=cell(length(dirst_me),1);
 for cf=1:length(dirst_me)
-       fn=fullfile(sn,dirst_me(cf).name);
+       fn=fullfile(MeasPath,dirst_me(cf).name);
     mcobj_me{cf}=MetCon_ME(fn,ME_setting{:});
 end
 %  mcobj_me{1}.PlotResults
