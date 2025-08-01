@@ -1,5 +1,4 @@
-
-% addpath(genpath('/ptmp/pvalsala/MATLAB'))
+% Figure 2: script to simualte the in vivo signal efficiencies
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'))
 
 refVoltage=480; % upto 480-520 V
@@ -14,7 +13,7 @@ pc_range_me=180+linspace(0,360-360/18,18);
 TR_all_bssfp=linspace(15e-3,25e-3,50);
 TR_all_gre=linspace(15e-3,100e-3,80);
 FA_all=linspace(10,90,60);
-TE=2.3e-3;
+TE=[0.8e-3,2.55e-3,0.35e-3]; %CSI-bSSFP,ME-bSSFP,CSI-FISP
 apply_T2star=true;
 calc_signaleff=true;
 
@@ -39,18 +38,18 @@ for cTR=1:size(sig_all_bssfp,1)
     [~,maxFA_bssfp(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_bssfp(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_bssfp,3)
         %off-resonance is set to -1*chemical shift otherwise increase phase-cyles
-        [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_csi), ...
+        [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE(1),deg2rad(pc_range_csi), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_ssfp);
         sig_all_bssfp(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
-        [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(pc_range_me), ...
+        [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE(2),deg2rad(pc_range_me), ...
             TR_all_bssfp(cTR),B0,deg2rad(FA_all),'bSSFP',DC_me);
         sig_all_me(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
 
 %no phase cycling
-        [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(180), ...
+        [Msig_all,dc_fac_csi(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE(1),deg2rad(180), ...
             TR_all_bssfp(cTR),0,deg2rad(FA_all),'bSSFP',DC_ssfp);
         sig_all_bssfp_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
-                [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE,deg2rad(180), ...
+                [Msig_all,dc_fac_me(cTR,1,CM)]=MetSignalModel(metabolites(CM),TE(2),deg2rad(180), ...
             TR_all_bssfp(cTR),0,deg2rad(FA_all),'bSSFP',DC_me);
         sig_all_me_noPC(cTR,:,CM)=abs(mean(abs(Msig_all),[3,5]));
 
@@ -64,7 +63,6 @@ dc_fac_fisp=zeros(length(TR_all_gre),1,length(metabolites));
 dc_fac_gre=zeros(length(TR_all_gre),1,length(metabolites));
 
 DC=@(TR_s) ((TR_s-7.56e-3)/TR_s).*double(TR_s>7.56e-3); % 7.56 ms non-encoing time
-
 maxFA_gre=zeros([length(TR_all_gre) 3]);
 for cTR=1:size(sig_all_gre,1)
     [~,maxFA_gre(cTR,1)]=SimpleSARModel(1,500e-6,TR_all_gre(cTR),refVoltage,kFactor);
@@ -72,26 +70,25 @@ for cTR=1:size(sig_all_gre,1)
     [~,maxFA_gre(cTR,3)]=SimpleSARModel(1,2000e-6,TR_all_gre(cTR),refVoltage,kFactor);
     for CM=1:size(sig_all_gre,3)
         
-        [Msig_all,dc_fac_fisp(cTR,1,CM)]=MetSignalModel   (metabolites(CM),TE,0, ...
+        [Msig_all,dc_fac_fisp(cTR,1,CM)]=MetSignalModel   (metabolites(CM),TE(3),0, ...
             TR_all_gre(cTR),0,deg2rad(FA_all),'FISP',DC);
         sig_all_FISP(cTR,:,CM)=mean(abs(Msig_all),3);
 
-        [Msig_all,dc_fac_gre(cTR,1,CM)]=MetSignalModel   (metabolites(CM),TE,0, ...
+        [Msig_all,dc_fac_gre(cTR,1,CM)]=MetSignalModel   (metabolites(CM),TE(3),0, ...
             TR_all_gre(cTR),0,deg2rad(FA_all),'FLASH',DC);
         sig_all_gre(cTR,:,CM)=mean(abs(Msig_all),3);
 
     end
 end
-fac=(1);
 % apply T2* and duty cycle penalty
 if(apply_T2star)
 
-    sig_all_gre=sig_all_gre.*sqrt(dc_fac_gre)*fac;
-    sig_all_FISP=sig_all_FISP.*sqrt(dc_fac_fisp)*fac;
-    sig_all_bssfp=sig_all_bssfp.*sqrt(dc_fac_csi)*fac;
-     sig_all_me=sig_all_me.*sqrt(dc_fac_me)*fac;
-    sig_all_bssfp_noPC=sig_all_bssfp_noPC.*sqrt(dc_fac_csi)*fac;
-     sig_all_me_noPC=sig_all_me_noPC.*sqrt(dc_fac_me)*fac;
+    sig_all_gre=sig_all_gre.*sqrt(dc_fac_gre);
+    sig_all_FISP=sig_all_FISP.*sqrt(dc_fac_fisp);
+    sig_all_bssfp=sig_all_bssfp.*sqrt(dc_fac_csi);
+     sig_all_me=sig_all_me.*sqrt(dc_fac_me);
+    sig_all_bssfp_noPC=sig_all_bssfp_noPC.*sqrt(dc_fac_csi);
+     sig_all_me_noPC=sig_all_me_noPC.*sqrt(dc_fac_me);
 end
 
 %calcualte signal efficiency
@@ -260,8 +257,10 @@ bh{1}(1).FaceAlpha=0.7;
 bh{2}(1).FaceAlpha=0.7;
 bh{3}(1).FaceAlpha=0.7;
 % barh([1 2 3]*2+0.2,[sig_bSSFP,sig_bSSFP_noPC],'stacked','LineWidth',0.2)
-lh=legend([bh{1}(1),bh{2}(1),bh{3}(1)],'ME-PC-bSSFP','CSI-PC-bSSFP','CSI','Location','southeast');
-lh.Direction='reverse';
+lh=legend([bh{1}(1),bh{2}(1),bh{3}(1),bh{1}(2),bh{2}(2)], ...
+    'ME-PC-bSSFP','CSI-PC-bSSFP','CSI','ME-bSSFP','CSI-bSSFP', ...
+    'Location','southeast','NumColumns',2);
+% lh.Direction='reverse';
 grid minor,grid on
 set(gca,'FontSize',12)
 title('signal efficiencies of the study protocols')
@@ -282,16 +281,16 @@ text(bh{1}(1).YEndPoints,bh{1}(1).XEndPoints,lab_csi(1:3),"FontSize",FtSize)
 
 
 lab_csi=compose('%+.0f%% ',100*(round(sig_bSSFP_noPC./sig_fisp-sig_bSSFP./sig_fisp,2)));
-text(bh{2}(2).YEndPoints,bh{2}(2).XEndPoints,lab_csi(1:3),"FontSize",FtSize,'Color',[1,1,1]*0.6)
+text(bh{2}(2).YEndPoints,bh{2}(2).XEndPoints,lab_csi(1:3),"FontSize",FtSize,'Color',[1,1,1]*0.4)
 
 lab_csi=compose('%+0.0f%% ',100*(round(sig_me_noPC./sig_fisp-sig_me./sig_fisp,2)));
-text(bh{1}(2).YEndPoints,bh{1}(2).XEndPoints,lab_csi(1:3),"FontSize",FtSize,'Color',[1,1,1]*0.6)
+text(bh{1}(2).YEndPoints,bh{1}(2).XEndPoints,lab_csi(1:3),"FontSize",FtSize,'Color',[1,1,1]*0.4)
 
 
 tab=table(sig_bSSFP,sig_me,sig_fisp,sig_flash,sig_bSSFP./sig_fisp,sig_me./sig_fisp, ...
     'RowNames',{metabolites.name},'VariableNames',{'CSI-PC-bSSFP','ME-PC-BSSFP','FISP','gre','CSI-bSSFP/FISP','ME-bSSFP/FISP'})
 
-xlim([-0.1 2.4]),box on
+xlim([-0.1 2.5]),box on
 % print(gcf,'fig2_SNRsiminvivo3','-dpng','-r300')
 %
 
