@@ -242,8 +242,11 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             MissingVOXLIN  = double(ksp.lBaseResolution -obj.twix.image.NLin);
             MissingVOXPAR = double(ksp.lPhaseEncodingLines-  obj.twix.image.NPar);
             MissingVOXSEG = double(ksp.lPartitions- obj.twix.image.NSeg);
+            try
             obj.sig  = padarray( obj.sig ,[0,MissingVOXLIN,MissingVOXSEG,MissingVOXPAR,0,0],'post');
-
+            catch
+                warning('fixing data size failed: nifti export will fail')
+            end
             %if you are not smart enough to adjust ADC phase to correct for FOV Shift duing acquisiton, do it now!
             if(obj.DMIPara.SeriesDateTime_start>datetime('20-Sep-2024') && ...
                     contains(obj.twix.hdr.Config.SequenceFileName,'ssfp') )
@@ -298,7 +301,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             %coil combination
             switch(obj.flags.doCoilCombine) %{'none','sos','adapt','adapt2'}
                 case 'sos'
-                    obj.img(1,:,:,:,:,:) = sqrt(sum(abs(obj.img).^2,1));
+                    obj.img= sqrt(sum(abs(obj.img).^2,1));
                 case 'adapt1' %preserves phase better?
 
                     [~,obj.coilSens,obj.coilNormMat]=adaptiveCombine(sum(obj.img(:,:,:,:,:,:),[5 6]));

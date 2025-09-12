@@ -2,7 +2,6 @@
 addpath(genpath('/ptmp/pvalsala/Packages/mapVBVD'))
 addpath(genpath('/ptmp/pvalsala/Packages/DeuteMetCon'));
 addpath(genpath('/ptmp/pvalsala/Packages/pulseq'));
-addpath(genpath('/ptmp/pvalsala/Packages/OXSA'))
 %% calc all T2
 
 clear fitResults_T2_all;

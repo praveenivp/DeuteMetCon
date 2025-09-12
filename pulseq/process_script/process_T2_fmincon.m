@@ -258,7 +258,8 @@ xlim([-300 100])
 title('fit with data'),xlabel('frequency [Hz]'),ylabel('amplitude [a.u]')
 l1=plot(nan,nan,'-black','LineWidth',2,'DisplayName','fit');
 l2=plot(nan,nan,'.black','LineWidth',2,'DisplayName','data');
-legend([l1,l2,lines_all{:}],'Location','northwest','numColumns',2),set(gca,'FontWeight','bold'),box on,grid minor
+legend([l1,l2,lines_all{:}],'Location','northeast','numColumns',2),set(gca,'FontWeight','bold'),box on,grid minor
+set(gca,'XDir','reverse');
 
 nexttile([1 3])
 for crep=1:15
@@ -269,7 +270,8 @@ end
 xlim([-300 100]),title('fit with residuals'),xlabel('frequency [Hz]'),ylabel('amplitude [a.u]')
 l1=plot(nan,nan,'-black','LineWidth',2,'DisplayName','fit');
 l2=plot(nan,nan,'--black','LineWidth',2,'DisplayName','residual');
-legend([l1,l2,lines_all{:}],'Location','northwest','numColumns',2),set(gca,'FontWeight','bold')
+legend([l1,l2,lines_all{:}],'Location','northeast','numColumns',2),set(gca,'FontWeight','bold')
+set(gca,'XDir','reverse');
 
 sgtitle(['Spin-echo T2 measurements | ', MeasPath(regexp(MeasPath,'[^/]*$'):end)],'fontweight','bold','fontsize',16)
 fontsize(gcf,'scale',1.1),box on,grid minor

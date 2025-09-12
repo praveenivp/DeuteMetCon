@@ -210,15 +210,15 @@ spec_fit=real(specFft(S_opt_plot).*first_order_only.*zero_order);
 cax=[-1 1]*0.05;
 nexttile([1 2])
 imagesc(st.TI_array*1e3,faxis, spec_data)
-axis square,ylim([-300 100]),colorbar,cb=colorbar;title('data'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
+axis square,ylim([-300 100]);title('data'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
 clim(cax)
 nexttile([1 2])
 imagesc(st.TI_array*1e3,faxis,   spec_fit)
-axis square,ylim([-300 100]),colorbar,clim(cb.Limits);title('fit'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
+axis square,ylim([-300 100]);title('fit'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
 clim(cax)
 nexttile([1 2])
 imagesc(st.TI_array*1e3,faxis,    abs(spec_data- spec_fit))
-axis square,ylim([-300 100]),colorbar,clim(cb.Limits),title('residual'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
+axis square,ylim([-300 100]),colorbar,title('residual'),xlabel('TI [ms]'),ylabel('frequency [Hz]'),set(gca,'FontWeight','bold')
 colormap('turbo')
 clim(cax)
 cmap_lines=jet(15);
@@ -232,7 +232,8 @@ xlim([-300 100])
 title('fit with data'),xlabel('frequency [Hz]'),ylabel('amplitude [a.u]')
 l1=plot(nan,nan,'-black','LineWidth',2,'DisplayName','fit');
 l2=plot(nan,nan,'.black','LineWidth',2,'DisplayName','data');
-legend([l1,l2,lines_all{:}],'Location','northwest','numColumns',2),set(gca,'FontWeight','bold'),box on,grid minor
+set(gca,'XDir','reverse');
+legend([l1,l2,lines_all{:}],'Location','northeast','numColumns',2),set(gca,'FontWeight','bold'),box on,grid minor
 
 nexttile([1 3])
 for crep=1:15
@@ -243,7 +244,8 @@ end
 xlim([-300 100]),title('fit with residuals'),xlabel('frequency [Hz]'),ylabel('amplitude [a.u]')
 l1=plot(nan,nan,'-black','LineWidth',2,'DisplayName','fit');
 l2=plot(nan,nan,'--black','LineWidth',2,'DisplayName','residual');
-legend([l1,l2,lines_all{:}],'Location','northwest','numColumns',2),set(gca,'FontWeight','bold')
+set(gca,'XDir','reverse');
+legend([l1,l2,lines_all{:}],'Location','northeast','numColumns',2),set(gca,'FontWeight','bold')
 
 sgtitle(['Inversion recovery T1 measurements | ', MeasPath(regexp(MeasPath,'[^/]*$'):end)],'fontweight','bold','fontsize',16)
 fontsize(gcf,'scale',1.1),box on,grid minor

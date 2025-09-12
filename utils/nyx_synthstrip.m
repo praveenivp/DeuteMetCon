@@ -1,21 +1,20 @@
-function [brainmask,brain,fname_mask]=nyx_synthstrip(fname_nii,varargin)
-% [brainmask,brain,filename]=nyx_synthstrip(fname_nii,desired_orientation);
+function [brainmask,outstruct]=nyx_synthstrip(fname_nii,varargin)
+% [brainmask,outstruct]=nyx_synthstrip(fname_nii,desired_orientation);
 % perform synstrip on the host with appatainer
 % Inputs
 % filename - nifti filename
 % orientation_desired - 3 char orienation like 'RAS','LPS','ARI' or empty ''
 % R/L- right/left, A/P- anterior/posterior I/S-Inferioir/superior
 
-[pn,fn]=fileparts(fname_nii);
-
-[fn,ext]=strtok(fn,'.');
+[pn,fn,ext]=fileparts(fname_nii);
+fn=[fn,ext];
 
 if(isempty(pn))
 pn=pwd;
 fname_nii=fullfile(pn,fname_nii);
 end
-fname_stripped=fullfile(pn,[fn,'_strip',ext]);
-fname_mask=fullfile(pn,[fn,'_mask',ext]);
+fname_stripped=fullfile(pn,['brain_',fn]);
+fname_mask=fullfile(pn,['mask_',fn]);
 
 % here the synthstrip magic happens
 tic
@@ -30,8 +29,10 @@ else
 end
 
 brainmask=MyNiftiRead(fname_mask,varargin{:});
-brain=MyNiftiRead(fname_nii,varargin{:});
-
+outstruct.brain=MyNiftiRead(fname_stripped,varargin{:});
+outstruct.brainmask=brainmask;
+outstruct.input=MyNiftiRead(fname_nii,varargin{:});
+outstruct.fname_brain='fname_nii';
 end
 
 function [Vout_all,TransformFucntion]=MyNiftiRead(filename,orientation_desired)
@@ -51,7 +52,7 @@ function [Vout_all,TransformFucntion]=MyNiftiRead(filename,orientation_desired)
 %test dataset can be found at https://github.com/rordenlab/NIfTIspace.git
 if(~isstruct(filename))
     dirst_nii=dir(filename);
-    assert(~isempty(dirst_nii),'No Matching with provided pattern');
+    assert(~isempty(dirst_nii),sprintf('No Matching file with %s pattern',filename));
 else
     dirst_nii=filename;
 end
