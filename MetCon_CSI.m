@@ -262,7 +262,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
 
             obj.sig=padarray(obj.sig,pad_size,0,'both'); % spatial zeropad
             obj.sig=padarray(obj.sig,[zeros(1,4) round(size(obj.sig,5)*obj.flags.doZeroPad(4))],0,'post'); % spectral zerpoad
-
+            obj.DMIPara.VectorSize=size(obj.sig,5);
             disp(['final CSI data size:           ', num2str(size(obj.sig))])
         end
         function performPhaseCorr(obj)
@@ -492,7 +492,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 obj.Experimental.phase=metabol_con(:,:,:,((1)+nMet*(4-1))); %phase
                 obj.Experimental.relativeNorm=metabol_con(:,:,:,((2)+nMet*(4-1)));
                 obj.Experimental.residue=metabol_con(:,:,:,((3)+nMet*(4-1)));
-                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1)*obj.DMIPara.ImagingFrequency_MHz; %water peak in Hz
+                obj.Experimental.fm_est=obj.Experimental.chemicalshift(:,:,:,1)*-1; %2H water peak in Hz, -1 to be comparable with IDEAL
 
             elseif(strcmpi(obj.flags.Solver,'LorentzFit'))
                 fids=MetCon_CSI.mat2col(permute(mean(obj.img,6),[2 3 4 5 1]),obj.mask);
@@ -672,7 +672,7 @@ classdef MetCon_CSI<matlab.mixin.Copyable
             end
         end
 
-        function demoFit(obj,pxl_idx,fig_num)
+        function OutStuct=demoFit(obj,pxl_idx,fig_num)
             %             demoFit(obj,pxl_idx)
 
         if(~exist("fig_num",'var'))
@@ -702,11 +702,15 @@ classdef MetCon_CSI<matlab.mixin.Copyable
                 fm_est=0;
             end
             end
-
-            
             expParams.offset=fm_est;
             [fitResults, fitStatus,~,CRBResults] = AMARES.amaresFit(double(fid(:)), expParams, pk,fig_num,'quiet',false);
             disp(fitResults)
+
+            OutStuct.fitResults=fitResults;
+            OutStuct.fitStatus=fitStatus;
+            OutStuct.CRBResults=CRBResults;
+            OutStuct.fid=fid;
+            OutStuct.expParams=expParams;
 return;
             % test Lorentzian fitting
             fprintf('Performing Nlorentz fit\n')
