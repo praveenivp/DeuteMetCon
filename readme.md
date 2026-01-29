@@ -47,10 +47,10 @@ from `[fList, pList] = matlab.codetools.requiredFilesAndProducts('MetCon_CSI.m')
 
 clone this repository and its dependencies.  
 ```
-!git clone --depth=1 https://github.com/pehses/mapVBVD.git
-!git clone --depth=1 https://github.com/praveenivp/DeutMeteCon.git
+!git clone https://github.com/pehses/mapVBVD.git
+!git clone https://github.com/praveenivp/DeuteMetCon.git
 addpath(fullfile(pwd,'mapVBVD'))
-addpath(genpath(fullfile(pwd,'DeutMeteCon')))
+addpath(genpath(fullfile(pwd,'DeuteMetCon')))
 
 ```
 ## Documentaion
